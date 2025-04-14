@@ -31,6 +31,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 $(TARGET): $(OBJS) | $(BIN_DIR)
 	$(CXX) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
+# Include test rules
+include mk/test.mk
+
 # Clean build files
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
