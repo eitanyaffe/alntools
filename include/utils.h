@@ -4,4 +4,5 @@
 #include <cstdio>
 #include <cstdlib>
 
-void massert(bool cond, const char* fmt, ...); 
+void massert(bool cond, const char* fmt, ...);
+void mexit(const char *fmt, ...);

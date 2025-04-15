@@ -2,32 +2,36 @@
 # This file contains test rules that can be included in the main Makefile
 
 # Directories
-EXAMPLES_DIR = examples
-OUTPUT_DIR = output
+TEST_INPUT_FILE = examples/input.paf
+TEST_OUTPUT_DIR = output
 
 # Test targets
 .PHONY: test test-construct test-info test-save clean-test
 
 # Create output directory
-$(OUTPUT_DIR):
-	mkdir -p $(OUTPUT_DIR)
+$(TEST_OUTPUT_DIR):
 
 # Test construct command
-test-construct: $(TARGET) $(OUTPUT_DIR)
+test-construct: $(TARGET) $(TEST_OUTPUT_DIR)
 	@echo "Testing PAF file construction..."
-	@$(TARGET) construct $(EXAMPLES_DIR)/example.paf $(OUTPUT_DIR)/example.aln
+	$(TARGET) construct \
+		-ifn $(TEST_INPUT_FILE) \
+		-ofn $(TEST_OUTPUT_DIR)/example.aln
 	@echo "Test completed successfully!"
 
 # Test info command
-test-info: $(TARGET) $(OUTPUT_DIR)
+test-info: $(TARGET) $(TEST_OUTPUT_DIR)
 	@echo "Testing info command..."
-	@$(TARGET) info $(OUTPUT_DIR)/example.aln
+	$(TARGET) info \
+		-ifn $(TEST_OUTPUT_DIR)/example.aln
 	@echo "Test completed successfully!"
 
 # Test save command
-test-save: $(TARGET) $(OUTPUT_DIR)
+test-save: $(TARGET) $(TEST_OUTPUT_DIR)
 	@echo "Testing save command..."
-	@$(TARGET) save $(OUTPUT_DIR)/example.aln $(OUTPUT_DIR)/example
+	$(TARGET) save \
+		-ifn $(TEST_OUTPUT_DIR)/example.aln \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/example
 	@echo "Test completed successfully!"
 
 # Run all tests
@@ -36,4 +40,4 @@ test: test-construct test-info test-save
 
 # Clean test outputs
 clean-test:
-	rm -rf $(OUTPUT_DIR) 
+	rm -rf $(TEST_OUTPUT_DIR) 

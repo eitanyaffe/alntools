@@ -15,8 +15,9 @@ using std::fstream;
 class PafReader {
 private:
     void split_line(const string& line, char delimiter, vector<string>& fields);
-    void parse_cs_string(const string& cs_string, Alignment& alignment);
+    void parse_cs_string(const string& cs_string, vector<char>& actions, vector<string>& values);
+    size_t add_mutations(const string& cs_string, Alignment& alignment);
   
 public:
-    bool read_paf(const string& filename, AlignmentStore& store);
+    void read_paf(const string& filename, AlignmentStore& store);
 }; 

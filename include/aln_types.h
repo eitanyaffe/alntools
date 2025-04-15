@@ -1,5 +1,4 @@
-#ifndef ALN_TYPES_H
-#define ALN_TYPES_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -22,7 +21,8 @@ struct Mutation {
     string query_bases;    // Bases in the query sequence (for substitutions and insertions)
     string target_bases;   // Bases in the target sequence (for substitutions and deletions)
     
-    Mutation(MutationType type, uint32_t position, const string& query_bases = "", const string& target_bases = "")
+    Mutation(MutationType type, uint32_t position, const string& query_bases = "",
+	     const string& target_bases = "")
         : type(type), position(position), query_bases(query_bases), target_bases(target_bases) {}
 };
 
@@ -31,47 +31,36 @@ struct Contig {
     string id;
     uint32_t length;
 
-    Contig() = default;
-    Contig(const string& id, uint32_t length) : id(id), length(length) {}
+    Contig(const string& id = "", uint32_t length = 0)
+      : id(id), length(length) {}
 };
 
 struct Read {
     string id;
     uint32_t length;
-    bool is_reverse;
-    vector<size_t> alignment_indices;
-
-    Read() = default;
-    Read(const string& id, uint32_t length) : id(id), length(length), is_reverse(false) {}
+    
+    Read(const string& id = "", uint32_t length = 0)
+      : id(id), length(length) {}
 };
 
 struct Alignment {
-    string query_name;
-    string target_name;
-    uint32_t query_length;
-    uint32_t target_length;
-    uint32_t query_start;
-    uint32_t query_end;
-    uint32_t target_start;
-    uint32_t target_end;
-    uint32_t alignment_length;
-    uint32_t alignment_score;
+    uint32_t read_index;
+    uint32_t contig_index;
+    uint32_t read_start;
+    uint32_t read_end;
+    uint32_t contig_start;
+    uint32_t contig_end;
     bool is_reverse;
-    vector<Mutation> mutations;  // List of mutations in this alignment
-
-    Alignment() = default;
-    Alignment(const string& query_name, const string& target_name,
-             uint32_t query_length, uint32_t target_length,
-             uint32_t query_start, uint32_t query_end,
-             uint32_t target_start, uint32_t target_end,
-             uint32_t alignment_length, uint32_t alignment_score,
-             bool is_reverse)
-        : query_name(query_name), target_name(target_name),
-          query_length(query_length), target_length(target_length),
-          query_start(query_start), query_end(query_end),
-          target_start(target_start), target_end(target_end),
-          alignment_length(alignment_length), alignment_score(alignment_score),
-          is_reverse(is_reverse) {}
+    vector<Mutation> mutations;  // Vector to store mutations
+    
+    Alignment(uint32_t read_idx = 0, uint32_t contig_idx = 0,
+             uint32_t c_start = 0, uint32_t c_end = 0,
+             uint32_t r_start = 0, uint32_t r_end = 0,
+             bool is_rev = false)
+        : read_index(read_idx), contig_index(contig_idx),
+          read_start(r_start), read_end(r_end),
+          contig_start(c_start), contig_end(c_end),
+          is_reverse(is_rev) {}
     
     // Add a mutation to the alignment
     void add_mutation(const Mutation& mutation) {
@@ -83,11 +72,3 @@ struct Alignment {
         mutations.clear();
     }
 };
-
-// Enum for strand orientation
-enum class Strand {
-    FORWARD,
-    REVERSE
-};
-
-#endif // ALN_TYPES_H 

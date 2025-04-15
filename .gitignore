@@ -1,3 +1,6 @@
 .DS_Store
 /documentation
-/bin
+/bin/*
+/obj/*
+.vscode/settings.json
+/bu/*

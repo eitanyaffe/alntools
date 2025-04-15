@@ -4,6 +4,12 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_map>
+#include <cstdint>
+
+using std::string;
+using std::vector;
+using std::unordered_map;
 
 class AlignmentStore 
 {
@@ -11,6 +17,8 @@ private:
     std::vector<Contig> contigs_;
     std::vector<Read> reads_;
     std::vector<Alignment> alignments_;
+    unordered_map<string, size_t> read_id_to_index;
+    unordered_map<string, size_t> contig_id_to_index;
 
 public:
     // Add methods
@@ -35,4 +43,14 @@ public:
     void load(const string& filename);
     size_t get_alignment_count() const { return alignments_.size(); }
     size_t get_read_count() const { return reads_.size(); }
+
+    size_t add_or_get_read_index(const string& read_id, uint32_t length);
+    size_t add_or_get_contig_index(const string& contig_id, uint32_t length);
+
+    size_t get_read_index(const string& read_id);
+    size_t get_contig_index(const string& contig_id);
+
+    // Get id by index
+    const string& get_read_id(size_t read_index) const;
+    const string& get_contig_id(size_t contig_index) const;
 }; 

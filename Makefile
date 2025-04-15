@@ -2,9 +2,18 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -I./include
 LDFLAGS = -lz
 
-SRC_DIR = src
-OBJ_DIR = obj
-BIN_DIR = bin
+SRC_DIR = cpp
+
+# Detect the operating system
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Linux)
+    OBJ_DIR = obj/linux
+    BIN_DIR = bin/linux
+else ifeq ($(UNAME_S),Darwin)
+    OBJ_DIR = obj/macos
+    BIN_DIR = bin/macos
+endif
 
 # Source files
 SRCS = $(wildcard $(SRC_DIR)/*.cpp)
