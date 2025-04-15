@@ -47,9 +47,5 @@ include mk/test.mk
 clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
-xxx: $(OBJ_DIR)/test.o
-	$(CXX) $(OBJ_DIR)/test.o -o $(BIN_DIR)/test $(LDFLAGS)
-	$(BIN_DIR)/test
-
 # Phony targets
 .PHONY: all clean 

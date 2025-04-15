@@ -22,6 +22,7 @@ void usage(const char* name)
   fprintf(stderr, "  construct: Construct ALN file from PAF file\n");
   fprintf(stderr, "  info: Show basic info and stats for ALN file\n");
   fprintf(stderr, "  save: Save ALN file to tab-delimited tables\n");
+  fprintf(stderr, "  verify: verify ALN file using reads and contigs\n");
 }
 
 int main(int argc, char **argv)
@@ -40,6 +41,8 @@ int main(int argc, char **argv)
     rc = info_main(name.c_str(), argc-1, argv+1);
   } else if (command == "save") {
     rc = save_main(name.c_str(), argc-1, argv+1);
+  } else if (command == "verify") {
+    rc = verify_main(name.c_str(), argc-1, argv+1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <iostream>
 
 using std::string;
 using std::vector;
@@ -13,6 +14,25 @@ enum class MutationType {
     INSERTION,     // Insertion of bases
     DELETION       // Deletion of bases
 };
+
+// Add operator<< for MutationType
+inline std::ostream& operator<<(std::ostream& os, const MutationType& type) {
+    switch (type) {
+        case MutationType::SUBSTITUTION:
+            os << "SUBSTITUTION";
+            break;
+        case MutationType::INSERTION:
+            os << "INSERTION";
+            break;
+        case MutationType::DELETION:
+            os << "DELETION";
+            break;
+        default:
+            os << "UNKNOWN";
+            break;
+    }
+    return os;
+}
 
 // Structure to represent a mutation
 struct Mutation {
