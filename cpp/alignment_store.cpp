@@ -23,6 +23,8 @@ void AlignmentStore::save(const string& filename)
     // Save reads
     size_t num_reads = reads_.size();
     file.write(reinterpret_cast<const char*>(&num_reads), sizeof(num_reads));
+    std::cout << "Saving " << num_reads << " reads" << endl;
+
     for (const auto& read : reads_) {
         // Write the read id length and id
         size_t id_length = read.id.size();
@@ -32,9 +34,10 @@ void AlignmentStore::save(const string& filename)
         // Write the read length
         file.write(reinterpret_cast<const char*>(&read.length), sizeof(read.length));
     }
-
+    
     // Save contigs
     size_t num_contigs = contigs_.size();
+    std::cout << "Saving " << num_contigs << " contigs" << endl;
     file.write(reinterpret_cast<const char*>(&num_contigs), sizeof(num_contigs));
     for (const auto& contig : contigs_) {
         // Write the contig id length and id
@@ -48,6 +51,7 @@ void AlignmentStore::save(const string& filename)
 
     // Save alignments
     size_t num_alignments = alignments_.size();
+    std::cout << "Saving " << num_alignments << " alignments" << endl;
     file.write(reinterpret_cast<const char*>(&num_alignments), sizeof(num_alignments));
     for (const auto& alignment : alignments_) {
         // Write the alignment data
@@ -92,9 +96,12 @@ void AlignmentStore::load(const string& filename)
     read_id_to_index.clear();
     contig_id_to_index.clear();
 
-    // Load reads
-    size_t num_reads;
+    // reads
+    size_t num_reads = 1;
+    std::cout << "Loading " << num_reads << " reads" << endl;
     file.read(reinterpret_cast<char*>(&num_reads), sizeof(num_reads));
+    std::cout << "Loading " << num_reads << " reads" << endl;
+
     for (size_t i = 0; i < num_reads; ++i) {
         Read read;
 
@@ -129,6 +136,7 @@ void AlignmentStore::load(const string& filename)
         contigs_.push_back(contig);
         contig_id_to_index[contig.id] = i;
     }
+    std::cout << "Loaded " << num_contigs << " contigs" << endl;
 
     // Load alignments
     size_t num_alignments;

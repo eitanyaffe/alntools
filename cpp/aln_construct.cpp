@@ -8,7 +8,7 @@
 
 using namespace std;
 
-void construct_command(const string& paf_file, const string& aln_file) 
+void construct_command(const string& paf_file, const string& aln_file, int max_reads) 
 {
     cout << "Reading PAF file: " << paf_file << "\n";
     
@@ -16,7 +16,7 @@ void construct_command(const string& paf_file, const string& aln_file)
     AlignmentStore store;
     
     cout << "Processing alignments...\n";
-    reader.read_paf(paf_file, store);
+    reader.read_paf(paf_file, store, max_reads);
     
     cout << "Writing alignment file: " << aln_file << "\n";
     store.save(aln_file);
@@ -32,6 +32,7 @@ void construct_params(const char* name, int argc, char **argv, Parameters& param
 {
   params.add_parser("ifn", new ParserFilename("input PAF file"), true);
   params.add_parser("ofn", new ParserFilename("output ALN file"), true);
+  params.add_parser("max_reads", new ParserInteger("use only this number of alignments", 0), false);
   
   if (argc == 1) {
     params.usage(name);
@@ -52,8 +53,9 @@ int construct_main(const char* name, int argc, char **argv)
   
   string ifn = params.get_string("ifn");
   string ofn = params.get_string("ofn");
+  int max_reads = params.get_int("max_reads");
 
-  construct_command(ifn, ofn);
+  construct_command(ifn, ofn, max_reads);
   
   return 0;
 }

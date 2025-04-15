@@ -19,5 +19,5 @@ private:
     size_t add_mutations(const string& cs_string, Alignment& alignment);
   
 public:
-    void read_paf(const string& filename, AlignmentStore& store);
+  void read_paf(const string& filename, AlignmentStore& store, int max_reads);
 }; 

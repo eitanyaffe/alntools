@@ -22,7 +22,7 @@ using std::stringstream;
 using std::invalid_argument;
 using std::string_view;
 
-void PafReader::read_paf(const string& filename, AlignmentStore& store) 
+void PafReader::read_paf(const string& filename, AlignmentStore& store, int max_reads) 
 {
     ifstream file(filename);
     massert(file.is_open(), "Failed to open file: %s", filename.c_str());
@@ -33,9 +33,11 @@ void PafReader::read_paf(const string& filename, AlignmentStore& store)
 
     while (std::getline(file, line)) {
         line_number++;
-        if (line_number % 10000 == 0) {
+        if (line_number % 10000 == 0)
             std::cout << "Processed " << line_number << " alignments..." << std::endl;
-        }
+	if (line_number > (size_t)max_reads && max_reads != 0)
+	  break;
+	
         vector<string> fields;
         split_line(line, '\t', fields);
 
