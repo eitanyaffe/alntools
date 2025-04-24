@@ -10,7 +10,11 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "commands.h"
+
+int construct_main(const char* name, int argc, char **argv);
+int info_main(const char* name, int argc, char **argv);
+int extract_main(const char* name, int argc, char **argv);
+int verify_main(const char* name, int argc, char **argv);
 
 using namespace std;
 
@@ -21,7 +25,7 @@ void usage(const char* name)
   fprintf(stderr, "commands:\n");
   fprintf(stderr, "  construct: Construct ALN file from PAF file\n");
   fprintf(stderr, "  info: Show basic info and stats for ALN file\n");
-  fprintf(stderr, "  save: Save ALN file to tab-delimited tables\n");
+  fprintf(stderr, "  extract: Save ALN file to tab-delimited tables\n");
   fprintf(stderr, "  verify: verify ALN file using reads and contigs\n");
 }
 
@@ -39,8 +43,8 @@ int main(int argc, char **argv)
     rc = construct_main(name.c_str(), argc-1, argv+1);
   } else if (command == "info") {
     rc = info_main(name.c_str(), argc-1, argv+1);
-  } else if (command == "save") {
-    rc = save_main(name.c_str(), argc-1, argv+1);
+  } else if (command == "extract") {
+    rc = extract_main(name.c_str(), argc-1, argv+1);
   } else if (command == "verify") {
     rc = verify_main(name.c_str(), argc-1, argv+1);
   } else {

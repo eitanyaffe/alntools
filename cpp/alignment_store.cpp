@@ -55,6 +55,13 @@ void AlignmentStore::save(const string& filename)
         file.write(reinterpret_cast<const char*>(&alignment.contig_index), sizeof(alignment.contig_index));
         file.write(reinterpret_cast<const char*>(&alignment.read_start), sizeof(alignment.read_start));
         file.write(reinterpret_cast<const char*>(&alignment.read_end), sizeof(alignment.read_end));
+        
+        // Write contig start and end
+        file.write(reinterpret_cast<const char*>(&alignment.contig_start), sizeof(alignment.contig_start));
+        file.write(reinterpret_cast<const char*>(&alignment.contig_end), sizeof(alignment.contig_end));
+
+        // Write is_reverse
+        file.write(reinterpret_cast<const char*>(&alignment.is_reverse), sizeof(alignment.is_reverse));
 
         // Write mutations
         size_t num_mutations = alignment.mutations.size();
@@ -63,15 +70,15 @@ void AlignmentStore::save(const string& filename)
             file.write(reinterpret_cast<const char*>(&mutation.type), sizeof(mutation.type));
             file.write(reinterpret_cast<const char*>(&mutation.position), sizeof(mutation.position));
 
-            // Write query_bases
-            size_t query_bases_length = mutation.query_bases.size();
-            file.write(reinterpret_cast<const char*>(&query_bases_length), sizeof(query_bases_length));
-            file.write(mutation.query_bases.c_str(), query_bases_length);
+            // Write read_nts
+            size_t read_nts_length = mutation.read_nts.size();
+            file.write(reinterpret_cast<const char*>(&read_nts_length), sizeof(read_nts_length));
+            file.write(mutation.read_nts.c_str(), read_nts_length);
 
-            // Write target_bases
-            size_t target_bases_length = mutation.target_bases.size();
-            file.write(reinterpret_cast<const char*>(&target_bases_length), sizeof(target_bases_length));
-            file.write(mutation.target_bases.c_str(), target_bases_length);
+            // Write ref_nts
+            size_t ref_nts_length = mutation.ref_nts.size();
+            file.write(reinterpret_cast<const char*>(&ref_nts_length), sizeof(ref_nts_length));
+            file.write(mutation.ref_nts.c_str(), ref_nts_length);
         }
     }
 
@@ -141,6 +148,11 @@ void AlignmentStore::load(const string& filename)
         file.read(reinterpret_cast<char*>(&alignment.contig_index), sizeof(alignment.contig_index));
         file.read(reinterpret_cast<char*>(&alignment.read_start), sizeof(alignment.read_start));
         file.read(reinterpret_cast<char*>(&alignment.read_end), sizeof(alignment.read_end));
+        // Read contig start and end
+        file.read(reinterpret_cast<char*>(&alignment.contig_start), sizeof(alignment.contig_start));
+        file.read(reinterpret_cast<char*>(&alignment.contig_end), sizeof(alignment.contig_end));
+        // Read is_reverse
+        file.read(reinterpret_cast<char*>(&alignment.is_reverse), sizeof(alignment.is_reverse));
 
         // Read mutations
         size_t num_mutations;
@@ -148,26 +160,26 @@ void AlignmentStore::load(const string& filename)
         for (size_t j = 0; j < num_mutations; ++j) {
             MutationType type;
             uint32_t position;
-            string query_bases;
-            string target_bases;
+            string read_nts;
+            string ref_nts;
             
             file.read(reinterpret_cast<char*>(&type), sizeof(type));
             file.read(reinterpret_cast<char*>(&position), sizeof(position));
             
-            // Read query_bases
-            size_t query_bases_length;
-            file.read(reinterpret_cast<char*>(&query_bases_length), sizeof(query_bases_length));
-            query_bases.resize(query_bases_length);
-            file.read(&query_bases[0], query_bases_length);
+            // Read read_nts
+            size_t read_nts_length;
+            file.read(reinterpret_cast<char*>(&read_nts_length), sizeof(read_nts_length));
+            read_nts.resize(read_nts_length);
+            file.read(&read_nts[0], read_nts_length);
             
-            // Read target_bases
-            size_t target_bases_length;
-            file.read(reinterpret_cast<char*>(&target_bases_length), sizeof(target_bases_length));
-            target_bases.resize(target_bases_length);
-            file.read(&target_bases[0], target_bases_length);
+            // Read ref_nts
+            size_t ref_nts_length;
+            file.read(reinterpret_cast<char*>(&ref_nts_length), sizeof(ref_nts_length));
+            ref_nts.resize(ref_nts_length);
+            file.read(&ref_nts[0], ref_nts_length);
             
             // Create mutation with the read data
-            Mutation mutation(type, position, query_bases, target_bases);
+            Mutation mutation(type, position, read_nts, ref_nts);
             alignment.mutations.push_back(mutation);
         }
 
@@ -181,19 +193,19 @@ void AlignmentStore::export_tab_delimited(const string& prefix)
 {
     // Write main alignments file
     string alignments_file = prefix + "_alignments.txt";
-    std::cout << "Writing alignments to: " << alignments_file << std::endl;
+    std::cout << "writing alignments to: " << alignments_file << std::endl;
     ofstream alignments_out(alignments_file);
     massert(alignments_out.is_open(), "Failed to open file for writing: %s", alignments_file.c_str());
 
     // Write mutations file
     string mutations_file = prefix + "_mutations.txt";
-    std::cout << "Writing mutations to: " << mutations_file << std::endl;
+    std::cout << "writing mutations to: " << mutations_file << std::endl;
     ofstream mutations_out(mutations_file);
     massert(mutations_out.is_open(), "Failed to open file for writing: %s", mutations_file.c_str());
 
     // Write headers
-    alignments_out << "read_id\tread_start\tread_end\tcontig_id\tcontig_start\tcontig_end\tmutation_count\n";
-    mutations_out << "read_id\tcontig_id\tmutation_type\tposition\tquery_bases\ttarget_bases\n";
+    alignments_out << "read_id\tread_start\tread_end\tcontig_id\tcontig_start\tcontig_end\tmutation_count\tis_reverse\n";
+    mutations_out << "read_id\tcontig_id\tmutation_type\tcontig_position\tread_position\tread_nts\tref_nts\n";
 
     // Write alignments and mutations
     for (const auto& alignment : alignments_) {
@@ -208,8 +220,8 @@ void AlignmentStore::export_tab_delimited(const string& prefix)
                       << contig_id << "\t"
                       << alignment.contig_start << "\t"
                       << alignment.contig_end << "\t"
-                      << alignment.mutations.size() << "\n";
-
+                      << alignment.mutations.size() << "\t"
+                      << (alignment.is_reverse ? "true" : "false") << "\n";
         // Write detailed mutation data
         for (const auto& mutation : alignment.mutations) {
             string mutation_type;
@@ -228,12 +240,21 @@ void AlignmentStore::export_tab_delimited(const string& prefix)
                     break;
             }
 
+            // Calculate read position from contig position
+            uint32_t read_position;
+            if (alignment.is_reverse) {
+                read_position = alignment.read_end - (mutation.position - alignment.contig_start);
+            } else {
+                read_position = alignment.read_start + (mutation.position - alignment.contig_start);
+            }
+
             mutations_out << read_id << "\t"
                          << contig_id << "\t"
                          << mutation_type << "\t"
                          << mutation.position << "\t"
-                         << mutation.query_bases << "\t"
-                         << mutation.target_bases << "\n";
+                         << read_position << "\t"
+                         << mutation.read_nts << "\t"
+                         << mutation.ref_nts << "\n";
         }
     }
 

@@ -1,5 +1,5 @@
 # Test rules for alntools
-# This file contains test rules that can be included in the main Makefile
+# This file contains test rules that are included in the main Makefile
 
 # Directories
 TEST_INPUT_FILE = examples/input.paf

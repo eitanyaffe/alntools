@@ -6,156 +6,136 @@
 #include <vector>
 #include "alignment_store.h"
 #include "Params.h"
+#include "utils.h"
+#include <algorithm>
 
 using namespace std;
 
-// Function to read FASTA file and create a map of contig IDs to sequences
-unordered_map<string, string> read_fasta(const string& filename,
-					 const unordered_set<string>& contig_ids)
-{
-    cout << "Reading FASTA file: " << filename << endl;
-    unordered_map<string, string> contigs;
-    ifstream file(filename);
-    string line, id, sequence;
-    while (getline(file, line)) {
-        if (line[0] == '>') {
-            if (!id.empty() && contig_ids.find(id) != contig_ids.end()) {
-                contigs[id] = sequence;
-            }
-            id = line.substr(1); // Remove '>'
-            sequence.clear();
-        } else {
-            sequence += line;
-        }
-    }
-    if (!id.empty() && contig_ids.find(id) != contig_ids.end()) {
-        contigs[id] = sequence;
-    }
-    return contigs;
-}
-
-// Function to read FASTQ file and create a map of read IDs to sequences
-unordered_map<string, string> read_fastq(const string& filename,
-					 const unordered_set<string>& read_ids)
-{
-    cout << "Reading FASTQ file: " << filename << endl;
-    unordered_map<string, string> reads;
-    ifstream file(filename);
-    string line, id, sequence;
-    while (getline(file, line)) {
-        if (line[0] == '@') {
-            id = line;
-            getline(file, sequence); // Read the sequence line
-            if (read_ids.find(id) != read_ids.end()) {
-                reads[id] = sequence;
-            }
-            getline(file, line); // Skip the '+' line
-            getline(file, line); // Skip the quality line
-        }
-    }
-    return reads;
-}
-
-// Function to apply mutations to a contig fragment
-string apply_mutations(const string& contig_fragment,
-		       const vector<Mutation>& mutations,
-		       uint32_t contig_start)
-{
-    string mutated_fragment = contig_fragment;
-    int offset = 0; // Track changes in length due to insertions/deletions
-
-    for (const auto& mutation : mutations) {
-        int adjusted_position = mutation.position - contig_start + offset;
-        switch (mutation.type) {
-            case MutationType::SUBSTITUTION:
-                mutated_fragment[adjusted_position] = mutation.query_bases[0];
-                break;
-            case MutationType::INSERTION:
-                mutated_fragment.insert(adjusted_position, mutation.query_bases);
-                offset += mutation.query_bases.size();
-                break;
-            case MutationType::DELETION:
-                mutated_fragment.erase(adjusted_position, mutation.target_bases.size());
-                offset -= mutation.target_bases.size();
-                break;
-        }
-    }
-    return mutated_fragment;
-}
-
 // Main verification function
-void verify_command(const string& ifn_aln,
-		    const string& ifn_reads,
-		    const string& ifn_contigs)
+void verify_command(const string &ifn_aln,
+                    const string &ifn_reads,
+                    const string &ifn_contigs)
 {
-    AlignmentStore store;
-    cout << "Reading alignment file: " << ifn_aln << "\n";
-    store.load(ifn_aln);
+  AlignmentStore store;
+  cout << "Reading alignment file: " << ifn_aln << "\n";
+  store.load(ifn_aln);
 
-    // Collect contig and read IDs from the store
-    vector<string> contig_ids, read_ids;
-    for (const auto& alignment : store.get_alignments()) {
-        contig_ids.push_back(store.get_contig_id(alignment.contig_index));
-        read_ids.push_back(store.get_read_id(alignment.read_index));
-    }
+  bool quit_on_error = true;
 
-    unordered_set<string> contig_set(contig_ids.begin(), contig_ids.end());
-    unordered_set<string> read_set(read_ids.begin(), read_ids.end());
+  // Collect contig and read IDs from the store
+  vector<string> contig_ids, read_ids;
+  for (const auto &alignment : store.get_alignments())
+  {
+    contig_ids.push_back(store.get_contig_id(alignment.contig_index));
+    read_ids.push_back(store.get_read_id(alignment.read_index));
+  }
 
-    auto contigs = read_fasta(ifn_contigs, contig_set);
-    auto reads = read_fastq(ifn_reads, read_set);
+  unordered_set<string> contig_set(contig_ids.begin(), contig_ids.end());
+  unordered_set<string> read_set(read_ids.begin(), read_ids.end());
 
-    int bad_alignment_count = 0;
-    for (const auto& alignment : store.get_alignments()) {
-        const string& contig_id = store.get_contig_id(alignment.contig_index);
-        const string& read_id = store.get_read_id(alignment.read_index);
+  unordered_map<string, string> contigs;
+  unordered_map<string, string> reads;
+  read_fasta(ifn_contigs, contig_set, contigs);
+  read_fastq(ifn_reads, read_set, reads);
 
-        if (contigs.find(contig_id) == contigs.end() || reads.find(read_id) == reads.end()) {
-            cerr << "Error: Contig or read not found for alignment.\n";
-            abort();
-        }
+  int bad_alignment_count = 0;
+  for (const auto &alignment : store.get_alignments())
+  {
 
-        string contig_fragment = contigs[contig_id].substr(alignment.contig_start,
-							   alignment.contig_end - alignment.contig_start);
-        string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, alignment.contig_start);
-        string read_segment = reads[read_id].substr(alignment.read_start,
-						    alignment.read_end - alignment.read_start);
+    const string &contig_id = store.get_contig_id(alignment.contig_index);
+    const string &read_id = store.get_read_id(alignment.read_index);
+      
+    cout << "==================\n"
+         << "Read: " << read_id << " [" << alignment.read_start << "," << alignment.read_end << "] "
+         << "  Contig: " << contig_id << " [" << alignment.contig_start << "," << alignment.contig_end << "] "
+         << "  Is reverse: " << (alignment.is_reverse ? "yes" : "no") << "\n";
 
-        bool mismatch_found = false;
-        for (size_t i = 0; i < read_segment.size(); ++i) {
-            if (mutated_contig[i] != read_segment[i]) {
-                cout << "Mismatch in alignment:\n";
-                cout << "Expected " << read_segment[i] << " at position " <<
-		  i << " in read but found " << mutated_contig[i] << "\n";
-                cout << "Mutations: ";
-                for (const auto& mutation : alignment.mutations) {
-                    cout << mutation.type << " at " << mutation.position << "; ";
-                }
-                cout << "\n";
-                mismatch_found = true;
-                break;
+    // Count mutations by type
+    auto count_mutations_by_type = [](const vector<Mutation>& mutations) {
+        size_t subs = 0, ins = 0, dels = 0;
+        for (const auto& mut : mutations) {
+            switch (mut.type) {
+                case MutationType::SUBSTITUTION: subs++; break;
+                case MutationType::INSERTION: ins++; break;
+                case MutationType::DELETION: dels++; break;
             }
         }
+        return make_tuple(subs, ins, dels);
+    };
 
-        if (mismatch_found) {
-            bad_alignment_count++;
-            if (bad_alignment_count >= 10) {
-                cerr << "Too many bad alignments. Exiting.\n";
-                exit(-1);
-            }
-        }
+    auto [num_subs, num_ins, num_dels] = count_mutations_by_type(alignment.mutations);
+    cout << "Mutations - Substitutions: " << num_subs 
+         << ", Insertions: " << num_ins
+         << ", Deletions: " << num_dels << "\n";
+
+    massert(contigs.find(contig_id) != contigs.end(),
+            "Error: Contig '%s' not found in FASTA file.", contig_id.c_str());
+    massert(reads.find(read_id) != reads.end(),
+            "Error: Read '%s' not found in FASTQ file.", read_id.c_str());
+
+    cout << "mutating contig with " << alignment.mutations.size() << " mutations" << endl;
+
+    massert(contigs.find(contig_id) != contigs.end(), "contig %s not found in map", contig_id.c_str());
+    massert(reads.find(read_id) != reads.end(), "read %s not found in map", read_id.c_str());
+
+    string contig_fragment = contigs[contig_id].substr(alignment.contig_start,
+                                                       alignment.contig_end - alignment.contig_start);
+
+    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, alignment.contig_start, quit_on_error);
+    string read_segment = reads[read_id].substr(alignment.read_start,
+                                                alignment.read_end - alignment.read_start);
+
+    if (alignment.is_reverse)
+      mutated_contig = reverse_complement(mutated_contig);
+
+    massert(read_segment.size() == mutated_contig.size(), 
+            "read segment length (%zu) does not match mutated contig length (%zu)", 
+            read_segment.size(), mutated_contig.size());
+
+    bool mismatch_found = false;
+    for (size_t i = 0; i < read_segment.size(); ++i)
+    {
+      if (mutated_contig[i] != read_segment[i])
+      {
+ 
+        // Calculate start and end indices for the segment
+        size_t start = (i >= 5) ? i - 8 : 0;
+        size_t end = (i + 5 < read_segment.size()) ? i + 8 : read_segment.size() - 1;
+
+        cout << "Mismatch found, fragment coordinate=" << i << endl; 
+        cout << "read        : " << read_segment.substr(start, end - start + 1) << "\n";
+        cout << "contig_mut  : " << mutated_contig.substr(start, end - start + 1) << "\n";
+        cout << "contig_orig : " << contig_fragment.substr(start, end - start + 1) << "\n";
+ 
+        mismatch_found = true;
+	break;
+      }
     }
 
-    cout << "Verification complete. Total alignments processed: " << store.get_alignment_count() << "\n";
-} 
+    if (mismatch_found) {
+      bad_alignment_count++;
+      if (bad_alignment_count > 100) {
+        cerr << "Too many bad alignments. Exiting.\n";
+        exit(-1);
+      }
+    } else {
+      cout << "Alignment is good.\n";
+    }
+  }
 
-void verify_params(const char* name, int argc, char **argv, Parameters& params)
+  cout << "Verification complete. Total alignments processed: " << store.get_alignment_count() << "\n";
+  cout << "Bad alignments found: " << bad_alignment_count << " out of " << store.get_alignment_count() 
+       << " (" << (bad_alignment_count * 100.0 / store.get_alignment_count()) << "%)\n";
+}
+
+void verify_params(const char *name, int argc, char **argv, Parameters &params)
 {
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
   params.add_parser("ifn_reads", new ParserFilename("input reads, FASTQ"), true);
   params.add_parser("ifn_contigs", new ParserFilename("input contigs, FASTA"), true);
-  
-  if (argc == 1) {
+
+  if (argc == 1)
+  {
     params.usage(name);
     exit(1);
   }
@@ -167,16 +147,16 @@ void verify_params(const char* name, int argc, char **argv, Parameters& params)
   params.print(cout);
 }
 
-int verify_main(const char* name, int argc, char **argv)
+int verify_main(const char *name, int argc, char **argv)
 {
   Parameters params;
   verify_params(name, argc, argv, params);
-  
+
   string ifn_aln = params.get_string("ifn_aln");
   string ifn_reads = params.get_string("ifn_reads");
   string ifn_contigs = params.get_string("ifn_contigs");
 
   verify_command(ifn_aln, ifn_reads, ifn_contigs);
-  
+
   return 0;
 }

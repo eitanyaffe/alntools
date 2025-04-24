@@ -8,15 +8,27 @@
 
 using namespace std;
 
-void construct_command(const string& paf_file, const string& aln_file, int max_reads) 
+void construct_command(const string& ifn_paf,
+		       const string& ifn_contigs,
+		       const string& ifn_reads,
+		       bool should_verify,
+		       const string& aln_file, int max_reads,
+		       bool quit_on_error) 
 {
-    cout << "Reading PAF file: " << paf_file << "\n";
+    cout << "Reading PAF file: " << ifn_paf << "\n";
     
     PafReader reader;
     AlignmentStore store;
+
+    if (should_verify) {
+      cout << "Loading reads and contigs...\n";
+      reader.load_reads_contigs(ifn_reads, ifn_contigs);
+    }
     
     cout << "Processing alignments...\n";
-    reader.read_paf(paf_file, store, max_reads);
+
+    // !!! TBD: pass tag, implement function that takes CIGAR and read/contig sequence and generates mutations
+    reader.read_paf(ifn_paf, store, max_reads, should_verify, quit_on_error);
     
     cout << "Writing alignment file: " << aln_file << "\n";
     store.save(aln_file);
@@ -30,9 +42,15 @@ void construct_command(const string& paf_file, const string& aln_file, int max_r
 
 void construct_params(const char* name, int argc, char **argv, Parameters& params)
 {
-  params.add_parser("ifn", new ParserFilename("input PAF file"), true);
+  params.add_parser("ifn_paf", new ParserFilename("input alignment PAF file"), false);
   params.add_parser("ofn", new ParserFilename("output ALN file"), true);
+  params.add_parser("verify", new ParserBoolean("should verify PAF file using reads and contigs", false), false);
+  params.add_parser("ifn_reads",
+		    new ParserFilename("input read FASTQ file (used only if verifying alignments)"), false);
+  params.add_parser("ifn_contigs",
+		    new ParserFilename("input contig FASTA file (used only if verifying alignments)"), false);
   params.add_parser("max_reads", new ParserInteger("use only this number of alignments", 0), false);
+  params.add_parser("quit_on_error", new ParserBoolean("quit on error", true), false);
   
   if (argc == 1) {
     params.usage(name);
@@ -51,11 +69,14 @@ int construct_main(const char* name, int argc, char **argv)
   Parameters params;
   construct_params(name, argc, argv, params);
   
-  string ifn = params.get_string("ifn");
+  string ifn_paf = params.get_string("ifn_paf");
+  string ifn_contigs = params.get_string("ifn_contigs");
+  string ifn_reads = params.get_string("ifn_reads");
+  bool should_verify = params.get_bool("verify");
   string ofn = params.get_string("ofn");
   int max_reads = params.get_int("max_reads");
-
-  construct_command(ifn, ofn, max_reads);
+  bool quit_on_error = params.get_bool("quit_on_error");
+  construct_command(ifn_paf, ifn_contigs, ifn_reads, should_verify, ofn, max_reads, quit_on_error);
   
   return 0;
 }
