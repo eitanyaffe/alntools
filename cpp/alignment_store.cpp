@@ -2,21 +2,45 @@
 #include "utils.h"
 #include <fstream>
 #include <iostream>
+#include <limits>
 
-using std::ofstream;
-using std::ifstream;
 using std::cerr;
 using std::endl;
-using std::string;
-using std::vector;
-using std::unordered_map;
+using std::ifstream;
 using std::ios;
+using std::ofstream;
+using std::string;
+using std::unordered_map;
+using std::vector;
+
+void AlignmentStore::save_position(std::ofstream& file, uint32_t position, MutationIntType type)
+{
+    if (type == MutationIntType::UINT16) {
+        uint16_t pos16 = static_cast<uint16_t>(position);
+        file.write(reinterpret_cast<const char*>(&pos16), sizeof(pos16));
+    } else {
+        file.write(reinterpret_cast<const char*>(&position), sizeof(position));
+    }
+}
+
+uint32_t AlignmentStore::load_position(std::ifstream& file, MutationIntType type)
+{
+    if (type == MutationIntType::UINT16) {
+        uint16_t pos16;
+        file.read(reinterpret_cast<char*>(&pos16), sizeof(pos16));
+        return static_cast<uint32_t>(pos16);
+    } else {
+        uint32_t position;
+        file.read(reinterpret_cast<char*>(&position), sizeof(position));
+        return position;
+    }
+}
 
 void AlignmentStore::save(const string& filename) 
 {
     ofstream file(filename, ios::binary);
     if (!file.is_open()) {
-        cerr << "Error opening file for writing: " << filename << endl;
+        cerr << "error opening file for writing: " << filename << endl;
         abort();
     }
 
@@ -46,6 +70,26 @@ void AlignmentStore::save(const string& filename)
         file.write(reinterpret_cast<const char*>(&contig.length), sizeof(contig.length));
     }
 
+    // Determine maximum mutation position
+    uint32_t max_position = 0;
+    for (const auto& alignment : alignments_) {
+        for (const auto& mutation : alignment.mutations) {
+            if (mutation.position > max_position) {
+                max_position = mutation.position;
+            }
+        }
+    }
+    
+    // Determine position integer type
+    MutationIntType mutation_int_type = (max_position <= std::numeric_limits<uint16_t>::max()) 
+        ? MutationIntType::UINT16 
+        : MutationIntType::UINT32;
+    string type_str = (mutation_int_type == MutationIntType::UINT16) ? "UINT16" : "UINT32";
+    cout << "mutation position integer type: " << type_str << endl;
+
+    // Save the mutation int type
+    file.write(reinterpret_cast<const char*>(&mutation_int_type), sizeof(mutation_int_type));
+
     // Save alignments
     size_t num_alignments = alignments_.size();
     file.write(reinterpret_cast<const char*>(&num_alignments), sizeof(num_alignments));
@@ -68,7 +112,9 @@ void AlignmentStore::save(const string& filename)
         file.write(reinterpret_cast<const char*>(&num_mutations), sizeof(num_mutations));
         for (const auto& mutation : alignment.mutations) {
             file.write(reinterpret_cast<const char*>(&mutation.type), sizeof(mutation.type));
-            file.write(reinterpret_cast<const char*>(&mutation.position), sizeof(mutation.position));
+            
+            // Save position using the determined integer type
+            save_position(file, mutation.position, mutation_int_type);
 
             // Write read_nts
             size_t read_nts_length = mutation.read_nts.size();
@@ -89,7 +135,7 @@ void AlignmentStore::load(const string& filename)
 {
     ifstream file(filename, ios::binary);
     if (!file.is_open()) {
-        cerr << "Error opening file: " << filename << endl;
+        cerr << "error opening file: " << filename << endl;
         abort();
     }
 
@@ -137,6 +183,12 @@ void AlignmentStore::load(const string& filename)
         contig_id_to_index[contig.id] = i;
     }
 
+    // Read mutation integer type
+    MutationIntType mutation_int_type;
+    file.read(reinterpret_cast<char*>(&mutation_int_type), sizeof(mutation_int_type));
+    string type_str = (mutation_int_type == MutationIntType::UINT16) ? "UINT16" : "UINT32";
+    cout << "mutation position integer type: " << type_str << endl;
+
     // Load alignments
     size_t num_alignments;
     file.read(reinterpret_cast<char*>(&num_alignments), sizeof(num_alignments));
@@ -159,12 +211,13 @@ void AlignmentStore::load(const string& filename)
         file.read(reinterpret_cast<char*>(&num_mutations), sizeof(num_mutations));
         for (size_t j = 0; j < num_mutations; ++j) {
             MutationType type;
-            uint32_t position;
             string read_nts;
             string ref_nts;
             
             file.read(reinterpret_cast<char*>(&type), sizeof(type));
-            file.read(reinterpret_cast<char*>(&position), sizeof(position));
+            
+            // Load position using the read integer type
+            uint32_t position = load_position(file, mutation_int_type);
             
             // Read read_nts
             size_t read_nts_length;

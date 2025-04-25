@@ -10,6 +10,9 @@ using namespace std;
 
 void info_command(const string& aln_file) 
 {
+    double size_mb = get_file_size_mb(aln_file);
+    cout << "loading alignment file " << aln_file << " (" << size_mb << " MB)" << endl;
+
     AlignmentStore store;
     store.load(aln_file);
   

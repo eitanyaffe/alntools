@@ -19,10 +19,12 @@ private:
   
   void split_line(const string& line, char delimiter, vector<string>& fields);
   void parse_cs_string(const string& cs_string, vector<char>& actions, vector<string>& values);
-  size_t add_mutations(const string& cs_string, Alignment& alignment);
+  bool add_mutations(const string& cs_string, Alignment& alignment);
+
+  void verify_cs_string(const string& cs_string, Alignment& alignment, size_t line_number);
 
   // returns true if PAF alignment tag is correct (by applying it to contig and comparing to read)
-  bool verify_alignment(Alignment& alignment, const string& read_id, const string& contig_id, bool quit_on_error);
+  bool verify_alignment(Alignment& alignment, const string& read_id, const string& contig_id);
   
 public:
   void read_paf(const string& filename, AlignmentStore& store, int max_reads, bool should_verify, bool quit_on_error);

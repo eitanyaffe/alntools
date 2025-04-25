@@ -9,35 +9,46 @@
 
 #include "aln_types.h"
 
-using std::string;
-using std::unordered_map;
-using std::unordered_set;
+using namespace std;
 
-void massert(bool cond, const char* fmt, ...);
+void massert(bool cond, const char *fmt, ...);
+
 void mexit(const char *fmt, ...);
-
-std::string reverse_complement(std::string seq);
+string reverse_complement(std::string seq);
 
 // Convert a string to uppercase
 string to_upper(string str);
+string to_lower(const string &input);
 
-// Function to read FASTA file and create a map of contig IDs to sequences
+// read FASTA
 void read_fasta(const string &filename,
 		const unordered_set<string> &contig_ids,
-		unordered_map<string, string>& contigs);
+		unordered_map<string, string> &contigs);
 
-
-// Function to read FASTQ file and create a map of read IDs to sequences
+// read FASTQ
 void read_fastq(const string &filename,
-		const unordered_set<string> &read_ids,
-		unordered_map<string, string>& reads);
+				const unordered_set<string> &read_ids,
+		unordered_map<string, string> &reads);
 
+// write FASTA
+void write_fasta(const string &filename,
+		 unordered_map<string, string> &contigs);
 
-// transform string to uppercase
-string to_upper(string str);
+// write FASTQ
+void write_fastq(const string &filename,
+		 unordered_map<string, string> &reads);
 
 // Function to apply mutations to a contig fragment
 string apply_mutations(const string &contig_fragment,
-                       const vector<Mutation> &mutations,
-                       uint32_t contig_start, 
-					   bool quit_on_error);
+		       const vector<Mutation> &mutations);
+
+enum class FileType
+{
+    FASTA,
+    FASTQ,
+    UNKNOWN
+};
+
+FileType get_file_type(const std::string &filename);
+
+double get_file_size_mb(const std::string &filename);

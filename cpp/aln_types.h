@@ -12,7 +12,7 @@ using std::vector;
 enum class MutationType
 {
     SUBSTITUTION, // Base substitution
-    INSERTION,    // Insertion of bases
+    INSERTION,    // Insertion of bases, to the left of the current position
     DELETION      // Deletion of bases
 };
 

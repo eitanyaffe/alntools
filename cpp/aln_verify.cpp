@@ -14,7 +14,9 @@ using namespace std;
 // Main verification function
 void verify_command(const string &ifn_aln,
                     const string &ifn_reads,
-                    const string &ifn_contigs)
+                    const string &ifn_contigs,
+                    const string &ofn_reads,
+                    const string &ofn_contigs)
 {
   AlignmentStore store;
   cout << "Reading alignment file: " << ifn_aln << "\n";
@@ -38,33 +40,45 @@ void verify_command(const string &ifn_aln,
   read_fasta(ifn_contigs, contig_set, contigs);
   read_fastq(ifn_reads, read_set, reads);
 
+  write_fasta(ofn_contigs, contigs);
+  write_fastq(ofn_reads, reads);
+
   int bad_alignment_count = 0;
   for (const auto &alignment : store.get_alignments())
   {
 
     const string &contig_id = store.get_contig_id(alignment.contig_index);
     const string &read_id = store.get_read_id(alignment.read_index);
-      
+
     cout << "==================\n"
          << "Read: " << read_id << " [" << alignment.read_start << "," << alignment.read_end << "] "
          << "  Contig: " << contig_id << " [" << alignment.contig_start << "," << alignment.contig_end << "] "
          << "  Is reverse: " << (alignment.is_reverse ? "yes" : "no") << "\n";
 
     // Count mutations by type
-    auto count_mutations_by_type = [](const vector<Mutation>& mutations) {
-        size_t subs = 0, ins = 0, dels = 0;
-        for (const auto& mut : mutations) {
-            switch (mut.type) {
-                case MutationType::SUBSTITUTION: subs++; break;
-                case MutationType::INSERTION: ins++; break;
-                case MutationType::DELETION: dels++; break;
-            }
+    auto count_mutations_by_type = [](const vector<Mutation> &mutations)
+    {
+      size_t subs = 0, ins = 0, dels = 0;
+      for (const auto &mut : mutations)
+      {
+        switch (mut.type)
+        {
+        case MutationType::SUBSTITUTION:
+          subs++;
+          break;
+        case MutationType::INSERTION:
+          ins++;
+          break;
+        case MutationType::DELETION:
+          dels++;
+          break;
         }
-        return make_tuple(subs, ins, dels);
+      }
+      return make_tuple(subs, ins, dels);
     };
 
     auto [num_subs, num_ins, num_dels] = count_mutations_by_type(alignment.mutations);
-    cout << "Mutations - Substitutions: " << num_subs 
+    cout << "Mutations - Substitutions: " << num_subs
          << ", Insertions: " << num_ins
          << ", Deletions: " << num_dels << "\n";
 
@@ -81,15 +95,15 @@ void verify_command(const string &ifn_aln,
     string contig_fragment = contigs[contig_id].substr(alignment.contig_start,
                                                        alignment.contig_end - alignment.contig_start);
 
-    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, alignment.contig_start, quit_on_error);
+    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations);
     string read_segment = reads[read_id].substr(alignment.read_start,
                                                 alignment.read_end - alignment.read_start);
 
     if (alignment.is_reverse)
       mutated_contig = reverse_complement(mutated_contig);
 
-    massert(read_segment.size() == mutated_contig.size(), 
-            "read segment length (%zu) does not match mutated contig length (%zu)", 
+    massert(read_segment.size() == mutated_contig.size(),
+            "read segment length (%zu) does not match mutated contig length (%zu)",
             read_segment.size(), mutated_contig.size());
 
     bool mismatch_found = false;
@@ -97,34 +111,38 @@ void verify_command(const string &ifn_aln,
     {
       if (mutated_contig[i] != read_segment[i])
       {
- 
+
         // Calculate start and end indices for the segment
         size_t start = (i >= 5) ? i - 8 : 0;
         size_t end = (i + 5 < read_segment.size()) ? i + 8 : read_segment.size() - 1;
 
-        cout << "Mismatch found, fragment coordinate=" << i << endl; 
+        cout << "Mismatch found, fragment coordinate=" << i << endl;
         cout << "read        : " << read_segment.substr(start, end - start + 1) << "\n";
         cout << "contig_mut  : " << mutated_contig.substr(start, end - start + 1) << "\n";
         cout << "contig_orig : " << contig_fragment.substr(start, end - start + 1) << "\n";
- 
+
         mismatch_found = true;
-	break;
+        break;
       }
     }
 
-    if (mismatch_found) {
+    if (mismatch_found)
+    {
       bad_alignment_count++;
-      if (bad_alignment_count > 100) {
+      if (bad_alignment_count > 100)
+      {
         cerr << "Too many bad alignments. Exiting.\n";
         exit(-1);
       }
-    } else {
+    }
+    else
+    {
       cout << "Alignment is good.\n";
     }
   }
 
   cout << "Verification complete. Total alignments processed: " << store.get_alignment_count() << "\n";
-  cout << "Bad alignments found: " << bad_alignment_count << " out of " << store.get_alignment_count() 
+  cout << "Bad alignments found: " << bad_alignment_count << " out of " << store.get_alignment_count()
        << " (" << (bad_alignment_count * 100.0 / store.get_alignment_count()) << "%)\n";
 }
 
@@ -133,6 +151,9 @@ void verify_params(const char *name, int argc, char **argv, Parameters &params)
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
   params.add_parser("ifn_reads", new ParserFilename("input reads, FASTQ"), true);
   params.add_parser("ifn_contigs", new ParserFilename("input contigs, FASTA"), true);
+
+  params.add_parser("ofn_contigs", new ParserFilename("contigs limited to alignments, FASTA"), false);
+  params.add_parser("ofn_reads", new ParserFilename("reads limited to alignments, FASTA"), false);
 
   if (argc == 1)
   {
@@ -156,7 +177,10 @@ int verify_main(const char *name, int argc, char **argv)
   string ifn_reads = params.get_string("ifn_reads");
   string ifn_contigs = params.get_string("ifn_contigs");
 
-  verify_command(ifn_aln, ifn_reads, ifn_contigs);
+  string ofn_reads = params.get_string("ofn_reads");
+  string ofn_contigs = params.get_string("ofn_contigs");
+
+  verify_command(ifn_aln, ifn_reads, ifn_contigs, ofn_reads, ofn_contigs);
 
   return 0;
 }

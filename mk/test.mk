@@ -2,42 +2,58 @@
 # This file contains test rules that are included in the main Makefile
 
 # Directories
-TEST_INPUT_FILE = examples/input.paf
-TEST_OUTPUT_DIR = output
+TEST_PAF = examples/align.paf
+TEST_READS = examples/reads.fq
+TEST_CONTIGS = examples/contigs.fa
+TEST_BASIC_OUTPUT_DIR = output/basic
+TEST_FULL_OUTPUT_DIR = output/full
 
 # Test targets
 .PHONY: test test-construct test-info test-save clean-test
 
-# Create output directory
-$(TEST_OUTPUT_DIR):
-
-# Test construct command
-test-construct: $(TARGET) $(TEST_OUTPUT_DIR)
-	@echo "Testing PAF file construction..."
+# construct ALN w/o validation
+test_basic: $(TARGET)
+	rm -rf $(TEST_BASIC_OUTPUT_DIR) && mkdir -p $(TEST_BASIC_OUTPUT_DIR)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running BASIC TEST, without paf validation"
 	$(TARGET) construct \
-		-ifn $(TEST_INPUT_FILE) \
-		-ofn $(TEST_OUTPUT_DIR)/example.aln
-	@echo "Test completed successfully!"
-
-# Test info command
-test-info: $(TARGET) $(TEST_OUTPUT_DIR)
-	@echo "Testing info command..."
+		-ifn_paf $(TEST_PAF) \
+		-ofn $(TEST_BASIC_OUTPUT_DIR)/test.aln
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	$(TARGET) info \
-		-ifn $(TEST_OUTPUT_DIR)/example.aln
-	@echo "Test completed successfully!"
+		-ifn $(TEST_BASIC_OUTPUT_DIR)/test.aln
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	$(TARGET) extract \
+		-ifn $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/test
+	@echo "BASIC TEST completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-# Test save command
-test-save: $(TARGET) $(TEST_OUTPUT_DIR)
-	@echo "Testing save command..."
-	$(TARGET) save \
-		-ifn $(TEST_OUTPUT_DIR)/example.aln \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/example
-	@echo "Test completed successfully!"
+# construct ALN with validation
+test_full: $(TARGET)
+	rm -rf $(TEST_FULL_OUTPUT_DIR) && mkdir -p $(TEST_FULL_OUTPUT_DIR)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running FULL TEST, with paf validation"
+	$(TARGET) construct \
+		-ifn_paf $(TEST_PAF) \
+		-ifn_reads $(TEST_READS) \
+		-ifn_contigs $(TEST_CONTIGS) \
+		-verify T \
+		-ofn $(TEST_FULL_OUTPUT_DIR)/test.aln
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	$(TARGET) info \
+		-ifn $(TEST_FULL_OUTPUT_DIR)/test.aln
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	$(TARGET) extract \
+		-ifn $(TEST_FULL_OUTPUT_DIR)/test.aln \
+		-ofn_prefix $(TEST_FULL_OUTPUT_DIR)/test
+	@echo "FULL TEST completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 # Run all tests
-test: test-construct test-info test-save
-	@echo "All tests completed successfully!"
+test: test_basic test_full
+	@echo "all tests completed successfully"
 
 # Clean test outputs
 clean-test:
-	rm -rf $(TEST_OUTPUT_DIR) 
+	rm -rf $(TEST_BASIC_OUTPUT_DIR) $(TEST_FULL_OUTPUT_DIR) 

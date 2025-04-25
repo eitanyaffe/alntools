@@ -15,8 +15,6 @@ void construct_command(const string& ifn_paf,
 		       const string& aln_file, int max_reads,
 		       bool quit_on_error) 
 {
-    cout << "Reading PAF file: " << ifn_paf << "\n";
-    
     PafReader reader;
     AlignmentStore store;
 
@@ -25,9 +23,7 @@ void construct_command(const string& ifn_paf,
       reader.load_reads_contigs(ifn_reads, ifn_contigs);
     }
     
-    cout << "Processing alignments...\n";
-
-    // !!! TBD: pass tag, implement function that takes CIGAR and read/contig sequence and generates mutations
+    cout << "Reading PAF file: " << ifn_paf << "\n";
     reader.read_paf(ifn_paf, store, max_reads, should_verify, quit_on_error);
     
     cout << "Writing alignment file: " << aln_file << "\n";
@@ -49,7 +45,7 @@ void construct_params(const char* name, int argc, char **argv, Parameters& param
 		    new ParserFilename("input read FASTQ file (used only if verifying alignments)"), false);
   params.add_parser("ifn_contigs",
 		    new ParserFilename("input contig FASTA file (used only if verifying alignments)"), false);
-  params.add_parser("max_reads", new ParserInteger("use only this number of alignments", 0), false);
+  params.add_parser("max_reads", new ParserInteger("use only this number of alignments (0: all)", 0), false);
   params.add_parser("quit_on_error", new ParserBoolean("quit on error", true), false);
   
   if (argc == 1) {
