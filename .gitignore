@@ -7,3 +7,4 @@
 examples/align.paf
 examples/reads.fq
 examples/contigs.fa
+output/*
