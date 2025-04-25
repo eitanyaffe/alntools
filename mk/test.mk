@@ -2,9 +2,9 @@
 # This file contains test rules that are included in the main Makefile
 
 # input
-TEST_PAF = examples/short_align.paf
-TEST_READS = examples/short_reads.fq
-TEST_CONTIGS = examples/short_contigs.fa
+TEST_PAF = examples/align_100.paf
+TEST_READS = examples/reads_100.fq
+TEST_CONTIGS = examples/contigs_100.fa
 
 # output
 TEST_BASIC_OUTPUT_DIR = output/basic
@@ -19,9 +19,10 @@ TEST_UNCOMPRESSED = examples/.uncompressed
 
 # construct ALN w/o validation
 test_basic: $(TARGET)
-	rm -rf $(TEST_BASIC_OUTPUT_DIR) && mkdir -p $(TEST_BASIC_OUTPUT_DIR)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running BASIC TEST, without paf validation"
+	rm -rf $(TEST_BASIC_OUTPUT_DIR) && mkdir -p $(TEST_BASIC_OUTPUT_DIR)
 	$(TARGET) construct \
 		-ifn_paf $(TEST_PAF) \
 		-ofn $(TEST_BASIC_OUTPUT_DIR)/test.aln
@@ -37,8 +38,9 @@ test_basic: $(TARGET)
 
 # construct ALN with validation
 test_full: $(TARGET)
-	rm -rf $(TEST_FULL_OUTPUT_DIR) && mkdir -p $(TEST_FULL_OUTPUT_DIR)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	rm -rf $(TEST_FULL_OUTPUT_DIR) && mkdir -p $(TEST_FULL_OUTPUT_DIR)
 	@echo "running FULL TEST, with paf validation"
 	$(TARGET) construct \
 		-ifn_paf $(TEST_PAF) \

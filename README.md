@@ -8,24 +8,21 @@
 
 *   A modern C++ compiler (supporting C++17)
 *   `make`
-*   `zlib` library (e.g., `zlib1g-dev` on Debian/Ubuntu, `zlib-devel` on Fedora/CentOS, or install via Homebrew on macOS: `brew install zlib`)
 
-Tested on:
-*   macOS 13.3.1
-*   Ubuntu 20.04
+Tested on macOS 13.3.1 and Ubuntu 20.04.
 
 ### Building
 
 1.  Clone the repository:
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/eitanyaffe/alntools.git
     cd alntools
     ```
 2.  Compile the code:
     ```bash
     make
     ```
-    The executable will be located in `bin/macos/alntools` or `bin/linux/alntools` depending on your system.
+    The executable will be located in `bin/macos/alntools` or `bin/linux/alntools` depending on your system. You can add that directory to the path or copy the executable to a shared directory like /usr/local/bin
 3.  (Optional) Run tests:
     ```bash
     make test
@@ -46,18 +43,17 @@ Tested on:
 | 7            | Target sequence length                           | int   |
 | 8            | Target start on original strand (0-based)        | int   |
 | 9            | Target end on original strand (0-based)          | int   |
-| 10           | Number of residue matches (not directly used)    | int   |
-| 11           | Alignment block length (not directly used)       | int   |
-| 12           | Mapping quality (not directly used)              | int   |
 
 Additionally, the **`cs:Z:` tag** (difference string) **must be present** in one of the optional fields (column 13 onwards). This tag encodes the base differences between the query (read) and the target (contig) and is essential for mutation analysis.
 
 ### Example PAF Line
 
 ```text
-read_298    150 10  145 +   contig_12   5000    1500    1635    120 135 60  tp:A:P  cm:i:10 NM:i:5  cs:Z::10*at:5+gg:20-c:15*cg:70
+read_298    150 10  145 +   contig_12   5000    1500    1635    120 135 60  cs:Z::10*at:5+gg:20-c:15*cg:70
 ```
-*(Note: This is a generic example; ensure your `cs` tag format matches what your aligner produces and what `alntools` expects)*
+
+For a complete example of a PAF file, see `examples/align_25.paf` in the repository.
+
 
 ## Data Representation
 

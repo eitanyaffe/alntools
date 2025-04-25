@@ -38,40 +38,6 @@ bool PafReader::verify_alignment(Alignment &alignment,
                                  const string &read_id,
                                  const string &contig_id)
 {
-    // cout << "==================\n"
-    //      << "Read: " << read_id << " [" << alignment.read_start << "," << alignment.read_end << "] "
-    //      << "  Contig: " << contig_id << " [" << alignment.contig_start << "," << alignment.contig_end << "] "
-    //      << "  Is reverse: " << (alignment.is_reverse ? "yes" : "no") << "\n"
-    //      << "  CS string: " << cs_string << "\n";
-    // cout << "mutating contig with " << alignment.mutations.size() << " mutations" << endl;
-    // cout << "cs_string: " << cs_string << endl;
-  
-    // Count mutations by type
-    // auto count_mutations_by_type = [](const vector<Mutation> &mutations)
-    // {
-    //     size_t subs = 0, ins = 0, dels = 0;
-    //     for (const auto &mut : mutations)
-    //     {
-    //         switch (mut.type)
-    //         {
-    //         case MutationType::SUBSTITUTION:
-    //             subs++;
-    //             break;
-    //         case MutationType::INSERTION:
-    //             ins++;
-    //             break;
-    //         case MutationType::DELETION:
-    //             dels++;
-    //             break;
-    //         }
-    //     }
-    //     return make_tuple(subs, ins, dels);
-    // };
-    // auto [num_subs, num_ins, num_dels] = count_mutations_by_type(alignment.mutations);
-    // cout << "Mutations - Substitutions: " << num_subs
-    //      << ", Insertions: " << num_ins
-    //      << ", Deletions: " << num_dels << "\n";
-
     massert(m_contigs.find(contig_id) != m_contigs.end(),
 	    "contig %s not found in map", contig_id.c_str());
     massert(m_reads.find(read_id) != m_reads.end(),
@@ -93,7 +59,6 @@ bool PafReader::verify_alignment(Alignment &alignment,
         char read_base = (i < read_segment.size()) ? read_segment[i] : 'N';
         if (mutated_base != read_base)
         {
-
             // Calculate start and end indices for the segment
             size_t start = (i >= 5) ? i - 8 : 0;
             size_t end = (i + 5 < read_segment.size()) ? i + 8 : read_segment.size() - 1;
@@ -143,23 +108,26 @@ void PafReader::read_paf(const string &filename, AlignmentStore &store, int max_
         // Get read information
         string read_id = fields[0];
         uint64_t read_length = stoull(fields[1]);
-        bool is_reverse = fields[4] == "-"; // Assuming the reverse flag is in the 5th field
 
-        // Use AlignmentStore to get or add read index
-        size_t read_index = store.add_or_get_read_index(read_id, read_length);
+        // read coords
+        uint64_t read_start = stoull(fields[2]);
+        uint64_t read_end = stoull(fields[3]);
+	
+        bool is_reverse = fields[4] == "-"; // Assuming the reverse flag is in the 5th field
 
         // Get contig information
         string contig_id = fields[5];               // Assuming the contig ID is in the 6th field
         uint64_t contig_length = stoull(fields[6]); // Assuming the contig length is in the 7th field
 
-        // Use AlignmentStore to get or add contig index
-        size_t contig_index = store.add_or_get_contig_index(contig_id, contig_length);
-
-        // Get alignment information
-        uint64_t read_start = stoull(fields[2]);
-        uint64_t read_end = stoull(fields[3]);
+        // contig coords
         uint64_t contig_start = stoull(fields[7]);
         uint64_t contig_end = stoull(fields[8]);
+
+        // Use AlignmentStore to get or add read index
+        size_t read_index = store.add_or_get_read_index(read_id, read_length);
+
+        // Use AlignmentStore to get or add contig index
+        size_t contig_index = store.add_or_get_contig_index(contig_id, contig_length);
 
         // Validate numeric values
         massert(read_end > read_start, "Invalid read coordinates on line %zu: end (%zu) <= start (%zu)",
@@ -188,7 +156,8 @@ void PafReader::read_paf(const string &filename, AlignmentStore &store, int max_
                 valid = add_mutations(cs_string, alignment);
                 if (!valid)
                 {
-                    cout << "Skipping alignment of read " << read_id << " since CS string contains non-supported actions: " << cs_string << endl;
+                    cout << "Skipping alignment of read " << read_id
+			 << " since CS string contains non-supported actions: " << cs_string << endl;
                     break;
                 }
                 mutation_count += alignment.mutations.size();
