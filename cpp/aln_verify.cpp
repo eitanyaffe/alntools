@@ -15,7 +15,7 @@ using namespace std;
 void verify_command(const string &ifn_aln,
                     const string &ifn_reads,
                     const string &ifn_contigs,
-		    int max_reads,
+                    int max_reads,
                     const string &ofn_reads,
                     const string &ofn_contigs)
 {
@@ -25,7 +25,8 @@ void verify_command(const string &ifn_aln,
 
   // limit the number of alignments to verify
   vector<Alignment> alignments = store.get_alignments();
-  if (max_reads > 0) {
+  if (max_reads > 0)
+  {
     alignments = vector<Alignment>(alignments.begin(), alignments.begin() + max_reads);
   }
 
@@ -156,7 +157,7 @@ void verify_params(const char *name, int argc, char **argv, Parameters &params)
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
   params.add_parser("ifn_reads", new ParserFilename("input reads, FASTQ"), true);
   params.add_parser("ifn_contigs", new ParserFilename("input contigs, FASTA"), true);
-  
+
   params.add_parser("max_reads", new ParserInteger("use only this number of alignments (0: all)", 0), false);
 
   params.add_parser("ofn_contigs", new ParserFilename("contigs limited to alignments, FASTA"), false);
@@ -185,7 +186,7 @@ int verify_main(const char *name, int argc, char **argv)
   string ifn_contigs = params.get_string("ifn_contigs");
 
   int max_reads = params.get_int("max_reads");
-  
+
   string ofn_reads = params.get_string("ofn_reads");
   string ofn_contigs = params.get_string("ofn_contigs");
 
