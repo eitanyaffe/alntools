@@ -8,11 +8,20 @@ TEST_CONTIGS = examples/contigs.fa
 TEST_BASIC_OUTPUT_DIR = output/basic
 TEST_FULL_OUTPUT_DIR = output/full
 
+TEST_UNCOMPRESSED = examples/.uncompressed
+
 # Test targets
-.PHONY: test test-construct test-info test-save clean-test
+.PHONY: test test_basic test_full clean-test
+
+# Uncompress test files
+$(TEST_UNCOMPRESSED):
+	gunzip -c $(TEST_PAF).gz > $(TEST_PAF)
+	gunzip -c $(TEST_READS).gz > $(TEST_READS)
+	gunzip -c $(TEST_CONTIGS).gz > $(TEST_CONTIGS)
+	touch $(TEST_UNCOMPRESSED)
 
 # construct ALN w/o validation
-test_basic: $(TARGET)
+test_basic: $(TARGET) $(TEST_UNCOMPRESSED)
 	rm -rf $(TEST_BASIC_OUTPUT_DIR) && mkdir -p $(TEST_BASIC_OUTPUT_DIR)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running BASIC TEST, without paf validation"
@@ -30,7 +39,7 @@ test_basic: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 # construct ALN with validation
-test_full: $(TARGET)
+test_full: $(TARGET) $(TEST_UNCOMPRESSED)
 	rm -rf $(TEST_FULL_OUTPUT_DIR) && mkdir -p $(TEST_FULL_OUTPUT_DIR)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running FULL TEST, with paf validation"
@@ -55,5 +64,5 @@ test: test_basic test_full
 	@echo "all tests completed successfully"
 
 # Clean test outputs
-clean-test:
+test_clean:
 	rm -rf $(TEST_BASIC_OUTPUT_DIR) $(TEST_FULL_OUTPUT_DIR) 

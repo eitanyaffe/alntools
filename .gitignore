@@ -4,3 +4,6 @@
 /obj/*
 .vscode/settings.json
 /bu/*
+examples/align.paf
+examples/reads.fq
+examples/contigs.fa
