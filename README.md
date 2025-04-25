@@ -7,7 +7,7 @@
 ### Dependencies
 
 *   A modern C++ compiler (supporting C++17)
-*   `make`
+*   gnumake
 
 Tested on macOS 13.3.1 and Ubuntu 20.04.
 
@@ -16,13 +16,17 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 1.  Clone the repository:
     ```bash
     git clone https://github.com/eitanyaffe/alntools.git
-    cd alntools
     ```
 2.  Compile the code:
     ```bash
-    make
+    cd alntools
     ```
-    The executable will be located in `bin/macos/alntools` or `bin/linux/alntools` depending on your system. You can add that directory to the path or copy the executable to a shared directory like /usr/local/bin
+    The executable will be located in `bin/macos/alntools` or `bin/linux/alntools`, depending on your system.
+3.  Compile the code:
+    ```bash
+    make install
+    ```
+    This copies the executable to /usr/local/bin.
 3.  (Optional) Run tests:
     ```bash
     make test

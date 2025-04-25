@@ -22,6 +22,9 @@ OBJS = $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 # Binary name
 TARGET = $(BIN_DIR)/alntools
 
+# Installation directory
+INSTALL_DIR = /usr/local/bin
+
 # Default target
 all: $(TARGET)
 
@@ -40,6 +43,11 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 $(TARGET): $(OBJS) | $(BIN_DIR)
 	$(CXX) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
+# Install target
+install: $(TARGET)
+	mkdir -p $(INSTALL_DIR)
+	cp $(TARGET) $(INSTALL_DIR)/
+
 # Include test rules
 include mk/test.mk
 
@@ -48,4 +56,4 @@ clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
 # Phony targets
-.PHONY: all clean 
+.PHONY: all clean install 
