@@ -35,18 +35,20 @@ Tested on:
 
 `alntools` processes alignment data in the Pairwise mApping Format (PAF). The following columns are required:
 
-1.  **Query sequence name** (string)
-2.  **Query sequence length** (int)
-3.  **Query start** (int, 0-based)
-4.  **Query end** (int, 0-based)
-5.  **Relative strand** (char, '+' or '-')
-6.  **Target sequence name** (string) - *This corresponds to the contig ID.*
-7.  **Target sequence length** (int)
-8.  **Target start on original strand** (int, 0-based)
-9.  **Target end on original strand** (int, 0-based)
-10. **Number of residue matches** (int) - *Required by PAF spec, checked by alntools, but value not directly used.*
-11. **Alignment block length** (int) - *Required by PAF spec, checked by alntools, but value not directly used.*
-12. **Mapping quality** (int) - *Required by PAF spec, checked by alntools, but value not directly used.*
+| Column Index | Description                                      | Type  |
+|--------------|--------------------------------------------------|-------|
+| 1            | Query sequence name                              | string|
+| 2            | Query sequence length                            | int   |
+| 3            | Query start (0-based)                            | int   |
+| 4            | Query end (0-based)                              | int   |
+| 5            | Relative strand ('+' or '-')                     | char  |
+| 6            | Target sequence name (contig ID)                 | string|
+| 7            | Target sequence length                           | int   |
+| 8            | Target start on original strand (0-based)        | int   |
+| 9            | Target end on original strand (0-based)          | int   |
+| 10           | Number of residue matches (not directly used)    | int   |
+| 11           | Alignment block length (not directly used)       | int   |
+| 12           | Mapping quality (not directly used)              | int   |
 
 Additionally, the **`cs:Z:` tag** (difference string) **must be present** in one of the optional fields (column 13 onwards). This tag encodes the base differences between the query (read) and the target (contig) and is essential for mutation analysis.
 
