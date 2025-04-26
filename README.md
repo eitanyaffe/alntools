@@ -20,14 +20,15 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 2.  Compile the code:
     ```bash
     cd alntools
+	make
     ```
     The executable will be located in `bin/macos/alntools` or `bin/linux/alntools`, depending on your system.
-3.  Compile the code:
+3.  (Optional) install the executable:
     ```bash
     make install
     ```
     This copies the executable to /usr/local/bin.
-3.  (Optional) Run tests:
+4.  (Optional) Run tests:
     ```bash
     make test
     ```
