@@ -45,7 +45,7 @@ bool PafReader::verify_alignment(Alignment &alignment,
 
     string contig_fragment = m_contigs[contig_id].substr(alignment.contig_start,
                                                          alignment.contig_end - alignment.contig_start);
-    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations);
+    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id);
     string read_segment = m_reads[read_id].substr(alignment.read_start,
                                                   alignment.read_end - alignment.read_start);
     if (alignment.is_reverse)
@@ -224,46 +224,7 @@ void PafReader::split_line(const string &line, char delimiter, vector<string> &f
 void PafReader::verify_cs_string(const string &cs_string, Alignment &alignment, size_t line_number)
 {
     // generate a new cs string from the mutations
-    string generated_cs;
-    uint32_t current_pos = 0;
-
-    for (size_t i = 0; i < alignment.mutations.size(); ++i)
-    {
-        const Mutation &mut = alignment.mutations[i];
-
-        // add match segment if there's a gap
-        uint32_t gap = mut.position - current_pos;
-        if (gap > 0)
-        {
-            generated_cs += ":" + std::to_string(gap);
-            current_pos += gap;
-        }
-
-        // add the mutation
-        switch (mut.type)
-        {
-        case MutationType::SUBSTITUTION:
-            generated_cs += "*" + to_lower(mut.ref_nts) + to_lower(mut.read_nts);
-            current_pos = mut.position + 1; // substitution advances one position
-            break;
-        case MutationType::INSERTION:
-            generated_cs += "+" + to_lower(mut.read_nts);
-            // insertion doesn't advance position
-            break;
-        case MutationType::DELETION:
-            generated_cs += "-" + to_lower(mut.ref_nts);
-            current_pos = mut.position + mut.ref_nts.length();
-            break;
-        default:
-            massert(false, "unknown mutation type");
-            break;
-        }
-    }
-
-    // add a final match segment if needed (assuming we know the reference length)
-    uint32_t gap = alignment.contig_end - alignment.contig_start - current_pos;
-    if (gap > 0)
-        generated_cs += ":" + std::to_string(gap);
+    string generated_cs = generate_cs_tag(alignment);
 
     // compare with the original cs string
     if (generated_cs != cs_string)

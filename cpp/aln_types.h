@@ -101,3 +101,14 @@ struct Alignment
         mutations.clear();
     }
 };
+
+// Structure to represent an interval
+struct Interval
+{
+    string contig;
+    uint32_t start;
+    uint32_t end;
+
+    Interval(const string &contig = "", uint32_t start = 0, uint32_t end = 0)
+        : contig(contig), start(start), end(end) {}
+};

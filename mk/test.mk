@@ -15,7 +15,7 @@ TEST_EXAMPLE_OUTPUT_DIR = output/example
 TEST_UNCOMPRESSED = examples/.uncompressed
 
 # Test targets
-.PHONY: test test_basic test_full clean-test
+.PHONY: test test_basic test_full test_query clean-test
 
 # construct ALN w/o validation
 test_basic: $(TARGET)
@@ -70,6 +70,13 @@ create_example: $(TARGET)
 		-max_reads 100 \
 		-ofn_reads examples/short_reads.fq \
 		-ofn_contigs examples/short_contigs.fa
+
+test_query: $(TARGET)
+	$(TARGET) query \
+		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ifn_intervals examples/intervals.txt \
+		-ofn examples/query_output.txt \
+		-mode full
 
 # Run all tests
 test: test_basic test_full

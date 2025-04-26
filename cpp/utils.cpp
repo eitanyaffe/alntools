@@ -3,6 +3,7 @@
 #include <fstream>
 #include <algorithm>
 #include <vector>
+#include <sstream>
 
 #include "aln_types.h"
 
@@ -180,8 +181,7 @@ void write_fastq(const string &filename,
 }
 
 // Function to apply mutations to a contig fragment
-string apply_mutations(const string &seq,
-                       const vector<Mutation> &mutations)
+string apply_mutations(const string &seq, const vector<Mutation> &mutations, const string &read_id)
 {
   string result;
   size_t prev_pos = 0, current_pos = 0;
@@ -193,8 +193,7 @@ string apply_mutations(const string &seq,
     current_pos = mutation.position;
 
     // Verify position is within bounds
-    massert(current_pos >= 0 && current_pos < seq.size(),
-            "mutation position %u is outside fragment bounds", current_pos);
+    massert(current_pos < seq.size(), "mutation position %u is outside fragment bounds for read %s", current_pos, read_id.c_str());
 
     // Copy unchanged sequence up to this mutation
     size_t gap = current_pos - prev_pos;
@@ -309,3 +308,84 @@ double get_file_size_mb(const std::string &filename)
     return static_cast<double>(size) / (1024.0 * 1024.0);
 }
 
+void read_intervals(const std::string &filename, std::vector<Interval> &intervals)
+{
+    std::ifstream file(filename);
+    if (!file.is_open())
+    {
+        cerr << "error: could not open file " << filename << " for reading" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    std::string line;
+    if (getline(file, line))
+    {
+        // Verify header
+        if (line != "contig\tstart\tend")
+        {
+            cerr << "error: invalid header in intervals file. Expected 'contig\\tstart\\tend'" << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    while (getline(file, line))
+    {
+        std::istringstream iss(line);
+        std::string contig;
+        uint32_t start, end;
+        if (!(iss >> contig >> start >> end))
+        {
+            cerr << "error: malformed line in intervals file: " << line << endl;
+            exit(EXIT_FAILURE);
+        }
+        intervals.emplace_back(contig, start, end);
+    }
+
+    file.close();
+}
+
+string generate_cs_tag(const Alignment& alignment)
+{
+    string result;
+    uint32_t current_pos = 0;
+
+    for (size_t i = 0; i < alignment.mutations.size(); ++i)
+    {
+        const Mutation &mut = alignment.mutations[i];
+
+        // add match segment if there's a gap
+        uint32_t gap = mut.position - current_pos;
+        if (gap > 0)
+        {
+            result += ":" + std::to_string(gap);
+            current_pos += gap;
+        }
+
+        // add the mutation
+        switch (mut.type)
+        {
+        case MutationType::SUBSTITUTION:
+            result += "*" + to_lower(mut.ref_nts) + to_lower(mut.read_nts);
+            current_pos = mut.position + 1; // substitution advances one position
+            break;
+        case MutationType::INSERTION:
+            result += "+" + to_lower(mut.read_nts);
+            // insertion doesn't advance position
+            break;
+        case MutationType::DELETION:
+            result += "-" + to_lower(mut.ref_nts);
+            current_pos = mut.position + mut.ref_nts.length();
+            break;
+        default:
+            massert(false, "unknown mutation type");
+            break;
+        }
+    }
+
+    // add a final match segment if needed (assuming we know the reference length)
+    uint32_t gap = alignment.contig_end - alignment.contig_start - current_pos;
+    if (gap > 0)
+        result += ":" + std::to_string(gap);
+
+    return result;
+}

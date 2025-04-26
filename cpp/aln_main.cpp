@@ -15,6 +15,7 @@ int construct_main(const char* name, int argc, char **argv);
 int info_main(const char* name, int argc, char **argv);
 int extract_main(const char* name, int argc, char **argv);
 int verify_main(const char* name, int argc, char **argv);
+int query_main(const char* name, int argc, char **argv);
 
 using namespace std;
 
@@ -27,6 +28,7 @@ void usage(const char* name)
   fprintf(stderr, "  info: Show basic info and stats for ALN file\n");
   fprintf(stderr, "  extract: Save ALN file to tab-delimited tables\n");
   fprintf(stderr, "  verify: verify ALN file using reads and contigs\n");
+  fprintf(stderr, "  query: query ALN file\n");
 }
 
 int main(int argc, char **argv)
@@ -47,6 +49,8 @@ int main(int argc, char **argv)
     rc = extract_main(name.c_str(), argc-1, argv+1);
   } else if (command == "verify") {
     rc = verify_main(name.c_str(), argc-1, argv+1);
+  } else if (command == "query") {
+    rc = query_main(name.c_str(), argc-1, argv+1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);

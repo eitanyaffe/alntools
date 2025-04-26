@@ -40,7 +40,8 @@ void write_fastq(const string &filename,
 
 // Function to apply mutations to a contig fragment
 string apply_mutations(const string &contig_fragment,
-		       const vector<Mutation> &mutations);
+		       const vector<Mutation> &mutations,
+		       const string &read_id);
 
 enum class FileType
 {
@@ -52,3 +53,7 @@ enum class FileType
 FileType get_file_type(const std::string &filename);
 
 double get_file_size_mb(const std::string &filename);
+
+void read_intervals(const std::string &filename, std::vector<Interval> &intervals);
+
+string generate_cs_tag(const Alignment& alignment);

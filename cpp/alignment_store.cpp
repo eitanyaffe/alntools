@@ -3,6 +3,9 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <algorithm>
+#include <vector>
+#include <functional>
 
 using std::cerr;
 using std::endl;
@@ -142,12 +145,16 @@ void AlignmentStore::load(const string& filename)
     // Clear existing data
     reads_.clear();
     contigs_.clear();
+    alignments_.clear();
     read_id_to_index.clear();
     contig_id_to_index.clear();
+    alignment_index_by_contig_.clear();
+    max_alignment_length_ = 0; // Reset max alignment length
 
     // reads
-    size_t num_reads = 1;
+    size_t num_reads;
     file.read(reinterpret_cast<char*>(&num_reads), sizeof(num_reads));
+    reads_.reserve(num_reads);
     for (size_t i = 0; i < num_reads; ++i) {
         Read read;
 
@@ -167,6 +174,7 @@ void AlignmentStore::load(const string& filename)
     // Load contigs
     size_t num_contigs;
     file.read(reinterpret_cast<char*>(&num_contigs), sizeof(num_contigs));
+    contigs_.reserve(num_contigs);
     for (size_t i = 0; i < num_contigs; ++i) {
         Contig contig;
 
@@ -192,6 +200,7 @@ void AlignmentStore::load(const string& filename)
     // Load alignments
     size_t num_alignments;
     file.read(reinterpret_cast<char*>(&num_alignments), sizeof(num_alignments));
+    alignments_.reserve(num_alignments);
     for (size_t i = 0; i < num_alignments; ++i) {
         Alignment alignment;
 
@@ -209,6 +218,7 @@ void AlignmentStore::load(const string& filename)
         // Read mutations
         size_t num_mutations;
         file.read(reinterpret_cast<char*>(&num_mutations), sizeof(num_mutations));
+        alignment.mutations.reserve(num_mutations);
         for (size_t j = 0; j < num_mutations; ++j) {
             MutationType type;
             string read_nts;
@@ -240,6 +250,49 @@ void AlignmentStore::load(const string& filename)
     }
 
     file.close();
+
+    // Organize alignments after loading
+    organize_alignments();
+}
+
+void AlignmentStore::organize_alignments()
+{
+    alignment_index_by_contig_.clear();
+    max_alignment_length_ = 0; // Initialize max length calculation
+
+    // Pre-allocate buckets for each contig
+    for (size_t i = 0; i < contigs_.size(); ++i) {
+        alignment_index_by_contig_[i] = {}; 
+    }
+
+    for (size_t i = 0; i < alignments_.size(); ++i) {
+        const auto& alignment = alignments_[i];
+        
+        // Add index to the map
+        auto it = alignment_index_by_contig_.find(alignment.contig_index);
+        massert(it != alignment_index_by_contig_.end(), "alignment references unknown contig index %zu", alignment.contig_index);
+        it->second.push_back(i);
+
+        // Calculate and update max alignment length
+        // Assuming end is inclusive, length is end - start + 1
+        // Check for potential underflow if end < start although that shouldn't happen for valid alignments
+        massert(alignment.contig_end >= alignment.contig_start, "alignment with end < start found (index %zu)", i);
+        uint32_t current_length = alignment.contig_end - alignment.contig_start + 1;
+        if (current_length > max_alignment_length_) {
+            max_alignment_length_ = current_length;
+        }
+    }
+
+    // Sort the alignment indices within each contig's vector based on start position
+    for (auto& pair : alignment_index_by_contig_) {
+        auto& indices = pair.second;
+        std::sort(indices.begin(), indices.end(), 
+                  [this](size_t index_a, size_t index_b) {
+                      return alignments_[index_a].contig_start < alignments_[index_b].contig_start;
+                  });
+    }
+    
+    std::cout << "max alignment length found: " << max_alignment_length_ << std::endl;
 }
 
 void AlignmentStore::export_tab_delimited(const string& prefix) 
@@ -333,10 +386,8 @@ size_t AlignmentStore::add_or_get_read_index(const string& read_id, uint32_t len
 {
     auto it = read_id_to_index.find(read_id);
     if (it != read_id_to_index.end()) {
-        // Read already exists, return its index
         return it->second;
     } else {
-        // Add new Read
         size_t new_index = reads_.size();
         reads_.emplace_back(read_id, length);
         read_id_to_index[read_id] = new_index;
@@ -348,10 +399,8 @@ size_t AlignmentStore::add_or_get_contig_index(const string& contig_id, uint32_t
 {
     auto it = contig_id_to_index.find(contig_id);
     if (it != contig_id_to_index.end()) {
-        // Contig already exists, return its index
         return it->second;
     } else {
-        // Add new Contig
         size_t new_index = contigs_.size();
         contigs_.emplace_back(contig_id, length);
         contig_id_to_index[contig_id] = new_index;
@@ -369,4 +418,45 @@ const string& AlignmentStore::get_contig_id(size_t contig_index) const
 {
     massert(contig_index < contigs_.size(), "contig index out of bounds: %zu", contig_index);
     return contigs_[contig_index].id;
+}
+
+std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignments_in_interval(const Interval &interval) const
+{
+    std::vector<std::reference_wrapper<const Alignment>> result;
+
+    auto contig_map_it = contig_id_to_index.find(interval.contig);
+    massert(contig_map_it != contig_id_to_index.end(), "contig not found: %s", interval.contig.c_str());
+    size_t contig_index = contig_map_it->second;
+
+    auto align_map_it = alignment_index_by_contig_.find(contig_index);
+    massert(align_map_it != alignment_index_by_contig_.end(), "contig index not found: %zu", contig_index);
+
+    const auto& indices = align_map_it->second;
+    if (indices.empty()) {
+        return result;
+    }
+
+    uint32_t min_possible_start = (interval.start >= max_alignment_length_) ? (interval.start - max_alignment_length_ + 1) : 0;
+
+    auto it_start = std::lower_bound(indices.begin(), indices.end(), min_possible_start,
+                                     [this](size_t index, uint32_t min_start) {
+                                         return alignments_[index].contig_start < min_start;
+                                     });
+
+    auto it_end = std::upper_bound(indices.begin(), indices.end(), interval.end,
+                                   [this](uint32_t query_end, size_t index) {
+                                       return query_end < alignments_[index].contig_start;
+                                   });
+
+    for (auto it = it_start; it != it_end; ++it)
+    {
+        massert(*it < alignments_.size(), "alignment index out of bounds: %zu", *it);
+        const auto& alignment = alignments_[*it];
+        if (alignment.contig_end >= interval.start)
+        {
+            result.push_back(std::cref(alignment));
+        }
+    }
+
+    return result;
 } 
