@@ -41,7 +41,8 @@ void write_fastq(const string &filename,
 // Function to apply mutations to a contig fragment
 string apply_mutations(const string &contig_fragment,
 		       const vector<Mutation> &mutations,
-		       const string &read_id);
+		       const string &read_id,
+		       const string &contig_id);
 
 enum class FileType
 {

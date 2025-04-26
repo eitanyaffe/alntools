@@ -45,7 +45,7 @@ bool PafReader::verify_alignment(Alignment &alignment,
 
     string contig_fragment = m_contigs[contig_id].substr(alignment.contig_start,
                                                          alignment.contig_end - alignment.contig_start);
-    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id);
+    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id, contig_id);
     string read_segment = m_reads[read_id].substr(alignment.read_start,
                                                   alignment.read_end - alignment.read_start);
     if (alignment.is_reverse)

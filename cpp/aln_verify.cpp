@@ -101,7 +101,7 @@ void verify_command(const string &ifn_aln,
     string contig_fragment = contigs[contig_id].substr(alignment.contig_start,
                                                        alignment.contig_end - alignment.contig_start);
 
-    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id);
+    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id, contig_id);
     string read_segment = reads[read_id].substr(alignment.read_start,
                                                 alignment.read_end - alignment.read_start);
 
