@@ -57,12 +57,7 @@ Additionally, the **`cs:Z:` tag** (difference string) **must be present** in one
 read_298    150 10  145 +   contig_12   5000    1500    1635    120 135 60  cs:Z::10*at:5+gg:20-c:15*cg:70
 ```
 
-For a complete example of a PAF file, see `examples/align_25.paf` in the repository.
-
-
-## Data Representation
-
-*(No specific details requested)*
+For a complete example of a PAF file, see `examples/align_100.paf` in the repository.
 
 ## Usage
 
@@ -86,7 +81,3 @@ The `construct` command reads a PAF file and creates a binary `.aln` file, which
 *   `-ifn_contigs <fn>`: Input contig FASTA file (required if `-verify T`).
 *   `-max_reads <int>`: Process only the first N alignments (0 means all, default: `0`).
 *   `-quit_on_error <T|F>`: Exit immediately if an error is encountered during parsing or verification (default: `true`).
-
----
-
-*(Query commands will be added later)* 
