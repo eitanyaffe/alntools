@@ -66,7 +66,7 @@ For a complete example of a PAF file, see `examples/align_100.paf` in the reposi
 The `construct` command reads a PAF file and creates a binary `.aln` file, which stores the alignment data efficiently for later queries.
 
 ```bash
-./bin/<os>/alntools construct -ifn_paf <input.paf> -ofn <output.aln> [options]
+alntools construct -ifn_paf <input.paf> -ofn <output.aln> [options]
 ```
 
 **Mandatory Arguments:**
@@ -75,6 +75,8 @@ The `construct` command reads a PAF file and creates a binary `.aln` file, which
 *   `-ofn <fn>`: Path for the output ALN file.
 
 **Optional Arguments:**
+
+An optional verification (of the cs strings) compares the assembly sequence after applying the cs string and the matching reads. This feature can verify the generation of valid cs strings by the mapper. For example, we tested in this manner over 1 million minimap2 alignments and all were correct.  
 
 *   `-verify <T|F>`: Verify PAF alignments against sequence files (default: `false`).
 *   `-ifn_reads <fn>`: Input read FASTQ file (required if `-verify T`).
