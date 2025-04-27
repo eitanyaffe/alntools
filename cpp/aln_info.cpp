@@ -1,55 +1,53 @@
+#include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <string>
-#include <cstdlib>
-#include <cstddef>
 
-#include "alignment_store.h"
 #include "Params.h"
+#include "alignment_store.h"
 
 using namespace std;
 
-void info_command(const string& aln_file) 
+void info_command(const string& aln_file)
 {
-    double size_mb = get_file_size_mb(aln_file);
-    cout << "loading alignment file " << aln_file << " (" << size_mb << " MB)" << endl;
+  double size_mb = get_file_size_mb(aln_file);
+  cout << "loading alignment file " << aln_file << " (" << size_mb << " MB)" << endl;
 
-    AlignmentStore store;
-    store.load(aln_file);
-  
-    cout << "\nAlignment File Statistics:\n";
-    cout << "-------------------------\n";
-    cout << "Total alignments: " << store.get_alignment_count() << "\n";
-    cout << "Total reads: " << store.get_read_count() << "\n";
-    
-    // Calculate average alignment length
-    size_t total_length = 0;
-    for (const auto& aln : store.get_alignments()) {
-        total_length += (aln.read_end - aln.read_start);
-    }
-    double avg_length = store.get_alignment_count() > 0 ? 
-        static_cast<double>(total_length) / store.get_alignment_count() : 0;
-    
-    cout << "Average alignment length: " << avg_length << " bp\n";
-    cout << "-------------------------\n";
+  AlignmentStore store;
+  store.load(aln_file);
 
-    // Calculate mutation statistics
-    size_t total_mutations = 0;
-    for (const auto& aln : store.get_alignments()) {
-        total_mutations += aln.mutations.size();
-    }
+  cout << "\nAlignment File Statistics:\n";
+  cout << "-------------------------\n";
+  cout << "Total alignments: " << store.get_alignment_count() << "\n";
+  cout << "Total reads: " << store.get_read_count() << "\n";
 
-    double avg_mutations = store.get_alignment_count() > 0 ?
-        static_cast<double>(total_mutations) / store.get_alignment_count() : 0;
+  // Calculate average alignment length
+  size_t total_length = 0;
+  for (const auto& aln : store.get_alignments()) {
+    total_length += (aln.read_end - aln.read_start);
+  }
+  double avg_length = store.get_alignment_count() > 0 ? static_cast<double>(total_length) / store.get_alignment_count() : 0;
 
-    cout << "Total mutations: " << total_mutations << "\n";
-    cout << "Average mutations per alignment: " << avg_mutations << "\n";
-    cout << "-------------------------\n";
+  cout << "Average alignment length: " << avg_length << " bp\n";
+  cout << "-------------------------\n";
+
+  // Calculate mutation statistics
+  size_t total_mutations = 0;
+  for (const auto& aln : store.get_alignments()) {
+    total_mutations += aln.mutations.size();
+  }
+
+  double avg_mutations = store.get_alignment_count() > 0 ? static_cast<double>(total_mutations) / store.get_alignment_count() : 0;
+
+  cout << "Total mutations: " << total_mutations << "\n";
+  cout << "Average mutations per alignment: " << avg_mutations << "\n";
+  cout << "-------------------------\n";
 }
 
-void info_params(const char* name, int argc, char **argv, Parameters& params)
+void info_params(const char* name, int argc, char** argv, Parameters& params)
 {
   params.add_parser("ifn", new ParserFilename("input PAF file"), true);
-  
+
   if (argc == 1) {
     params.usage(name);
     exit(1);
@@ -62,14 +60,14 @@ void info_params(const char* name, int argc, char **argv, Parameters& params)
   params.print(cout);
 }
 
-int info_main(const char* name, int argc, char **argv)
+int info_main(const char* name, int argc, char** argv)
 {
   Parameters params;
   info_params(name, argc, argv, params);
-  
+
   string ifn = params.get_string("ifn");
 
   info_command(ifn);
-  
+
   return 0;
 }

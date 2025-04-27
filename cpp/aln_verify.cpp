@@ -1,23 +1,24 @@
-#include <iostream>
+#include "Params.h"
+#include "alignment_store.h"
+#include "utils.h"
+#include <algorithm>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "alignment_store.h"
-#include "Params.h"
-#include "utils.h"
-#include <algorithm>
 
 using namespace std;
 
 // Main verification function
-void verify_command(const string &ifn_aln,
-                    const string &ifn_reads,
-                    const string &ifn_contigs,
-                    int max_reads,
-                    const string &ofn_reads,
-                    const string &ofn_contigs)
+void verify_command(
+    const string& ifn_aln,
+    const string& ifn_reads,
+    const string& ifn_contigs,
+    int max_reads,
+    const string& ofn_reads,
+    const string& ofn_contigs)
 {
   AlignmentStore store;
   cout << "Reading alignment file: " << ifn_aln << "\n";
@@ -25,15 +26,13 @@ void verify_command(const string &ifn_aln,
 
   // limit the number of alignments to verify
   vector<Alignment> alignments = store.get_alignments();
-  if (max_reads > 0)
-  {
+  if (max_reads > 0) {
     alignments = vector<Alignment>(alignments.begin(), alignments.begin() + max_reads);
   }
 
   // Collect contig and read IDs from the store
   vector<string> contig_ids, read_ids;
-  for (const auto &alignment : alignments)
-  {
+  for (const auto& alignment : alignments) {
     contig_ids.push_back(store.get_contig_id(alignment.contig_index));
     read_ids.push_back(store.get_read_id(alignment.read_index));
   }
@@ -50,11 +49,10 @@ void verify_command(const string &ifn_aln,
   write_fastq(ofn_reads, reads);
 
   int bad_alignment_count = 0;
-  for (const auto &alignment : alignments)
-  {
+  for (const auto& alignment : alignments) {
 
-    const string &contig_id = store.get_contig_id(alignment.contig_index);
-    const string &read_id = store.get_read_id(alignment.read_index);
+    const string& contig_id = store.get_contig_id(alignment.contig_index);
+    const string& read_id = store.get_read_id(alignment.read_index);
 
     cout << "==================\n"
          << "Read: " << read_id << " [" << alignment.read_start << "," << alignment.read_end << "] "
@@ -62,13 +60,10 @@ void verify_command(const string &ifn_aln,
          << "  Is reverse: " << (alignment.is_reverse ? "yes" : "no") << "\n";
 
     // Count mutations by type
-    auto count_mutations_by_type = [](const vector<Mutation> &mutations)
-    {
+    auto count_mutations_by_type = [](const vector<Mutation>& mutations) {
       size_t subs = 0, ins = 0, dels = 0;
-      for (const auto &mut : mutations)
-      {
-        switch (mut.type)
-        {
+      for (const auto& mut : mutations) {
+        switch (mut.type) {
         case MutationType::SUBSTITUTION:
           subs++;
           break;
@@ -89,9 +84,9 @@ void verify_command(const string &ifn_aln,
          << ", Deletions: " << num_dels << "\n";
 
     massert(contigs.find(contig_id) != contigs.end(),
-            "Error: Contig '%s' not found in FASTA file.", contig_id.c_str());
+        "Error: Contig '%s' not found in FASTA file.", contig_id.c_str());
     massert(reads.find(read_id) != reads.end(),
-            "Error: Read '%s' not found in FASTQ file.", read_id.c_str());
+        "Error: Read '%s' not found in FASTQ file.", read_id.c_str());
 
     cout << "mutating contig with " << alignment.mutations.size() << " mutations" << endl;
 
@@ -99,24 +94,22 @@ void verify_command(const string &ifn_aln,
     massert(reads.find(read_id) != reads.end(), "read %s not found in map", read_id.c_str());
 
     string contig_fragment = contigs[contig_id].substr(alignment.contig_start,
-                                                       alignment.contig_end - alignment.contig_start);
+        alignment.contig_end - alignment.contig_start);
 
     string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id, contig_id);
     string read_segment = reads[read_id].substr(alignment.read_start,
-                                                alignment.read_end - alignment.read_start);
+        alignment.read_end - alignment.read_start);
 
     if (alignment.is_reverse)
       mutated_contig = reverse_complement(mutated_contig);
 
     massert(read_segment.size() == mutated_contig.size(),
-            "read segment length (%zu) does not match mutated contig length (%zu)",
-            read_segment.size(), mutated_contig.size());
+        "read segment length (%zu) does not match mutated contig length (%zu)",
+        read_segment.size(), mutated_contig.size());
 
     bool mismatch_found = false;
-    for (size_t i = 0; i < read_segment.size(); ++i)
-    {
-      if (mutated_contig[i] != read_segment[i])
-      {
+    for (size_t i = 0; i < read_segment.size(); ++i) {
+      if (mutated_contig[i] != read_segment[i]) {
 
         // Calculate start and end indices for the segment
         size_t start = (i >= 5) ? i - 8 : 0;
@@ -132,17 +125,13 @@ void verify_command(const string &ifn_aln,
       }
     }
 
-    if (mismatch_found)
-    {
+    if (mismatch_found) {
       bad_alignment_count++;
-      if (bad_alignment_count > 100)
-      {
+      if (bad_alignment_count > 100) {
         cerr << "Too many bad alignments. Exiting.\n";
         exit(-1);
       }
-    }
-    else
-    {
+    } else {
       cout << "Alignment is good.\n";
     }
   }
@@ -152,7 +141,7 @@ void verify_command(const string &ifn_aln,
        << " (" << (bad_alignment_count * 100.0 / store.get_alignment_count()) << "%)\n";
 }
 
-void verify_params(const char *name, int argc, char **argv, Parameters &params)
+void verify_params(const char* name, int argc, char** argv, Parameters& params)
 {
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
   params.add_parser("ifn_reads", new ParserFilename("input reads, FASTQ"), true);
@@ -163,8 +152,7 @@ void verify_params(const char *name, int argc, char **argv, Parameters &params)
   params.add_parser("ofn_contigs", new ParserFilename("contigs limited to alignments, FASTA"), false);
   params.add_parser("ofn_reads", new ParserFilename("reads limited to alignments, FASTA"), false);
 
-  if (argc == 1)
-  {
+  if (argc == 1) {
     params.usage(name);
     exit(1);
   }
@@ -176,7 +164,7 @@ void verify_params(const char *name, int argc, char **argv, Parameters &params)
   params.print(cout);
 }
 
-int verify_main(const char *name, int argc, char **argv)
+int verify_main(const char* name, int argc, char** argv)
 {
   Parameters params;
   verify_params(name, argc, argv, params);

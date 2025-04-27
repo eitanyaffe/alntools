@@ -1,4 +1,5 @@
 #include "utils.h"
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -9,7 +10,8 @@
 
 using namespace std;
 
-void massert(bool cond, const char *fmt, ...) {
+void massert(bool cond, const char* fmt, ...)
+{
   if (cond) {
     return;
   }
@@ -25,7 +27,8 @@ void massert(bool cond, const char *fmt, ...) {
   exit(-1);
 }
 
-void mexit(const char *fmt, ...) {
+void mexit(const char* fmt, ...)
+{
   fprintf(stderr, "Error: ");
 
   va_list argp;
@@ -38,18 +41,21 @@ void mexit(const char *fmt, ...) {
 }
 
 // Function to convert a string to uppercase
-string to_upper(string str) {
+string to_upper(string str)
+{
   std::transform(str.begin(), str.end(), str.begin(), ::toupper);
   return str;
 }
 
-string to_lower(const string &input) {
+string to_lower(const string& input)
+{
   string result = input;
   transform(result.begin(), result.end(), result.begin(), ::tolower);
   return result;
 }
 
-std::string reverse_complement(std::string seq) {
+std::string reverse_complement(std::string seq)
+{
   std::string result = seq;
   int N = seq.length();
   for (int i = 0; i < N; i++) {
@@ -76,34 +82,34 @@ std::string reverse_complement(std::string seq) {
 }
 
 // Function to read FASTA file and create a map of contig IDs to sequences
-void read_fasta(const string &filename, const unordered_set<string> &contig_ids,
-                unordered_map<string, string> &contigs) {
+void read_fasta(const string& filename, const unordered_set<string>& contig_ids,
+    unordered_map<string, string>& contigs)
+{
   cout << "Reading FASTA file: " << filename << endl;
   ifstream file(filename);
   string line, id, sequence;
   while (getline(file, line)) {
     if (line[0] == '>') {
-      if (!id.empty() &&
-          (contig_ids.empty() || contig_ids.find(id) != contig_ids.end())) {
+      if (!id.empty() && (contig_ids.empty() || contig_ids.find(id) != contig_ids.end())) {
         contigs[id] = sequence;
       }
-      id = line.substr(1, line.find_first_of(" ") -
-                              1); // Extract ID before first space/tab
+      id = line.substr(
+          1, line.find_first_of(" ") - 1); // Extract ID before first space/tab
       sequence.clear();
     } else {
       sequence += line;
     }
   }
-  if (!id.empty() &&
-      (contig_ids.empty() || contig_ids.find(id) != contig_ids.end())) {
+  if (!id.empty() && (contig_ids.empty() || contig_ids.find(id) != contig_ids.end())) {
     contigs[id] = sequence;
   }
   cout << "read " << contigs.size() << " contigs" << endl;
 }
 
 // Function to read FASTQ file and create a map of read IDs to sequences
-void read_fastq(const string &filename, const unordered_set<string> &read_ids,
-                unordered_map<string, string> &reads) {
+void read_fastq(const string& filename, const unordered_set<string>& read_ids,
+    unordered_map<string, string>& reads)
+{
   cout << "Reading FASTQ file: " << filename << endl;
   ifstream file(filename);
   string line, id, sequence;
@@ -121,8 +127,9 @@ void read_fastq(const string &filename, const unordered_set<string> &read_ids,
   }
 }
 
-void write_fasta(const string &filename,
-                 unordered_map<string, string> &contigs) {
+void write_fasta(const string& filename,
+    unordered_map<string, string>& contigs)
+{
   cout << "writing " << contigs.size() << " contigs to " << filename << endl;
   ofstream file(filename);
   if (!file.is_open()) {
@@ -130,7 +137,7 @@ void write_fasta(const string &filename,
     exit(EXIT_FAILURE);
   }
 
-  for (const auto &entry : contigs) {
+  for (const auto& entry : contigs) {
     file << ">" << entry.first << "\n";
     file << entry.second << "\n";
   }
@@ -138,7 +145,8 @@ void write_fasta(const string &filename,
   file.close();
 }
 
-void write_fastq(const string &filename, unordered_map<string, string> &reads) {
+void write_fastq(const string& filename, unordered_map<string, string>& reads)
+{
   cout << "writing " << reads.size() << " reads to " << filename << endl;
   ofstream file(filename);
   if (!file.is_open()) {
@@ -146,7 +154,7 @@ void write_fastq(const string &filename, unordered_map<string, string> &reads) {
     exit(EXIT_FAILURE);
   }
 
-  for (const auto &entry : reads) {
+  for (const auto& entry : reads) {
     file << "@" << entry.first << "\n";
     file << entry.second << "\n";
     file << "+" << "\n";
@@ -158,8 +166,9 @@ void write_fastq(const string &filename, unordered_map<string, string> &reads) {
 }
 
 // Function to apply mutations to a contig fragment
-string apply_mutations(const string &seq, const vector<Mutation> &mutations,
-                       const string &read_id, const string &contig_id) {
+string apply_mutations(const string& seq, const vector<Mutation>& mutations,
+    const string& read_id, const string& contig_id)
+{
   string result;
   size_t prev_pos = 0, current_pos = 0;
   bool error_found = false;
@@ -169,15 +178,15 @@ string apply_mutations(const string &seq, const vector<Mutation> &mutations,
 
   int count = 0;
   // Process each mutation in order
-  for (const auto &mutation : mutations) {
+  for (const auto& mutation : mutations) {
     current_pos = mutation.position;
     count++;
 
     // Verify position is within bounds
     massert(current_pos <= seq.size(),
-            "mutation %u position %u is outside fragment bounds %u for read "
-            "%s, contig %s",
-            count, current_pos, seq.size(), read_id.c_str(), contig_id.c_str());
+        "mutation %u position %u is outside fragment bounds %u for read "
+        "%s, contig %s",
+        count, current_pos, seq.size(), read_id.c_str(), contig_id.c_str());
 
     // Copy unchanged sequence up to this mutation
     size_t gap = current_pos - prev_pos;
@@ -193,17 +202,19 @@ string apply_mutations(const string &seq, const vector<Mutation> &mutations,
 
       // Verify reference bases match expected
       if (seq.substr(current_pos, ref_nts.size()) != ref_nts) {
-        printf("reference bases at position %zu do not match expected. "
-               "expected: %s, found: %s\n",
-               current_pos, ref_nts.c_str(),
-               seq.substr(current_pos, ref_nts.size()).c_str());
+        printf(
+            "reference bases at position %zu do not match expected. "
+            "expected: %s, found: %s\n",
+            current_pos, ref_nts.c_str(),
+            seq.substr(current_pos, ref_nts.size()).c_str());
         error_found = true;
       }
       // Verify substitution lengths match
       if (read_nts.size() != ref_nts.size()) {
-        printf("substitution lengths do not match at position %zu. read: %zu, "
-               "ref: %zu\n",
-               current_pos, read_nts.size(), ref_nts.size());
+        printf(
+            "substitution lengths do not match at position %zu. read: %zu, "
+            "ref: %zu\n",
+            current_pos, read_nts.size(), ref_nts.size());
         error_found = true;
       }
       // Add the substituted bases
@@ -220,9 +231,10 @@ string apply_mutations(const string &seq, const vector<Mutation> &mutations,
       // Verify reference bases match expected
       string obs_nts = seq.substr(current_pos, ref_nts.size());
       if (obs_nts != ref_nts) {
-        printf("reference bases at position %zu do not match expected for "
-               "deletion. expected: %s, found: %s\n",
-               current_pos, obs_nts.c_str(), ref_nts.c_str());
+        printf(
+            "reference bases at position %zu do not match expected for "
+            "deletion. expected: %s, found: %s\n",
+            current_pos, obs_nts.c_str(), ref_nts.c_str());
         error_found = true;
       }
       current_pos += ref_nts.size();
@@ -242,7 +254,8 @@ string apply_mutations(const string &seq, const vector<Mutation> &mutations,
   return result;
 }
 
-FileType get_file_type(const std::string &filename) {
+FileType get_file_type(const std::string& filename)
+{
   cout << "getting file type for " << filename << endl;
   std::ifstream file(filename);
   if (!file.is_open()) {
@@ -269,7 +282,8 @@ FileType get_file_type(const std::string &filename) {
   }
 }
 
-double get_file_size_mb(const std::string &filename) {
+double get_file_size_mb(const std::string& filename)
+{
   std::ifstream file(filename, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
     std::cerr << "failed to open file: " << filename << std::endl;
@@ -280,8 +294,9 @@ double get_file_size_mb(const std::string &filename) {
   return static_cast<double>(size) / (1024.0 * 1024.0);
 }
 
-void read_intervals(const std::string &filename,
-                    std::vector<Interval> &intervals) {
+void read_intervals(const std::string& filename,
+    std::vector<Interval>& intervals)
+{
   std::ifstream file(filename);
   if (!file.is_open()) {
     cerr << "error: could not open file " << filename << " for reading" << endl;
@@ -298,7 +313,7 @@ void read_intervals(const std::string &filename,
       exit(EXIT_FAILURE);
     }
   }
-
+  // read
   while (getline(file, line)) {
     std::istringstream iss(line);
     std::string contig;
@@ -309,16 +324,16 @@ void read_intervals(const std::string &filename,
     }
     intervals.emplace_back(contig, start, end);
   }
-
   file.close();
 }
 
-string generate_cs_tag(const Alignment &alignment) {
+string generate_cs_tag(const Alignment& alignment)
+{
   string result;
   uint32_t current_pos = 0;
 
   for (size_t i = 0; i < alignment.mutations.size(); ++i) {
-    const Mutation &mut = alignment.mutations[i];
+    const Mutation& mut = alignment.mutations[i];
 
     // add match segment if there's a gap
     uint32_t gap = mut.position - current_pos;

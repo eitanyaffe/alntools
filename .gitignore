@@ -2,7 +2,7 @@
 /documentation
 /bin/*
 /obj/*
-.vscode/settings.json
+.vscode/*
 /bu/*
 examples/align.paf
 examples/reads.fq
