@@ -1,58 +1,23 @@
 #include "Params.h"
+#include "QueryBin.h"
+#include "QueryFull.h"
+#include "QueryPileup.h"
 #include "alignment_store.h"
 #include "utils.h"
 #include <iostream>
 #include <string>
 #include <vector>
+
 using namespace std;
-
-void query_full_command(const vector<Interval>& intervals,
-    const string& ofn, const AlignmentStore& store)
-{
-  cout << "query full command called" << endl;
-  ofstream ofs(ofn);
-
-  // Write header
-  ofs << "read_id\tcontig_id\tread_start\tread_end\tcontig_start\tcontig_end\tis_reverse\tcs_tag\n";
-
-  for (const auto& interval : intervals) {
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
-    for (const auto& alignment : alignments) {
-      const auto& aln = alignment.get();
-      string read_id = store.get_read_id(aln.read_index);
-      string contig_id = store.get_contig_id(aln.contig_index);
-
-      ofs << read_id << "\t"
-          << contig_id << "\t"
-          << aln.read_start << "\t"
-          << aln.read_end << "\t"
-          << aln.contig_start << "\t"
-          << aln.contig_end << "\t"
-          << (aln.is_reverse ? "true" : "false") << "\t";
-      ofs << generate_cs_tag(aln) << "\n";
-    }
-  }
-}
-
-void query_pileup_command(
-    const vector<Interval>& intervals,
-    const string& ofn, const AlignmentStore& store)
-{
-  cout << "query pileup command called" << endl;
-}
-
-void query_bin_command(const vector<Interval>& intervals,
-    const string& ofn, const AlignmentStore& store, int binsize)
-{
-  cout << "query bin command called" << endl;
-}
 
 void query_params(const char* name, int argc, char** argv, Parameters& params)
 {
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
   params.add_parser("ifn_intervals", new ParserFilename("input table with query contig intervals"), true);
-  params.add_parser("ofn", new ParserFilename("output tab-delimited table"), true);
-  params.add_parser("mode", new ParserString("query mode (full, pileup, bin)", "full"), true); // Defaulting to "full" for now, update if needed
+  params.add_parser("ofn_prefix", new ParserFilename("output tab-delimited table prefix"), true);
+  params.add_parser("mode", new ParserString("query mode (full, pileup, bin)", "full"), true);
+  params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
+  params.add_parser("skip_empty_bins", new ParserBoolean("skip bins with no mutations", false), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
 
   if (argc == 1) {
@@ -81,6 +46,16 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
     }
   }
 
+  // If mode is 'pileup', validate pileup_mode
+  if (mode == "pileup") {
+    string pileup_mode_str = params.get_string("pileup_mode");
+    if (pileup_mode_str != "all" && pileup_mode_str != "covered" && pileup_mode_str != "mutated") {
+      cerr << "error: invalid pileup_mode specified: " << pileup_mode_str
+           << ". Must be 'all', 'covered', or 'mutated'." << endl;
+      exit(1);
+    }
+  }
+
   params.print(cout);
 }
 
@@ -91,17 +66,32 @@ int query_main(const char* name, int argc, char** argv)
 
   string ifn_aln = params.get_string("ifn_aln");
   string ifn_intervals = params.get_string("ifn_intervals");
-  string ofn = params.get_string("ofn");
+  string ofn_prefix = params.get_string("ofn_prefix");
   string mode = params.get_string("mode");
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
+  bool skip_empty_bins = params.get_bool("skip_empty_bins");
+
+  // Get pileup mode string and convert to enum
+  PileupReportMode pileup_mode = PileupReportMode::COVERED; // Default
+  if (mode == "pileup") {
+    string pileup_mode_str = params.get_string("pileup_mode");
+    if (pileup_mode_str == "all") {
+      pileup_mode = PileupReportMode::ALL;
+    } else if (pileup_mode_str == "mutated") {
+      pileup_mode = PileupReportMode::MUTATED;
+    } // else it remains COVERED (the default)
+  }
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
   cout << "  ifn_intervals: " << ifn_intervals << endl;
-  cout << "  ofn: " << ofn << endl;
+  cout << "  ofn_prefix: " << ofn_prefix << endl;
   cout << "  mode: " << mode << endl;
   if (mode == "bin") {
     cout << "  binsize: " << binsize << endl;
+  }
+  if (mode == "pileup") {
+    cout << "  pileup_mode: " << params.get_string("pileup_mode") << endl;
   }
 
   vector<Interval> intervals;
@@ -112,11 +102,14 @@ int query_main(const char* name, int argc, char** argv)
   store.load(ifn_aln);
 
   if (mode == "full") {
-    query_full_command(intervals, ofn, store);
+    QueryFull queryFull(intervals, ofn_prefix, store);
+    queryFull.write_to_csv();
   } else if (mode == "pileup") {
-    query_pileup_command(intervals, ofn, store);
+    QueryPileup queryPileup(intervals, ofn_prefix, store, pileup_mode);
+    queryPileup.write_to_csv();
   } else if (mode == "bin") {
-    query_bin_command(intervals, ofn, store, binsize);
+    QueryBin queryBin(intervals, ofn_prefix, store, binsize, skip_empty_bins);
+    queryBin.write_to_csv();
   }
 
   return 0;

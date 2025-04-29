@@ -1,9 +1,13 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #include "aln_types.h"
@@ -16,28 +20,34 @@ void massert(bool cond, const char* fmt, ...)
     return;
   }
 
-  fprintf(stderr, "Error: ");
+  va_list args1;
+  va_start(args1, fmt);
+  va_list args2;
+  va_copy(args2, args1);
+  int size = std::vsnprintf(nullptr, 0, fmt, args1) + 1;
+  va_end(args1);
 
-  va_list argp;
-  va_start(argp, fmt);
-  vfprintf(stderr, fmt, argp);
-  va_end(argp);
+  std::vector<char> buffer(size);
+  std::vsnprintf(buffer.data(), size, fmt, args2);
+  va_end(args2);
 
-  fprintf(stderr, "\n");
-  exit(-1);
+  throw std::runtime_error("Assertion failed: " + std::string(buffer.data()));
 }
 
 void mexit(const char* fmt, ...)
 {
-  fprintf(stderr, "Error: ");
+  va_list args1;
+  va_start(args1, fmt);
+  va_list args2;
+  va_copy(args2, args1);
+  int size = std::vsnprintf(nullptr, 0, fmt, args1) + 1;
+  va_end(args1);
 
-  va_list argp;
-  va_start(argp, fmt);
-  vfprintf(stderr, fmt, argp);
-  va_end(argp);
+  std::vector<char> buffer(size);
+  std::vsnprintf(buffer.data(), size, fmt, args2);
+  va_end(args2);
 
-  fprintf(stderr, "\n");
-  exit(-1);
+  throw std::runtime_error("Error: " + std::string(buffer.data()));
 }
 
 // Function to convert a string to uppercase

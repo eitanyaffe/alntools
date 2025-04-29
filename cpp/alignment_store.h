@@ -67,7 +67,7 @@ class AlignmentStore {
 
   // Get read index
   size_t get_read_index(const string& read_id);
-  size_t get_contig_index(const string& contig_id);
+  size_t get_contig_index(const string& contig_id) const;
 
   // Get id by index
   const string& get_read_id(size_t read_index) const;

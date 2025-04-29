@@ -14,6 +14,9 @@ TEST_EXAMPLE_OUTPUT_DIR = output/example
 
 TEST_UNCOMPRESSED = examples/.uncompressed
 
+TEST_INTERVALS_SMALL = examples/intervals_small.txt
+TEST_INTERVALS_LARGE = examples/intervals_large.txt
+
 # Test targets
 .PHONY: test test_basic test_full test_query clean-test
 
@@ -71,15 +74,32 @@ create_example: $(TARGET)
 		-ofn_reads examples/short_reads.fq \
 		-ofn_contigs examples/short_contigs.fa
 
-test_query: $(TARGET)
+test_query_full: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
-		-ifn_intervals examples/intervals.txt \
-		-ofn examples/query_output.txt \
+		-ifn_intervals $(TEST_INTERVALS_LARGE) \
+		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/query \
 		-mode full
 
+test_query_bin: $(TARGET)
+	$(TARGET) query \
+		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ifn_intervals $(TEST_INTERVALS_LARGE) \
+		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/query \
+		-mode bin \
+		-binsize 10000 \
+		-skip_empty_bins F
+
+test_query_pileup: $(TARGET)
+	$(TARGET) query \
+		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ifn_intervals $(TEST_INTERVALS_SMALL) \
+		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/query \
+		-mode pileup \
+		-pileup_mode mutated
+
 # Run all tests
-test: test_basic test_full
+test: test_basic test_full test_query
 	@echo "all tests completed successfully"
 
 # Clean test outputs

@@ -15,6 +15,9 @@ else ifeq ($(UNAME_S),Darwin)
     BIN_DIR = bin/macos
 endif
 
+# Header files
+HDRS = $(wildcard $(SRC_DIR)/*.h)
+
 # Source files
 SRCS = $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
@@ -36,7 +39,7 @@ $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
 # Compile source files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(HDRS) | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Link object files

@@ -5,6 +5,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 using std::cerr;
@@ -138,8 +139,7 @@ void AlignmentStore::load(const string& filename)
 {
   ifstream file(filename, ios::binary);
   if (!file.is_open()) {
-    cerr << "error opening file: " << filename << endl;
-    abort();
+    throw std::runtime_error("error opening file: " + filename);
   }
 
   // Clear existing data
@@ -375,7 +375,7 @@ size_t AlignmentStore::get_read_index(const string& read_id)
   return it->second;
 }
 
-size_t AlignmentStore::get_contig_index(const string& contig_id)
+size_t AlignmentStore::get_contig_index(const string& contig_id) const
 {
   auto it = contig_id_to_index.find(contig_id);
   massert(it != contig_id_to_index.end(), "contig not found: %s", contig_id.c_str());

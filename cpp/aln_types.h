@@ -20,16 +20,16 @@ inline std::ostream& operator<<(std::ostream& os, const MutationType& type)
 {
   switch (type) {
   case MutationType::SUBSTITUTION:
-    os << "SUBSTITUTION";
+    os << "SUB";
     break;
   case MutationType::INSERTION:
-    os << "INSERTION";
+    os << "INS";
     break;
   case MutationType::DELETION:
-    os << "DELETION";
+    os << "DEL";
     break;
   default:
-    os << "UNKNOWN";
+    os << "UNK";
     break;
   }
   return os;
@@ -49,6 +49,18 @@ struct Mutation {
       , read_nts(read_nts)
       , ref_nts(ref_nts)
   {
+  }
+
+  string to_string() const
+  {
+    switch (type) {
+    case MutationType::SUBSTITUTION:
+      return read_nts + ":" + ref_nts;
+    case MutationType::INSERTION:
+      return "+" + read_nts;
+    case MutationType::DELETION:
+      return "-" + ref_nts;
+    }
   }
 };
 
