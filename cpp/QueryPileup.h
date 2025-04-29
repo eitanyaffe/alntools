@@ -34,7 +34,6 @@ struct PileupOutputRow {
 class QueryPileup {
   private:
   const std::vector<Interval>& intervals;
-  std::string ofn_prefix;
   const AlignmentStore& store;
   PileupReportMode report_mode;
 
@@ -43,14 +42,18 @@ class QueryPileup {
   // Vector to store the formatted output rows before writing
   std::vector<PileupOutputRow> output_rows;
 
-  void aggregate_data(); // Helper function to perform the aggregation
-  void generate_output_rows(); // Helper function to populate output_rows from pileup_results
-  void write_rows_to_file(); // Helper function to write output_rows to file
+  void aggregate_data();
+  void generate_output_rows();
+  void write_rows_to_file(const std::string& ofn_prefix);
 
   public:
-  QueryPileup(const std::vector<Interval>& intervals, const std::string& ofn_prefix,
-      const AlignmentStore& store, PileupReportMode report_mode);
-  void write_to_csv(); // Main public method to coordinate aggregation and writing
+  QueryPileup(const std::vector<Interval>& intervals, const AlignmentStore& store, PileupReportMode report_mode);
+
+  // execute the query
+  void execute();
+
+  // write the output rows to a table
+  void write_to_csv(const std::string& ofn_prefix);
 };
 
 #endif // QUERYPILEUP_H

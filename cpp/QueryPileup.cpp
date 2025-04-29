@@ -12,11 +12,9 @@ using namespace std;
 
 QueryPileup::QueryPileup(
     const std::vector<Interval>& intervals,
-    const std::string& ofn_prefix,
     const AlignmentStore& store,
     PileupReportMode report_mode)
     : intervals(intervals)
-    , ofn_prefix(ofn_prefix)
     , store(store)
     , report_mode(report_mode)
 {
@@ -142,7 +140,7 @@ void QueryPileup::generate_output_rows()
 }
 
 // Private helper function to write output_rows to file
-void QueryPileup::write_rows_to_file()
+void QueryPileup::write_rows_to_file(const std::string& ofn_prefix)
 {
   string filename = ofn_prefix + "_pileup.tsv";
   cout << "writing pileup data to " << filename << endl;
@@ -170,9 +168,13 @@ void QueryPileup::write_rows_to_file()
 }
 
 // Public method to orchestrate the process
-void QueryPileup::write_to_csv()
+void QueryPileup::write_to_csv(const std::string& ofn_prefix)
+{
+  write_rows_to_file(ofn_prefix);
+}
+
+void QueryPileup::execute()
 {
   aggregate_data();
-  generate_output_rows(); // Changed from write_data_to_file
-  write_rows_to_file(); // New call
+  generate_output_rows();
 }

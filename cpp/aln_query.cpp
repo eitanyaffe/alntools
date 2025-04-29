@@ -17,7 +17,6 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("ofn_prefix", new ParserFilename("output tab-delimited table prefix"), true);
   params.add_parser("mode", new ParserString("query mode (full, pileup, bin)", "full"), true);
   params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
-  params.add_parser("skip_empty_bins", new ParserBoolean("skip bins with no mutations", false), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
 
   if (argc == 1) {
@@ -69,7 +68,6 @@ int query_main(const char* name, int argc, char** argv)
   string ofn_prefix = params.get_string("ofn_prefix");
   string mode = params.get_string("mode");
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
-  bool skip_empty_bins = params.get_bool("skip_empty_bins");
 
   // Get pileup mode string and convert to enum
   PileupReportMode pileup_mode = PileupReportMode::COVERED; // Default
@@ -102,14 +100,17 @@ int query_main(const char* name, int argc, char** argv)
   store.load(ifn_aln);
 
   if (mode == "full") {
-    QueryFull queryFull(intervals, ofn_prefix, store);
-    queryFull.write_to_csv();
+    QueryFull queryFull(intervals, store);
+    queryFull.execute();
+    queryFull.write_to_csv(ofn_prefix);
   } else if (mode == "pileup") {
-    QueryPileup queryPileup(intervals, ofn_prefix, store, pileup_mode);
-    queryPileup.write_to_csv();
+    QueryPileup queryPileup(intervals, store, pileup_mode);
+    queryPileup.execute();
+    queryPileup.write_to_csv(ofn_prefix);
   } else if (mode == "bin") {
-    QueryBin queryBin(intervals, ofn_prefix, store, binsize, skip_empty_bins);
-    queryBin.write_to_csv();
+    QueryBin queryBin(intervals, store, binsize);
+    queryBin.execute();
+    queryBin.write_to_csv(ofn_prefix);
   }
 
   return 0;

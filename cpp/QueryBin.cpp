@@ -1,5 +1,6 @@
 #include "QueryBin.h"
 #include <algorithm> // For std::min/max
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -10,79 +11,63 @@ using namespace std;
 
 QueryBin::QueryBin(
     const std::vector<Interval>& intervals,
-    const std::string& ofn_prefix,
     const AlignmentStore& store,
-    int binsize,
-    bool skip_empty_bins)
+    int binsize)
     : intervals(intervals)
-    , ofn_prefix(ofn_prefix)
     , store(store)
     , binsize(binsize)
-    , skip_empty_bins(skip_empty_bins)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
-    exit(1); // Abort as per instructions
+    exit(1);
   }
 }
 
-// Private helper function to aggregate data into bin_results
 void QueryBin::aggregate_data()
 {
-  bin_results.clear(); // Ensure map is empty before starting
-
-  cout << "aggregating alignment data into bins..." << endl;
+  bin_results.clear();
 
   for (const auto& interval : intervals) {
-    // Adjust interval boundaries to multiples of binsize
+    uint32_t contig_index = store.get_contig_index(interval.contig);
+
+    // Calculate relevant bin range based on original interval
     uint32_t adjusted_start = (interval.start / binsize) * binsize;
-    uint32_t adjusted_end = ((interval.end + binsize - 1) / binsize) * binsize;
-    if (adjusted_end == interval.end && adjusted_end > adjusted_start) { // Avoid empty range if end is a multiple
-      adjusted_end = ((interval.end - 1 + binsize) / binsize) * binsize; // Round end-1 up
-    }
-
-    // Ensure adjusted interval is valid
-    if (adjusted_start >= adjusted_end) {
-      cout << "warning: skipping interval " << interval.contig << ":" << interval.start << "-" << interval.end
-           << " because adjusted range [" << adjusted_start << ", " << adjusted_end << ") is empty or invalid." << endl;
+    // Handle edge case where end is 0 or interval is empty
+    if (interval.end == 0 || interval.start >= interval.end)
       continue;
+    uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+
+    // Initialize Relevant Bins in the map
+    for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
+      bin_results.try_emplace({ contig_index, b_start }, BinData());
     }
 
-    Interval adjusted_interval(interval.contig, adjusted_start, adjusted_end);
-    uint32_t contig_index = store.get_contig_index(adjusted_interval.contig);
-
-    // Initialize all bins within the adjusted interval
-    for (uint32_t current_bin_start = adjusted_start; current_bin_start < adjusted_end; current_bin_start += binsize) {
-      // Use try_emplace to avoid overwriting if multiple intervals cover the same bin
-      bin_results.try_emplace({ contig_index, current_bin_start }, BinData());
-    }
-
-    // Get alignments overlapping the adjusted interval
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(adjusted_interval);
+    // Get alignments overlapping the *original* interval
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
 
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
 
-      // Calculate the range of global bin indices the alignment overlaps
-      uint32_t start_bin_index = aln.contig_start / binsize;
-      uint32_t end_bin_index = (aln.contig_end - 1) / binsize;
+      // Iterate through the relevant bins for this interval
+      for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
+        uint32_t b_end = b_start + binsize;
 
-      // Process base pair overlaps
-      for (uint32_t bin_index = start_bin_index; bin_index <= end_bin_index; ++bin_index) {
-        uint32_t bin_start = bin_index * binsize;
-        // Check if this global bin is within our adjusted interval for initialization robustness
-        if (bin_start >= adjusted_start && bin_start < adjusted_end) {
-          uint32_t bin_end = bin_start + binsize;
-          uint32_t overlap_start = std::max(aln.contig_start, bin_start);
-          uint32_t overlap_end = std::min(aln.contig_end, bin_end);
-          uint32_t overlap_length = (overlap_end > overlap_start) ? (overlap_end - overlap_start) : 0;
+        // Calculate overlap considering alignment, bin, AND original interval boundaries
+        uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
+        uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
 
-          if (overlap_length > 0) {
-            // Use find + update to ensure the key exists (initialized above)
-            auto it = bin_results.find({ contig_index, bin_start });
-            if (it != bin_results.end()) {
-              it->second.sequenced_basepairs += overlap_length;
-            } // else: Should not happen due to initialization, but safe check
+        int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
+
+        if (overlap_length > 0) {
+          auto it = bin_results.find({ contig_index, b_start });
+          // We should always find it because we pre-populated
+          if (it != bin_results.end()) {
+            // Using int now, check potential overflow? (unlikely for overlap_length)
+            it->second.sequenced_basepairs += overlap_length;
+          } else {
+            // This case indicates a logic error in initialization or calculation
+            cerr << "error: bin " << b_start << " on contig " << interval.contig
+                 << " should have been initialized but wasn't." << endl;
           }
         }
       }
@@ -90,36 +75,32 @@ void QueryBin::aggregate_data()
       // Process mutations
       for (const auto& mutation : aln.mutations) {
         uint32_t mutation_contig_pos = aln.contig_start + mutation.position;
-        uint32_t mutation_bin_index = mutation_contig_pos / binsize;
-        uint32_t mutation_bin_start = mutation_bin_index * binsize;
 
-        // Check if this global bin is within our adjusted interval
-        if (mutation_bin_start >= adjusted_start && mutation_bin_start < adjusted_end) {
-          // Use find + update
-          auto it = bin_results.find({ contig_index, mutation_bin_start });
-          if (it != bin_results.end()) {
-            it->second.mutation_count++;
-          } // else: Should not happen
+        // Ignore mutations outside the original interval
+        if (mutation_contig_pos < interval.start || mutation_contig_pos >= interval.end) {
+          continue;
+        }
+
+        uint32_t mutation_bin_start = (mutation_contig_pos / binsize) * binsize;
+
+        // Find the bin in our map (it must be relevant if pos is within interval)
+        auto it = bin_results.find({ contig_index, mutation_bin_start });
+        if (it != bin_results.end()) {
+          it->second.mutation_count++;
+        } else {
+          // Logic error if mutation is inside interval but bin wasn't initialized.
+          // Could happen if interval.end=0 edge case calculation was wrong.
+          cerr << "error: bin " << mutation_bin_start << " on contig " << interval.contig
+               << " should have been initialized but wasn't." << endl;
         }
       }
     }
   }
 }
 
-// Private helper function to write aggregated data to the TSV file
-void QueryBin::write_data_to_file()
+void QueryBin::generate_output_rows()
 {
-  string filename = ofn_prefix + "_bins.tsv";
-  cout << "writing bin data (" << bin_results.size() << " bins) to " << filename << endl;
-  ofstream ofs(filename);
-
-  if (!ofs.is_open()) {
-    cerr << "error: could not open file " << filename << endl;
-    exit(1); // Abort as per instructions
-  }
-
-  // Write header
-  ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tmutation_count\n";
+  output_rows.clear();
 
   for (const auto& entry : bin_results) {
     const auto& key = entry.first;
@@ -127,31 +108,46 @@ void QueryBin::write_data_to_file()
 
     uint32_t contig_index = key.first;
     uint32_t bin_start = key.second;
-    uint32_t bin_end = bin_start + binsize;
+    uint32_t bin_end = bin_start + binsize; // Bin end is standard
+    int bin_length = binsize; // Bin length is standard
 
-    // Get contig name from store using index
     string contig_id = store.get_contig_id(contig_index);
 
-    // Skip empty bins if skip_empty_bins is true
-    if (skip_empty_bins && data.sequenced_basepairs == 0) {
-      continue;
-    }
+    output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
+        data.sequenced_basepairs, data.mutation_count });
+  }
+}
 
-    ofs << contig_id << "\t"
-        << bin_start << "\t"
-        << bin_end << "\t"
-        << binsize << "\t"
-        << data.sequenced_basepairs << "\t"
-        << data.mutation_count << "\n";
+// New function to write the generated rows to a file
+void QueryBin::write_to_csv(const std::string& ofn_prefix)
+{
+  string filename = ofn_prefix + "_bins.tsv";
+  cout << "writing bin data rows to " << filename << endl;
+  ofstream ofs(filename);
+
+  if (!ofs.is_open()) {
+    // Consider throwing an exception instead of exiting
+    cerr << "error: could not open file " << filename << endl;
+    exit(1);
+  }
+
+  // Write header - removed coverage column previously present
+  ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tmutation_count\n";
+
+  for (const auto& row : output_rows) {
+    ofs << row.contig << "\t"
+        << row.bin_start << "\t"
+        << row.bin_end << "\t"
+        << row.bin_length << "\t"
+        << row.sequenced_basepairs << "\t"
+        << row.mutation_count << "\n";
   }
 
   ofs.close();
-  cout << "wrote " << bin_results.size() << " bins to " << filename << endl;
 }
 
-// Public method to orchestrate the process
-void QueryBin::write_to_csv()
+void QueryBin::execute()
 {
   aggregate_data();
-  write_data_to_file();
+  generate_output_rows();
 }

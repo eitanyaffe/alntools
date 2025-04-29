@@ -19,7 +19,9 @@ endif
 HDRS = $(wildcard $(SRC_DIR)/*.h)
 
 # Source files
-SRCS = $(wildcard $(SRC_DIR)/*.cpp)
+SRC_FILES_TO_EXCLUDE := $(SRC_DIR)/aln_R.cpp
+SRCS = $(filter-out $(SRC_FILES_TO_EXCLUDE), $(wildcard $(SRC_DIR)/*.cpp))
+# Define OBJS based on the filtered SRCS list
 OBJS = $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
 # Binary name
