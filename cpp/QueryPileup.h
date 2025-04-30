@@ -14,6 +14,8 @@ enum class PileupReportMode {
   MUTATED // Report only positions with at least one mutation observed
 };
 
+PileupReportMode string_to_pileup_report_mode(const string& mode);
+
 // Data structure to hold aggregated results for a single genomic position
 struct PileupData {
   int coverage = 0;
@@ -54,6 +56,12 @@ class QueryPileup {
 
   // write the output rows to a table
   void write_to_csv(const std::string& ofn_prefix);
+
+  // get access to output rows
+  const std::vector<PileupOutputRow>& get_output_rows() const
+  {
+    return output_rows;
+  }
 };
 
 #endif // QUERYPILEUP_H

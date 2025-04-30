@@ -26,20 +26,18 @@ void QueryPileup::aggregate_data()
 {
   pileup_results.clear(); // Ensure map is empty before starting
 
-  cout << "aggregating alignment data for pileup..." << endl;
-
   // Pre-populate pileup_results map for all positions defined by input intervals.
-  cout << "initializing positions based on intervals..." << endl;
+  int total_positions = 0;
   for (const auto& interval : intervals) {
     uint32_t contig_index = store.get_contig_index(interval.contig);
     for (uint32_t pos = interval.start; pos < interval.end; ++pos) {
       pileup_results.try_emplace({ contig_index, pos }, PileupData());
+      total_positions++;
     }
   }
-  cout << "initialized " << pileup_results.size() << " positions." << endl;
+  cout << "total number of queried pile-up positions: " << total_positions << endl;
 
   // Loop through intervals (again) to process alignments associated with them
-  cout << "processing alignments..." << endl;
   int processed_alignments = 0;
   for (const auto& interval : intervals) {
     // Get alignments overlapping this interval
@@ -70,14 +68,12 @@ void QueryPileup::aggregate_data()
       processed_alignments++;
     }
   }
-  cout << "processed " << processed_alignments << " alignments." << endl;
 }
 
 // Private helper function to populate output_rows from pileup_results
 void QueryPileup::generate_output_rows()
 {
   output_rows.clear(); // Ensure vector is empty
-  cout << "generating output rows..." << endl;
 
   // Loop through pileup_results map (sorted by contig_idx, position_0based).
   for (const auto& entry : pileup_results) {
@@ -136,7 +132,6 @@ void QueryPileup::generate_output_rows()
 
     assert(cumulative_count_for_pos == data.coverage && "Cumulative count must equal coverage at end of position");
   }
-  cout << "generated " << output_rows.size() << " output rows." << endl;
 }
 
 // Private helper function to write output_rows to file
@@ -177,4 +172,21 @@ void QueryPileup::execute()
 {
   aggregate_data();
   generate_output_rows();
+}
+
+// function that converts a string to a PileupReportMode enum
+PileupReportMode string_to_pileup_report_mode(const string& mode)
+{
+  PileupReportMode pileup_mode = PileupReportMode::COVERED;
+  if (mode == "all") {
+    pileup_mode = PileupReportMode::ALL;
+  } else if (mode == "mutated") {
+    pileup_mode = PileupReportMode::MUTATED;
+  } else if (mode == "covered") {
+    pileup_mode = PileupReportMode::COVERED;
+  } else {
+    cerr << "error: invalid pileup report mode: " << mode << endl;
+    exit(1);
+  }
+  return pileup_mode;
 }

@@ -109,3 +109,13 @@ void QueryFull::execute()
 {
   generate_output_data();
 }
+
+const std::vector<FullOutputAlignments>& QueryFull::get_output_alignments() const
+{
+  return output_alignments;
+}
+
+const std::vector<FullOutputMutations>& QueryFull::get_output_mutations() const
+{
+  return output_mutations;
+}

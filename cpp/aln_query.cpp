@@ -45,16 +45,6 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
     }
   }
 
-  // If mode is 'pileup', validate pileup_mode
-  if (mode == "pileup") {
-    string pileup_mode_str = params.get_string("pileup_mode");
-    if (pileup_mode_str != "all" && pileup_mode_str != "covered" && pileup_mode_str != "mutated") {
-      cerr << "error: invalid pileup_mode specified: " << pileup_mode_str
-           << ". Must be 'all', 'covered', or 'mutated'." << endl;
-      exit(1);
-    }
-  }
-
   params.print(cout);
 }
 
@@ -70,15 +60,7 @@ int query_main(const char* name, int argc, char** argv)
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
 
   // Get pileup mode string and convert to enum
-  PileupReportMode pileup_mode = PileupReportMode::COVERED; // Default
-  if (mode == "pileup") {
-    string pileup_mode_str = params.get_string("pileup_mode");
-    if (pileup_mode_str == "all") {
-      pileup_mode = PileupReportMode::ALL;
-    } else if (pileup_mode_str == "mutated") {
-      pileup_mode = PileupReportMode::MUTATED;
-    } // else it remains COVERED (the default)
-  }
+  PileupReportMode pileup_mode = string_to_pileup_report_mode(params.get_string("pileup_mode"));
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;

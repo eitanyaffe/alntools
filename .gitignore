@@ -1,5 +1,6 @@
 .DS_Store
 /documentation
+/cpp/*.o
 /bin/*
 /obj/*
 .vscode/*

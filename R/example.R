@@ -37,6 +37,37 @@ query_bins <- function() {
   write.table(bin_results, file = ofn, sep = "\t", row.names = F, quote = F)
 }
 
+################################################################################
+# QueryPileup
+################################################################################
+
+query_pileup <- function() {
+  cat("querying pileup example\n")
+  pileup_results <- aln_query_pileup(aln, intervals, "covered")
+  ofn <- paste0(ofn_prefix, "_pileup.tsv")
+  cat(paste0("saving output to ", ofn, "\n"))
+  write.table(pileup_results, file = ofn, sep = "\t", row.names = F, quote = F)
+}
+
+################################################################################
+# QueryFull
+################################################################################
+
+query_full <- function() {
+  cat("querying full example\n")
+  full_results <- aln_query_full(aln, intervals)
+  ofn_alignments <- paste0(ofn_prefix, "_alignments.tsv")
+  ofn_mutations <- paste0(ofn_prefix, "_mutations.tsv")
+  cat(paste0("saving alignments to ", ofn_alignments, "\n"))
+  cat(paste0("saving mutations to ", ofn_mutations, "\n"))
+  write.table(full_results$alignments, file = ofn_alignments, sep = "\t", row.names = F, quote = F)
+  write.table(full_results$mutations, file = ofn_mutations, sep = "\t", row.names = F, quote = F)
+}
+
+################################################################################
+# main
+################################################################################
+
 tryCatch(
   {
     aln <- aln_load(aln_ifn)
@@ -44,6 +75,8 @@ tryCatch(
     cat("number of input intervals: ", nrow(intervals), "\n")
 
     query_bins()
+    query_pileup()
+    query_full()
   },
   error = function(e) {
     cat("Error: ", e$message, "\n")
