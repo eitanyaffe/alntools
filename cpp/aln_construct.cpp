@@ -30,11 +30,8 @@ void construct_command(
   cout << "Writing alignment file: " << aln_file << "\n";
   store.save(aln_file);
 
-  cout << "Store info:\n"
-       << "  Reads: " << store.get_read_count() << "\n"
-       << "  Alignments: " << store.get_alignment_count() << "\n";
-
-  cout << "Done! Processed " << store.get_alignment_count() << " alignments\n";
+  cout << "Reads: " << store.get_read_count() << "\n";
+  cout << "Alignments: " << store.get_alignment_count() << "\n";
 }
 
 void construct_params(const char* name, int argc, char** argv, Parameters& params)

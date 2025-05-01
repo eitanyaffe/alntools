@@ -16,8 +16,6 @@ void info_command(const string& aln_file)
   AlignmentStore store;
   store.load(aln_file);
 
-  cout << "\nAlignment File Statistics:\n";
-  cout << "-------------------------\n";
   cout << "Total alignments: " << store.get_alignment_count() << "\n";
   cout << "Total reads: " << store.get_read_count() << "\n";
 
@@ -29,7 +27,6 @@ void info_command(const string& aln_file)
   double avg_length = store.get_alignment_count() > 0 ? static_cast<double>(total_length) / store.get_alignment_count() : 0;
 
   cout << "Average alignment length: " << avg_length << " bp\n";
-  cout << "-------------------------\n";
 
   // Calculate mutation statistics
   size_t total_mutations = 0;
@@ -41,7 +38,6 @@ void info_command(const string& aln_file)
 
   cout << "Total mutations: " << total_mutations << "\n";
   cout << "Average mutations per alignment: " << avg_mutations << "\n";
-  cout << "-------------------------\n";
 }
 
 void info_params(const char* name, int argc, char** argv, Parameters& params)

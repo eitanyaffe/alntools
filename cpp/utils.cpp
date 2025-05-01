@@ -183,8 +183,8 @@ string apply_mutations(const string& seq, const vector<Mutation>& mutations,
   size_t prev_pos = 0, current_pos = 0;
   bool error_found = false;
 
-  cout << "applying " << mutations.size() << " mutations to read " << read_id
-       << " on contig " << contig_id << endl;
+  // cout << "applying " << mutations.size() << " mutations to read " << read_id
+  //      << " on contig " << contig_id << endl;
 
   int count = 0;
   // Process each mutation in order

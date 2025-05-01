@@ -7,8 +7,7 @@ TEST_READS = examples/reads_100.fq
 TEST_CONTIGS = examples/contigs_100.fa
 
 # output
-TEST_BASIC_OUTPUT_DIR = output/basic
-TEST_FULL_OUTPUT_DIR = output/full
+TEST_OUTPUT_DIR = output
 
 # intervals for query_full
 TEST_INTERVALS_SMALL = examples/intervals_small.txt
@@ -30,17 +29,17 @@ test_basic: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running BASIC TEST, without paf validation"
-	rm -rf $(TEST_BASIC_OUTPUT_DIR) && mkdir -p $(TEST_BASIC_OUTPUT_DIR)
+	rm -rf $(TEST_OUTPUT_DIR) && mkdir -p $(TEST_OUTPUT_DIR)
 	$(TARGET) construct \
 		-ifn_paf $(TEST_PAF) \
-		-ofn $(TEST_BASIC_OUTPUT_DIR)/test.aln
+		-ofn $(TEST_OUTPUT_DIR)/test.aln
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	$(TARGET) info \
-		-ifn $(TEST_BASIC_OUTPUT_DIR)/test.aln
+		-ifn $(TEST_OUTPUT_DIR)/test.aln
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	$(TARGET) extract \
-		-ifn $(TEST_BASIC_OUTPUT_DIR)/test.aln \
-		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/test
+		-ifn $(TEST_OUTPUT_DIR)/test.aln \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/test
 	@echo "BASIC TEST completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
@@ -49,21 +48,12 @@ test_full: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running FULL TEST, with paf validation"
-	rm -rf $(TEST_FULL_OUTPUT_DIR) && mkdir -p $(TEST_FULL_OUTPUT_DIR)
 	$(TARGET) construct \
 		-ifn_paf $(TEST_PAF) \
 		-ifn_reads $(TEST_READS) \
 		-ifn_contigs $(TEST_CONTIGS) \
 		-verify T \
-		-ofn $(TEST_FULL_OUTPUT_DIR)/test.aln
-	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-	$(TARGET) info \
-		-ifn $(TEST_FULL_OUTPUT_DIR)/test.aln
-	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-	$(TARGET) extract \
-		-ifn $(TEST_FULL_OUTPUT_DIR)/test.aln \
-		-ofn_prefix $(TEST_FULL_OUTPUT_DIR)/test
-	@echo "FULL TEST completed successfully"
+		-ofn $(TEST_OUTPUT_DIR)/test_full.aln
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 ########################################################################################
@@ -74,9 +64,9 @@ test_query_full: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running QUERY FULL"
 	$(TARGET) query \
-		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_LARGE) \
-		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/query \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
 		-mode full
 	@echo "QUERY FULL completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -85,9 +75,9 @@ test_query_bin: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running QUERY BIN"
 	$(TARGET) query \
-		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
-		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/query \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
 		-mode bin \
 		-binsize $(TEST_BIN_SIZE)
 	@echo "QUERY BIN completed successfully"
@@ -97,9 +87,9 @@ test_query_pileup: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running QUERY PILEUP"
 	$(TARGET) query \
-		-ifn_aln $(TEST_BASIC_OUTPUT_DIR)/test.aln \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
-		-ofn_prefix $(TEST_BASIC_OUTPUT_DIR)/query \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
 		-mode pileup \
 		-pileup_mode mutated
 	@echo "QUERY PILEUP completed successfully"
@@ -128,7 +118,7 @@ test_R_commands:
 		$(TEST_DENSE_PAF) \
 		$(TEST_DENSE_INTERVALS) \
 		$(TEST_BIN_SIZE) \
-		$(TEST_BASIC_OUTPUT_DIR)/R
+		$(TEST_OUTPUT_DIR)/R
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 test_R_plot:
@@ -136,8 +126,8 @@ test_R_plot:
 	@echo "running R PLOT TEST"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	Rscript R/plot.r \
-		$(TEST_BASIC_OUTPUT_DIR)/R_alignments.tsv \
-		$(TEST_BASIC_OUTPUT_DIR)/contig_plot.png
+		$(TEST_OUTPUT_DIR)/R_alignments.tsv \
+		$(TEST_OUTPUT_DIR)/contig_plot.png
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 test_R_all: test_create_dense_paf test_R_commands test_R_plot
@@ -150,4 +140,4 @@ test: test_basic test_full test_query_full test_query_all test_R_all
 
 # Clean test outputs
 test_clean:
-	rm -rf $(TEST_BASIC_OUTPUT_DIR) $(TEST_FULL_OUTPUT_DIR) 
+	rm -rf $(TEST_OUTPUT_DIR) 
