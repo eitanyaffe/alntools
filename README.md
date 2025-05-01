@@ -191,7 +191,7 @@ intervals <- read.delim(interval_file)
 bin_results <- aln_query_bin(aln, intervals, binsize)
 
 # report_mode options: "all", "covered", "mutated"
-report_mode <-> "all"
+report_mode <- "all"
 
 # Pileup query
 pileup_results <- aln_query_pileup(aln, intervals, report_mode)
@@ -250,13 +250,13 @@ write.table(full_results$mutations, file = paste0(output_prefix, "_mutations.tsv
 The repository includes tests that demonstrate functionality and verify correctness:
 
 ```bash
-# Run all tests
+# Run all CLI tests 
 make test
 
 # Run specific test groups
-make -f test.mk test_basic     # Basic functionality
-make -f test.mk test_query_all # All query modes
-make -f test.mk test_R_all     # R interface tests
+make test_basic     # Basic functionality
+make test_query_all # All query modes
+make test_R_all     # R interface tests
 ```
 
 For more details on test scenarios, see `test.mk`.
