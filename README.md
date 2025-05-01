@@ -183,6 +183,10 @@ aln <- aln_load(aln_file)
 #### 2. Querying
 
 ```R
+# input interval file
+interval_file <- "examples/intervals_dense.txt"
+intervals <- read.delim(interval_file)
+
 # Bin query
 bin_results <- aln_query_bin(aln, intervals, binsize)
 
@@ -194,14 +198,6 @@ pileup_results <- aln_query_pileup(aln, intervals, report_mode)
 full_results <- aln_query_full(aln, intervals, height_style)
 # height_style options: "by_coord", "by_mutations"
 # Returns a list with $alignments and $mutations dataframes
-```
-
-#### 3. Visualization
-
-```R
-# Plot alignments
-source("R/plot.r")
-plot_alignments(alignments_df, output_file)
 ```
 
 ### Example R Script
