@@ -2,6 +2,8 @@
 
 This document details the file formats used by `alntools` for both input and output.
 
+Positions are 1-based in input and output files, and represented internalls using a 0-based coordinate system.
+
 ## Input Format (PAF)
 
 `alntools` processes alignment data in the Pairwise mApping Format (PAF). The following columns are required:
@@ -10,13 +12,13 @@ This document details the file formats used by `alntools` for both input and out
 |--------------|--------------------------------------------------|-------|
 | 1            | Query sequence name                              | string|
 | 2            | Query sequence length                            | int   |
-| 3            | Query start (0-based)                            | int   |
-| 4            | Query end (0-based)                              | int   |
+| 3            | Query start                                      | int   |
+| 4            | Query end                                        | int   |
 | 5            | Relative strand ('+' or '-')                     | char  |
 | 6            | Target sequence name (contig ID)                 | string|
 | 7            | Target sequence length                           | int   |
-| 8            | Target start on original strand (0-based)        | int   |
-| 9            | Target end on original strand (0-based)          | int   |
+| 8            | Target start on original strand                  | int   |
+| 9            | Target end on original strand                    | int   |
 
 Additionally, the **`cs:Z:` tag** (difference string) **must be present** in one of the optional fields (column 13 onwards). This tag encodes the base differences between the query (read) and the target (contig) and is essential for mutation analysis.
 
@@ -58,10 +60,10 @@ Produces two tab-delimited files:
 | alignment_index| Unique index for the alignment           | int     |
 | read_id        | ID of the read                           | string  |
 | contig_id      | ID of the contig                         | string  |
-| read_start     | Start position on read (0-based)         | int     |
-| read_end       | End position on read (0-based)           | int     |
-| contig_start   | Start position on contig (0-based)       | int     |
-| contig_end     | End position on contig (0-based)         | int     |
+| read_start     | Start position on read                   | int     |
+| read_end       | End position on read                     | int     |
+| contig_start   | Start position on contig                 | int     |
+| contig_end     | End position on contig                   | int     |
 | is_reverse     | Whether alignment is on reverse strand   | boolean |
 | cs_tag         | CIGAR string encoding differences        | string  |
 | num_mutations  | Number of mutations in the alignment     | int     |
@@ -75,7 +77,7 @@ Produces two tab-delimited files:
 | read_id        | ID of the read                           | string  |
 | contig_id      | ID of the contig                         | string  |
 | type           | Mutation type (SUB/INS/DEL)              | string  |
-| position       | Position on contig (0-based)             | int     |
+| position       | Position on contig                       | int     |
 | desc           | Description of the mutation              | string  |
 | height         | Vertical position for visualization      | int     |
 
@@ -86,7 +88,7 @@ Produces *_pileup.tsv:
 | Column   | Description                                 | Type   |
 |----------|---------------------------------------------|--------|
 | contig   | Contig ID                                   | string |
-| position | Position on contig (1-based)                | int    |
+| position | Position on contig                          | int    |
 | variant  | Variant type (REF or mutation description)  | string |
 | count    | Count of occurrences                        | int    |
 | coverage | Total read coverage at this position        | int    |
