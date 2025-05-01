@@ -1,6 +1,16 @@
 # alntools
 
-`alntools` represents read alignments to metagenomic assemblies and allows quick querying of specific intervals within contigs to fetch all reads or read summaries such as mutation pileups.
+`alntools` is a specialized toolkit for efficiently working with read alignments to metagenomic assemblies. It creates a compact binary representation of alignments and provides powerful querying capabilities to analyze specific genomic intervals. Key features include:
+
+- **Fast binary storage** of read alignments from PAF format with mutation encoding
+- **Three query modes** for flexible analysis:
+  - **Full mode**: Retrieves complete alignment and mutation details with height calculations for stacked visualization
+  - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
+  - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
+- **R interface** for seamless integration with analysis workflows
+- **Visualization support** for creating stacked alignment plots showing read coverage and mutations
+
+This makes alntools ideal for metagenomic analysis, visualizing alignment structure, detecting structural variants, and investigating mutation patterns across regions of interest.
 
 ## Installation
 
