@@ -7,8 +7,7 @@
   - **Full mode**: Retrieves complete alignment and mutation details with height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
   - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
-- **R interface** for seamless integration with analysis workflows
-- **Visualization support** for creating stacked alignment plots showing read coverage and mutations
+- **R interface** for seamless integration with analysis workflows in R
 
 This makes alntools ideal for metagenomic analysis, visualizing alignment structure, detecting structural variants, and investigating mutation patterns across regions of interest.
 
