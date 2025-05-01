@@ -164,11 +164,17 @@ sourceCpp("cpp/aln_R.cpp")
 #### 1. Construction and Loading
 
 ```R
+# input PAF file
+paf_file <- "examples/align_100_dense.paf"
+
+# output ALN file
+aln_file <- "output/dense.aln"
+
 # Construct alignment store from PAF file
 aln <- aln_construct(paf_file, max_reads = 0)
 
 # Save alignment store to file
-aln_save(aln, output_file)
+aln_save(aln, aln_file)
 
 # Load existing alignment store
 aln <- aln_load(aln_file)
@@ -208,9 +214,9 @@ library(Rcpp)
 sourceCpp("cpp/aln_R.cpp")
 
 # Parameters
-paf_file <- "examples/align_100.paf"
-intervals_file <- "examples/intervals_small.txt"
-binsize <- 1000
+paf_file <- "examples/align_100_dense.paf"
+intervals_file <- "examples/intervals_dense.txt"
+binsize <- 10
 output_prefix <- "output/results"
 
 # Construct and save alignment
