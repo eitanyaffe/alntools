@@ -20,6 +20,11 @@ This makes alntools useful for visualizing and investigating read coverage and m
 
 Tested on macOS 13.3.1 and Ubuntu 20.04.
 
+#### For R Interface (Optional)
+
+*   R (tested with 4.0+)
+*   Rcpp package (`install.packages("Rcpp")`)
+
 ### Building
 
 1.  Clone the repository:
