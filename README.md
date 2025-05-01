@@ -1,6 +1,6 @@
 # alntools
 
-`alntools` is a specialized toolkit for efficiently working with read alignments to metagenomic assemblies. It creates a compact binary representation of alignments and provides powerful querying capabilities to analyze specific genomic intervals. Key features include:
+`alntools` is a specialized toolkit for efficiently working with read alignments. It creates a compact binary representation of alignments (PAF format) and provides powerful querying capabilities to analyze specific genomic intervals. Key features include:
 
 - **Fast binary storage** of read alignments from PAF format with mutation encoding
 - **Three query modes** for flexible analysis:
@@ -9,7 +9,7 @@
   - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
 - **R interface** for seamless integration with analysis workflows in R
 
-This makes alntools ideal for metagenomic analysis, visualizing alignment structure, detecting structural variants, and investigating mutation patterns across regions of interest.
+This makes alntools useful for visualizing and investigating read coverage and mutation patterns across regions of interest.
 
 ## Installation
 
@@ -70,10 +70,8 @@ alntools construct -ifn_paf <input.paf> -ofn <output.aln> [options]
 **Example:**
 ```bash
 # Basic construction without verification
+mkdir output
 alntools construct -ifn_paf examples/align_100.paf -ofn output/test.aln
-
-# Construction with verification
-alntools construct -ifn_paf examples/align_100.paf -ifn_reads examples/reads_100.fq -ifn_contigs examples/contigs_100.fa -verify T -ofn output/test_full.aln
 ```
 
 ### 2. info
@@ -126,15 +124,21 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `by_coord`: Minimize overlap between alignments (default).
   - `by_mutations`: Arrange by mutation density.
 
-**Examples:**
+**Example of full query mode**
+
 ```bash
-# Query in full mode
 alntools query -ifn_aln output/test.aln -ifn_intervals examples/intervals_large.txt -ofn_prefix output/query -mode full
+```
 
-# Query in bin mode
+**Example of bin query mode**
+
+```bash
 alntools query -ifn_aln output/test.aln -ifn_intervals examples/intervals_small.txt -ofn_prefix output/query -mode bin -binsize 1000
+```
 
-# Query in pileup mode
+**Example of pile-up query mode**
+
+```bash
 alntools query -ifn_aln output/test.aln -ifn_intervals examples/intervals_small.txt -ofn_prefix output/query -mode pileup -pileup_mode mutated
 ```
 

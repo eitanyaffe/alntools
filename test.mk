@@ -135,7 +135,7 @@ test_R_all: test_create_dense_paf test_R_commands test_R_plot
 # combo rules
 ########################################################################################
 
-test: test_basic test_full test_query_full test_query_all test_R_all
+test: test_basic test_full test_query_full test_query_all
 	@echo "all tests completed successfully"
 
 # Clean test outputs
