@@ -190,13 +190,16 @@ intervals <- read.delim(interval_file)
 # Bin query
 bin_results <- aln_query_bin(aln, intervals, binsize)
 
+# report_mode options: "all", "covered", "mutated"
+report_mode <-> "all"
+
 # Pileup query
 pileup_results <- aln_query_pileup(aln, intervals, report_mode)
-# report_mode options: "all", "covered", "mutated"
 
+# height_style options: "by_coord", "by_mutations"
+height_style <- "by_coord"
 # Full query
 full_results <- aln_query_full(aln, intervals, height_style)
-# height_style options: "by_coord", "by_mutations"
 # Returns a list with $alignments and $mutations dataframes
 ```
 
