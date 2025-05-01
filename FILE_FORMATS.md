@@ -37,8 +37,8 @@ The intervals file is a tab-delimited file specifying regions to query:
 | Column  | Description                           | Type  |
 |---------|---------------------------------------|-------|
 | contig  | Name of the contig                    | string|
-| start   | Start position (1-based, inclusive)   | int   |
-| end     | End position (1-based, inclusive)     | int   |
+| start   | Start position                        | int   |
+| end     | End position                          | int   |
 
 Example intervals file:
 ```
