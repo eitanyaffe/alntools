@@ -51,7 +51,7 @@ ctg26175    230065  252386
 
 Produces two tab-delimited files:
 
-** 1. *_alignments.tsv: **
+#### *_alignments.tsv:
 
 | Column         | Description                              | Type    |
 |----------------|------------------------------------------|---------|
@@ -67,7 +67,7 @@ Produces two tab-delimited files:
 | num_mutations  | Number of mutations in the alignment     | int     |
 | height         | Vertical position for visualization      | int     |
 
-** 2. *_mutations.tsv: **
+#### *_mutations.tsv:
 
 | Column         | Description                              | Type    |
 |----------------|------------------------------------------|---------|
