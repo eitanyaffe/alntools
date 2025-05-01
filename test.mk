@@ -10,12 +10,16 @@ TEST_CONTIGS = examples/contigs_100.fa
 TEST_BASIC_OUTPUT_DIR = output/basic
 TEST_FULL_OUTPUT_DIR = output/full
 
+# intervals for query_full
 TEST_INTERVALS_SMALL = examples/intervals_small.txt
 TEST_INTERVALS_LARGE = examples/intervals_large.txt
 
+# bin size for query_bin
 TEST_BIN_SIZE = 1000
-# Test targets
-.PHONY: test test_basic test_full test_query clean-test test-r-load
+
+.PHONY: test test_basic test_full test_query_full test_query_bin \
+test_query_pileup test_query_all test_R_all test_R_commands test_R_plot \
+test_create_dense_paf clean-test test-r-load
 
 ########################################################################################
 # creating aln files
@@ -40,7 +44,7 @@ test_basic: $(TARGET)
 	@echo "BASIC TEST completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-# construct ALN with validation
+# construct ALN with validation of cs tags (rarely used)
 test_full: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -104,25 +108,44 @@ test_query_pileup: $(TARGET)
 test_query_all: test_query_full test_query_bin test_query_pileup
 
 ########################################################################################
-# Demonstrate R interaface
+# Test R interface
 ########################################################################################
 
-test_R:
+# PAF file with dense alignments to test query_full
+TEST_DENSE_PAF = examples/align_100_dense.paf
+TEST_DENSE_INTERVALS = examples/intervals_dense.txt
+
+# create PAF file with simulated alignments
+test_create_dense_paf:
+	perl pl/simulate_paf.pl $(TEST_DENSE_PAF)
+	@echo "PAF file created successfully"
+
+test_R_commands:
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running R SCRIPT TEST"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	Rscript R/example.R \
-		$(TEST_BASIC_OUTPUT_DIR)/test.aln \
-		$(TEST_INTERVALS_SMALL) \
+		$(TEST_DENSE_PAF) \
+		$(TEST_DENSE_INTERVALS) \
 		$(TEST_BIN_SIZE) \
 		$(TEST_BASIC_OUTPUT_DIR)/R
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+test_R_plot:
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running R PLOT TEST"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	Rscript R/plot.r \
+		$(TEST_BASIC_OUTPUT_DIR)/R_alignments.tsv \
+		$(TEST_BASIC_OUTPUT_DIR)/contig_plot.png
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+test_R_all: test_create_dense_paf test_R_commands test_R_plot
 ########################################################################################
 # combo rules
 ########################################################################################
 
-test: test_basic test_full test_query_full test_query_all test_R
+test: test_basic test_full test_query_full test_query_all test_R_all
 	@echo "all tests completed successfully"
 
 # Clean test outputs

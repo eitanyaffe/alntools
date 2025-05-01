@@ -54,7 +54,7 @@ install: $(TARGET)
 	cp $(TARGET) $(INSTALL_DIR)/
 
 # Include test rules
-include mk/test.mk
+include test.mk
 
 # Clean build files
 clean:

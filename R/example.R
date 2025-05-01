@@ -6,16 +6,16 @@ args <- commandArgs(trailingOnly = TRUE)
 
 # Check if at least one argument (the .aln file) is provided
 if (length(args) < 1) {
-  stop("Usage: Rscript example.R <path_to_aln_file> <path_to_intervals_file> <binsize> <ofn_prefix>", call. = FALSE)
+  stop("Usage: Rscript example.R <path_to_paf_file> <path_to_intervals_file> <binsize> <ofn_prefix>", call. = FALSE)
 }
 
-aln_ifn <- args[1]
+paf_ifn <- args[1]
 intervals_ifn <- args[2]
 binsize <- as.numeric(args[3])
 ofn_prefix <- args[4]
 
 # print the arguments
-cat(paste0("aln_ifn: ", aln_ifn, "\n"))
+cat(paste0("paf_ifn: ", paf_ifn, "\n"))
 cat(paste0("intervals_ifn: ", intervals_ifn, "\n"))
 cat(paste0("binsize: ", binsize, "\n"))
 cat(paste0("ofn_prefix: ", ofn_prefix, "\n"))
@@ -24,6 +24,20 @@ cat(paste0("ofn_prefix: ", ofn_prefix, "\n"))
 cdir <- ".Rcpp_dir"
 rebuild <- F
 sourceCpp("cpp/aln_R.cpp", verbose = T, cacheDir = cdir, rebuild = rebuild)
+
+################################################################################
+# Construction example
+################################################################################
+
+construct <- function(paf_file, fn, max_reads = 0) {
+  cat("constructing alignment from PAF example\n")
+  # Create the alignment store
+  aln <- aln_construct(paf_file, max_reads)
+
+  # Save the alignment to file
+  cat("saving alignment to", fn, "\n")
+  aln_save(aln, fn)
+}
 
 ################################################################################
 # QueryBin
@@ -55,7 +69,7 @@ query_pileup <- function() {
 
 query_full <- function() {
   cat("querying full example\n")
-  full_results <- aln_query_full(aln, intervals)
+  full_results <- aln_query_full(aln, intervals, "by_mutations")
   ofn_alignments <- paste0(ofn_prefix, "_alignments.tsv")
   ofn_mutations <- paste0(ofn_prefix, "_mutations.tsv")
   cat(paste0("saving alignments to ", ofn_alignments, "\n"))
@@ -70,7 +84,9 @@ query_full <- function() {
 
 tryCatch(
   {
-    aln <- aln_load(aln_ifn)
+    aln_fn <- paste0(ofn_prefix, ".aln")
+    construct(paf_ifn, aln_fn)
+    aln <- aln_load(aln_fn)
     intervals <- read.table(intervals_ifn, header = T)
     cat("number of input intervals: ", nrow(intervals), "\n")
 

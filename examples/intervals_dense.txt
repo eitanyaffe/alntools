@@ -1,0 +1,2 @@
+contig	start	end
+contig1	1	1000

@@ -10,3 +10,4 @@ examples/reads.fq
 examples/contigs.fa
 output/*
 .Rcpp_dir/*
+Rplots.pdf
