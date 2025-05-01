@@ -343,12 +343,8 @@ XPtr<AlignmentStore> aln_construct(
     Rcout << "reading PAF file: " << paf_file << "\n";
     reader.read_paf(paf_file, *store, max_reads, false, true);
 
-    // Print info about the store
-    Rcout << "store info:\n"
-          << "  reads: " << store->get_read_count() << "\n"
-          << "  alignments: " << store->get_alignment_count() << "\n";
-
-    Rcout << "done! processed " << store->get_alignment_count() << " alignments\n";
+    // Organize alignments after loading
+    store->organize_alignments();
 
     // Create an external pointer managed by R's garbage collector
     XPtr<AlignmentStore> ptr(store, true);

@@ -33,8 +33,6 @@ class AlignmentStore {
   static void save_position(std::ofstream& file, uint32_t position, MutationIntType type);
   static uint32_t load_position(std::ifstream& file, MutationIntType type);
 
-  void organize_alignments();
-
   public:
   // Add methods
   void add_contig(const Contig& contig) { contigs_.push_back(contig); }
@@ -56,6 +54,9 @@ class AlignmentStore {
   // Save and load methods
   void save(const string& filename);
   void load(const string& filename);
+
+  // Organize alignments
+  void organize_alignments();
 
   // Getter methods
   size_t get_alignment_count() const { return alignments_.size(); }

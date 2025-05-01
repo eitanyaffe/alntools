@@ -105,7 +105,8 @@ test_query_all: test_query_full test_query_bin test_query_pileup
 TEST_DENSE_PAF = examples/align_100_dense.paf
 TEST_DENSE_INTERVALS = examples/intervals_dense.txt
 
-# create PAF file with simulated alignments
+# create PAF file with 100 simulated alignments on a 1kb contig
+# called once during development
 test_create_dense_paf:
 	perl pl/simulate_paf.pl $(TEST_DENSE_PAF)
 	@echo "PAF file created successfully"
@@ -130,7 +131,7 @@ test_R_plot:
 		$(TEST_OUTPUT_DIR)/contig_plot.png
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-test_R_all: test_create_dense_paf test_R_commands test_R_plot
+test_R_all: test_R_commands test_R_plot
 ########################################################################################
 # combo rules
 ########################################################################################
