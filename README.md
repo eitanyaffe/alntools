@@ -127,19 +127,25 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 **Example of full query mode**
 
 ```bash
-alntools query -ifn_aln output/test.aln -ifn_intervals examples/intervals_large.txt -ofn_prefix output/query -mode full
+alntools query -ifn_aln output/test.aln \
+   -ifn_intervals examples/intervals_large.txt \
+   -ofn_prefix output/query -mode full
 ```
 
 **Example of bin query mode**
 
 ```bash
-alntools query -ifn_aln output/test.aln -ifn_intervals examples/intervals_small.txt -ofn_prefix output/query -mode bin -binsize 1000
+alntools query -ifn_aln output/test.aln \
+   -ifn_intervals examples/intervals_small.txt \
+   -ofn_prefix output/query -mode bin -binsize 1000
 ```
 
 **Example of pile-up query mode**
 
 ```bash
-alntools query -ifn_aln output/test.aln -ifn_intervals examples/intervals_small.txt -ofn_prefix output/query -mode pileup -pileup_mode mutated
+alntools query -ifn_aln output/test.aln \
+   -ifn_intervals examples/intervals_small.txt \
+   -ofn_prefix output/query -mode pileup -pileup_mode mutated
 ```
 
 ## R Interface
