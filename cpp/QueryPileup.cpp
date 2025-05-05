@@ -57,8 +57,12 @@ void QueryPileup::aggregate_data()
       }
 
       // Calculate mutation counts for relevant positions.
-      for (const auto& mutation : aln.mutations) {
-        uint32_t mutation_contig_pos = aln.contig_start + mutation.position;
+      for (uint32_t mutation_index : aln.mutations) { // Iterate indices
+        // Fetch the mutation object
+        const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
+
+        // Position is now absolute contig coordinate stored in mutation
+        uint32_t mutation_contig_pos = mutation.position;
         auto it = pileup_results.find({ contig_index, mutation_contig_pos });
         if (it != pileup_results.end()) {
           string mut_str = mutation.to_string();

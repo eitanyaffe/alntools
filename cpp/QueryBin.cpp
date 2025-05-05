@@ -73,8 +73,12 @@ void QueryBin::aggregate_data()
       }
 
       // Process mutations
-      for (const auto& mutation : aln.mutations) {
-        uint32_t mutation_contig_pos = aln.contig_start + mutation.position;
+      for (uint32_t mutation_index : aln.mutations) { // Iterate indices
+        // Fetch the mutation object
+        const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
+
+        // Position is now absolute contig coordinate
+        uint32_t mutation_contig_pos = mutation.position;
 
         // Ignore mutations outside the original interval
         if (mutation_contig_pos < interval.start || mutation_contig_pos >= interval.end) {

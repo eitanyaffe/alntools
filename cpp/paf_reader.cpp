@@ -34,7 +34,8 @@ void PafReader::load_reads_contigs(
   cout << "Loaded " << m_contigs.size() << " contigs and " << m_reads.size() << " reads" << endl;
 }
 
-bool PafReader::verify_alignment(Alignment& alignment,
+bool PafReader::verify_alignment(const Alignment& alignment,
+    const AlignmentStore& store,
     const string& read_id,
     const string& contig_id)
 {
@@ -45,7 +46,7 @@ bool PafReader::verify_alignment(Alignment& alignment,
 
   string contig_fragment = m_contigs[contig_id].substr(alignment.contig_start,
       alignment.contig_end - alignment.contig_start);
-  string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id, contig_id);
+  string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, store, alignment, read_id, contig_id);
   string read_segment = m_reads[read_id].substr(alignment.read_start,
       alignment.read_end - alignment.read_start);
   if (alignment.is_reverse)
@@ -147,22 +148,23 @@ void PafReader::read_paf(const string& filename, AlignmentStore& store, int max_
     for (size_t i = 12; i < fields.size(); ++i) {
       if (fields[i].substr(0, 5) == "cs:Z:") {
         cs_string = fields[i].substr(5);
-        valid = add_mutations(cs_string, alignment);
+        valid = add_mutations(cs_string, alignment, store);
         if (!valid) {
           cout << "Skipping alignment of read " << read_id
                << " since CS string contains non-supported actions: " << cs_string << endl;
           break;
         }
-        mutation_count += alignment.mutations.size();
+        mutation_count += alignment.mutations.size(); // Count indices added directly to alignment
         break;
       }
     }
-    verify_cs_string(cs_string, alignment, line_number);
+
+    verify_cs_string(cs_string, alignment, store, line_number);
 
     if (!valid)
       continue;
     if (should_verify) {
-      if (!verify_alignment(alignment, read_id, contig_id)) {
+      if (!verify_alignment(alignment, store, read_id, contig_id)) {
         bad_alignment_count++;
         if (quit_on_error) {
           cout << "error found, stopping" << endl;
@@ -208,10 +210,11 @@ void PafReader::split_line(const string& line, char delimiter, vector<string>& f
   }
 }
 
-void PafReader::verify_cs_string(const string& cs_string, Alignment& alignment, size_t line_number)
+void PafReader::verify_cs_string(const string& cs_string, const Alignment& alignment,
+    const AlignmentStore& store, size_t line_number)
 {
   // generate a new cs string from the mutations
-  string generated_cs = generate_cs_tag(alignment);
+  string generated_cs = generate_cs_tag(alignment, store);
 
   // compare with the original cs string
   if (generated_cs != cs_string) {
@@ -268,13 +271,12 @@ void PafReader::parse_cs_string(const std::string& cs_string,
   }
 }
 
-bool PafReader::add_mutations(const string& cs_string, Alignment& alignment)
+bool PafReader::add_mutations(const string& cs_string, Alignment& alignment, AlignmentStore& store)
 {
-  // Clear any existing mutations
-  alignment.clear_mutations();
+  alignment.clear_mutations(); // Clear existing indices before adding new ones
 
-  // Current position in the reference sequence
-  uint32_t pos = 0;
+  // Current position relative to the start of the alignment on the reference
+  uint32_t relative_pos = 0;
 
   std::vector<char> actions;
   std::vector<std::string> values;
@@ -289,22 +291,35 @@ bool PafReader::add_mutations(const string& cs_string, Alignment& alignment)
       massert(segment.length() == 2, "Invalid substitution segment length: %zu", segment.length());
       char ref_base = toupper(segment[0]);
       char read_base = toupper(segment[1]);
-      alignment.add_mutation(Mutation(MutationType::SUBSTITUTION, pos,
-          string(1, read_base), string(1, ref_base)));
-      pos++;
+      uint32_t absolute_pos = alignment.contig_start + relative_pos;
+      // Combine read and ref bases into the single nts string
+      string sub_nts = string(1, read_base) + string(1, ref_base);
+      Mutation mut(MutationType::SUBSTITUTION, absolute_pos, sub_nts);
+      uint32_t index = store.add_mutation(alignment.contig_index, mut);
+      alignment.add_mutation_index(index); // Add index directly to alignment
+      relative_pos++;
       break;
     }
     case '+': // Insertion
     {
       string insertion_bases = to_upper(segment);
-      alignment.add_mutation(Mutation(MutationType::INSERTION, pos, insertion_bases, ""));
+      uint32_t absolute_pos = alignment.contig_start + relative_pos;
+      // Use insertion_bases directly as nts
+      Mutation mut(MutationType::INSERTION, absolute_pos, insertion_bases);
+      uint32_t index = store.add_mutation(alignment.contig_index, mut);
+      alignment.add_mutation_index(index); // Add index directly to alignment
+      // Position on reference does not advance for insertion
       break;
     }
     case '-': // Deletion
     {
       string deleted_bases = to_upper(segment);
-      alignment.add_mutation(Mutation(MutationType::DELETION, pos, "", deleted_bases));
-      pos += deleted_bases.length();
+      uint32_t absolute_pos = alignment.contig_start + relative_pos;
+      // Use deleted_bases directly as nts
+      Mutation mut(MutationType::DELETION, absolute_pos, deleted_bases);
+      uint32_t index = store.add_mutation(alignment.contig_index, mut);
+      alignment.add_mutation_index(index); // Add index directly to alignment
+      relative_pos += deleted_bases.length(); // Position advances by deletion length
       break;
     }
     case ':': // Identity
@@ -312,12 +327,13 @@ bool PafReader::add_mutations(const string& cs_string, Alignment& alignment)
       char* end;
       long val = strtol(segment.c_str(), &end, 10);
       massert(end != segment.c_str() && *end == '\0' && val >= 0, "Failed to convert segment '%s' to valid positive integer", segment.c_str());
-      pos += val;
+      relative_pos += val;
       break;
     }
     default:
-      return false;
+      cerr << "error: unsupported CS action '" << action << "' in string: " << cs_string << endl;
+      return false; // Return false indicating failure
     }
   }
-  return true;
+  return true; // Return true indicating success
 }

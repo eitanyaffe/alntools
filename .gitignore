@@ -11,3 +11,5 @@ examples/contigs.fa
 output/*
 .Rcpp_dir/*
 Rplots.pdf
+/alntools.dSYM
+alntools

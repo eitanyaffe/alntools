@@ -5,6 +5,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <vector>
 
@@ -17,185 +18,190 @@ using std::string;
 using std::unordered_map;
 using std::vector;
 
-void AlignmentStore::save_position(std::ofstream& file, uint32_t position, MutationIntType type)
+// Helper function to write string to binary file
+static void write_string(std::ofstream& file, const string& str)
 {
-  if (type == MutationIntType::UINT16) {
-    uint16_t pos16 = static_cast<uint16_t>(position);
-    file.write(reinterpret_cast<const char*>(&pos16), sizeof(pos16));
-  } else {
-    file.write(reinterpret_cast<const char*>(&position), sizeof(position));
-  }
+  size_t len = str.size();
+  file.write(reinterpret_cast<const char*>(&len), sizeof(len));
+  file.write(str.c_str(), len);
 }
 
-uint32_t AlignmentStore::load_position(std::ifstream& file, MutationIntType type)
+// Helper function to read string from binary file
+static string read_string(std::ifstream& file)
 {
-  if (type == MutationIntType::UINT16) {
-    uint16_t pos16;
-    file.read(reinterpret_cast<char*>(&pos16), sizeof(pos16));
-    return static_cast<uint32_t>(pos16);
-  } else {
-    uint32_t position;
-    file.read(reinterpret_cast<char*>(&position), sizeof(position));
-    return position;
-  }
+  size_t len;
+  file.read(reinterpret_cast<char*>(&len), sizeof(len));
+  string str(len, '\0');
+  file.read(&str[0], len);
+  return str;
+}
+
+const Mutation& AlignmentStore::get_mutation(uint32_t contig_idx, uint32_t mutation_idx) const
+{
+  auto contig_it = mutations_.find(contig_idx);
+  massert(contig_it != mutations_.end(), "contig index %u not found in mutation store", contig_idx);
+  massert(mutation_idx < contig_it->second.size(), "mutation index %u out of bounds for contig %u (size %zu)",
+      mutation_idx, contig_idx, contig_it->second.size());
+  return contig_it->second[mutation_idx];
 }
 
 void AlignmentStore::save(const string& filename)
 {
   ofstream file(filename, ios::binary);
-  if (!file.is_open()) {
-    cerr << "error opening file for writing: " << filename << endl;
-    abort();
+  massert(file.is_open(), "error opening file for writing: %s", filename.c_str());
+
+  // Define a magic number/version for the new format
+  const string MAGIC_NUMBER = "ALNSTV2";
+  file.write(MAGIC_NUMBER.c_str(), MAGIC_NUMBER.size());
+
+  // Save contigs
+  size_t num_contigs = contigs_.size();
+  file.write(reinterpret_cast<const char*>(&num_contigs), sizeof(num_contigs));
+  for (const auto& contig : contigs_) {
+    write_string(file, contig.id);
+    file.write(reinterpret_cast<const char*>(&contig.length), sizeof(contig.length));
   }
 
   // Save reads
   size_t num_reads = reads_.size();
   file.write(reinterpret_cast<const char*>(&num_reads), sizeof(num_reads));
   for (const auto& read : reads_) {
-    // Write the read id length and id
-    size_t id_length = read.id.size();
-    file.write(reinterpret_cast<const char*>(&id_length), sizeof(id_length));
-    file.write(read.id.c_str(), id_length);
-
-    // Write the read length
+    write_string(file, read.id);
     file.write(reinterpret_cast<const char*>(&read.length), sizeof(read.length));
   }
 
-  // Save contigs
-  size_t num_contigs = contigs_.size();
-  file.write(reinterpret_cast<const char*>(&num_contigs), sizeof(num_contigs));
-  for (const auto& contig : contigs_) {
-    // Write the contig id length and id
-    size_t id_length = contig.id.size();
-    file.write(reinterpret_cast<const char*>(&id_length), sizeof(id_length));
-    file.write(contig.id.c_str(), id_length);
+  // Save mutations_ map
+  size_t num_contigs_with_mutations = mutations_.size();
+  file.write(reinterpret_cast<const char*>(&num_contigs_with_mutations), sizeof(num_contigs_with_mutations));
 
-    // Write the contig length
-    file.write(reinterpret_cast<const char*>(&contig.length), sizeof(contig.length));
-  }
+  for (const auto& pair : mutations_) {
+    uint32_t contig_index = pair.first;
+    const auto& mutations_vec = pair.second;
+    size_t num_mutations_for_contig = mutations_vec.size();
 
-  // Determine maximum mutation position
-  uint32_t max_position = 0;
-  for (const auto& alignment : alignments_) {
-    for (const auto& mutation : alignment.mutations) {
-      if (mutation.position > max_position) {
-        max_position = mutation.position;
-      }
+    file.write(reinterpret_cast<const char*>(&contig_index), sizeof(contig_index));
+    file.write(reinterpret_cast<const char*>(&num_mutations_for_contig), sizeof(num_mutations_for_contig));
+
+    // Save each mutation for this contig
+    for (const auto& mutation : mutations_vec) {
+      // Write type (as underlying type, likely char or int8)
+      file.write(reinterpret_cast<const char*>(&mutation.type), sizeof(mutation.type));
+      // Always save position as uint32_t
+      file.write(reinterpret_cast<const char*>(&mutation.position), sizeof(mutation.position));
+      // Write the single nts string
+      write_string(file, mutation.nts);
     }
   }
-
-  // Determine position integer type
-  MutationIntType mutation_int_type = (max_position <= std::numeric_limits<uint16_t>::max())
-      ? MutationIntType::UINT16
-      : MutationIntType::UINT32;
-  string type_str = (mutation_int_type == MutationIntType::UINT16) ? "UINT16" : "UINT32";
-  cout << "mutation position integer type: " << type_str << endl;
-
-  // Save the mutation int type
-  file.write(reinterpret_cast<const char*>(&mutation_int_type), sizeof(mutation_int_type));
 
   // Save alignments
   size_t num_alignments = alignments_.size();
   file.write(reinterpret_cast<const char*>(&num_alignments), sizeof(num_alignments));
   for (const auto& alignment : alignments_) {
-    // Write the alignment data
+    // Write basic alignment data
     file.write(reinterpret_cast<const char*>(&alignment.read_index), sizeof(alignment.read_index));
     file.write(reinterpret_cast<const char*>(&alignment.contig_index), sizeof(alignment.contig_index));
     file.write(reinterpret_cast<const char*>(&alignment.read_start), sizeof(alignment.read_start));
     file.write(reinterpret_cast<const char*>(&alignment.read_end), sizeof(alignment.read_end));
-
-    // Write contig start and end
     file.write(reinterpret_cast<const char*>(&alignment.contig_start), sizeof(alignment.contig_start));
     file.write(reinterpret_cast<const char*>(&alignment.contig_end), sizeof(alignment.contig_end));
-
-    // Write is_reverse
     file.write(reinterpret_cast<const char*>(&alignment.is_reverse), sizeof(alignment.is_reverse));
 
-    // Write mutations
-    size_t num_mutations = alignment.mutations.size();
-    file.write(reinterpret_cast<const char*>(&num_mutations), sizeof(num_mutations));
-    for (const auto& mutation : alignment.mutations) {
-      file.write(reinterpret_cast<const char*>(&mutation.type), sizeof(mutation.type));
-
-      // Save position using the determined integer type
-      save_position(file, mutation.position, mutation_int_type);
-
-      // Write read_nts
-      size_t read_nts_length = mutation.read_nts.size();
-      file.write(reinterpret_cast<const char*>(&read_nts_length), sizeof(read_nts_length));
-      file.write(mutation.read_nts.c_str(), read_nts_length);
-
-      // Write ref_nts
-      size_t ref_nts_length = mutation.ref_nts.size();
-      file.write(reinterpret_cast<const char*>(&ref_nts_length), sizeof(ref_nts_length));
-      file.write(mutation.ref_nts.c_str(), ref_nts_length);
+    // Write mutation indices
+    size_t num_mutation_indices = alignment.mutations.size(); // Now vector<uint32_t>
+    file.write(reinterpret_cast<const char*>(&num_mutation_indices), sizeof(num_mutation_indices));
+    for (uint32_t mutation_index : alignment.mutations) {
+      file.write(reinterpret_cast<const char*>(&mutation_index), sizeof(mutation_index));
     }
   }
 
   file.close();
+
+  // Set loaded flag to prevent further mutation additions via add_mutation
+  loaded_ = true;
+
+  // Organize alignments after loading
+  organize_alignments();
 }
 
 void AlignmentStore::load(const string& filename)
 {
   ifstream file(filename, ios::binary);
-  if (!file.is_open()) {
-    throw std::runtime_error("error opening file: " + filename);
-  }
+  massert(file.is_open(), "error opening file for reading: %s", filename.c_str());
+
+  // Verify magic number
+  const string EXPECTED_MAGIC = "ALNSTV2";
+  char magic_buffer[8];
+  file.read(magic_buffer, EXPECTED_MAGIC.size());
+  massert(file.good() && string(magic_buffer, EXPECTED_MAGIC.size()) == EXPECTED_MAGIC,
+      "invalid file format or version: %s", filename.c_str());
 
   // Clear existing data
-  reads_.clear();
   contigs_.clear();
+  reads_.clear();
   alignments_.clear();
+  mutations_.clear(); // Clear the new mutation store
+  mutation_key_to_index_.clear(); // Clear the transient lookup map
   read_id_to_index.clear();
   contig_id_to_index.clear();
   alignment_index_by_contig_.clear();
-  max_alignment_length_ = 0; // Reset max alignment length
-
-  // reads
-  size_t num_reads;
-  file.read(reinterpret_cast<char*>(&num_reads), sizeof(num_reads));
-  reads_.reserve(num_reads);
-  for (size_t i = 0; i < num_reads; ++i) {
-    Read read;
-
-    // Read the read id length and id
-    size_t id_length;
-    file.read(reinterpret_cast<char*>(&id_length), sizeof(id_length));
-    read.id.resize(id_length);
-    file.read(&read.id[0], id_length);
-
-    // Read the read length
-    file.read(reinterpret_cast<char*>(&read.length), sizeof(read.length));
-
-    reads_.push_back(read);
-    read_id_to_index[read.id] = i;
-  }
+  max_alignment_length_ = 0;
 
   // Load contigs
   size_t num_contigs;
   file.read(reinterpret_cast<char*>(&num_contigs), sizeof(num_contigs));
   contigs_.reserve(num_contigs);
   for (size_t i = 0; i < num_contigs; ++i) {
-    Contig contig;
-
-    // Read the contig id length and id
-    size_t id_length;
-    file.read(reinterpret_cast<char*>(&id_length), sizeof(id_length));
-    contig.id.resize(id_length);
-    file.read(&contig.id[0], id_length);
-
-    // Read the contig length
-    file.read(reinterpret_cast<char*>(&contig.length), sizeof(contig.length));
-
-    contigs_.push_back(contig);
-    contig_id_to_index[contig.id] = i;
+    string id = read_string(file);
+    uint32_t length;
+    file.read(reinterpret_cast<char*>(&length), sizeof(length));
+    contigs_.emplace_back(id, length);
+    contig_id_to_index[id] = i;
   }
 
-  // Read mutation integer type
-  MutationIntType mutation_int_type;
-  file.read(reinterpret_cast<char*>(&mutation_int_type), sizeof(mutation_int_type));
-  string type_str = (mutation_int_type == MutationIntType::UINT16) ? "UINT16" : "UINT32";
-  cout << "mutation position integer type: " << type_str << endl;
+  // Load reads
+  size_t num_reads;
+  file.read(reinterpret_cast<char*>(&num_reads), sizeof(num_reads));
+  reads_.reserve(num_reads);
+  for (size_t i = 0; i < num_reads; ++i) {
+    string id = read_string(file);
+    uint32_t length;
+    file.read(reinterpret_cast<char*>(&length), sizeof(length));
+    reads_.emplace_back(id, length);
+    read_id_to_index[id] = i;
+  }
+
+  // Load mutations_ map
+  size_t num_contigs_with_mutations;
+  file.read(reinterpret_cast<char*>(&num_contigs_with_mutations), sizeof(num_contigs_with_mutations));
+
+  for (size_t i = 0; i < num_contigs_with_mutations; ++i) {
+    uint32_t contig_index;
+    file.read(reinterpret_cast<char*>(&contig_index), sizeof(contig_index));
+
+    size_t num_mutations_for_contig;
+    file.read(reinterpret_cast<char*>(&num_mutations_for_contig), sizeof(num_mutations_for_contig));
+
+    // Prepare vector for this contig's mutations
+    vector<Mutation> mutations_vec;
+    mutations_vec.reserve(num_mutations_for_contig);
+
+    for (size_t j = 0; j < num_mutations_for_contig; ++j) {
+      MutationType type;
+      file.read(reinterpret_cast<char*>(&type), sizeof(type));
+
+      // Always load position as uint32_t
+      uint32_t position;
+      file.read(reinterpret_cast<char*>(&position), sizeof(position));
+
+      // Read nts string
+      string nts = read_string(file);
+
+      // Create mutation and add to vector using the new constructor
+      mutations_vec.emplace_back(type, position, nts);
+    }
+    // Insert the loaded mutations into the map
+    mutations_[contig_index] = std::move(mutations_vec);
+  }
 
   // Load alignments
   size_t num_alignments;
@@ -204,52 +210,32 @@ void AlignmentStore::load(const string& filename)
   for (size_t i = 0; i < num_alignments; ++i) {
     Alignment alignment;
 
-    // Read the alignment data
+    // Read basic alignment data
     file.read(reinterpret_cast<char*>(&alignment.read_index), sizeof(alignment.read_index));
     file.read(reinterpret_cast<char*>(&alignment.contig_index), sizeof(alignment.contig_index));
     file.read(reinterpret_cast<char*>(&alignment.read_start), sizeof(alignment.read_start));
     file.read(reinterpret_cast<char*>(&alignment.read_end), sizeof(alignment.read_end));
-    // Read contig start and end
     file.read(reinterpret_cast<char*>(&alignment.contig_start), sizeof(alignment.contig_start));
     file.read(reinterpret_cast<char*>(&alignment.contig_end), sizeof(alignment.contig_end));
-    // Read is_reverse
     file.read(reinterpret_cast<char*>(&alignment.is_reverse), sizeof(alignment.is_reverse));
 
-    // Read mutations
-    size_t num_mutations;
-    file.read(reinterpret_cast<char*>(&num_mutations), sizeof(num_mutations));
-    alignment.mutations.reserve(num_mutations);
-    for (size_t j = 0; j < num_mutations; ++j) {
-      MutationType type;
-      string read_nts;
-      string ref_nts;
-
-      file.read(reinterpret_cast<char*>(&type), sizeof(type));
-
-      // Load position using the read integer type
-      uint32_t position = load_position(file, mutation_int_type);
-
-      // Read read_nts
-      size_t read_nts_length;
-      file.read(reinterpret_cast<char*>(&read_nts_length), sizeof(read_nts_length));
-      read_nts.resize(read_nts_length);
-      file.read(&read_nts[0], read_nts_length);
-
-      // Read ref_nts
-      size_t ref_nts_length;
-      file.read(reinterpret_cast<char*>(&ref_nts_length), sizeof(ref_nts_length));
-      ref_nts.resize(ref_nts_length);
-      file.read(&ref_nts[0], ref_nts_length);
-
-      // Create mutation with the read data
-      Mutation mutation(type, position, read_nts, ref_nts);
-      alignment.mutations.push_back(mutation);
+    // Read mutation indices
+    size_t num_mutation_indices;
+    file.read(reinterpret_cast<char*>(&num_mutation_indices), sizeof(num_mutation_indices));
+    alignment.mutations.reserve(num_mutation_indices); // Reserve space in vector<uint32_t>
+    for (size_t j = 0; j < num_mutation_indices; ++j) {
+      uint32_t mutation_index;
+      file.read(reinterpret_cast<char*>(&mutation_index), sizeof(mutation_index));
+      alignment.mutations.push_back(mutation_index);
     }
 
-    alignments_.push_back(alignment);
+    alignments_.push_back(std::move(alignment)); // Use move constructor
   }
 
   file.close();
+
+  // Set loaded flag to prevent further mutation additions via add_mutation
+  loaded_ = true;
 
   // Organize alignments after loading
   organize_alignments();
@@ -274,10 +260,8 @@ void AlignmentStore::organize_alignments()
     it->second.push_back(i);
 
     // Calculate and update max alignment length
-    // Assuming end is inclusive, length is end - start + 1
-    // Check for potential underflow if end < start although that shouldn't happen for valid alignments
     massert(alignment.contig_end >= alignment.contig_start, "alignment with end < start found (index %zu)", i);
-    uint32_t current_length = alignment.contig_end - alignment.contig_start + 1;
+    uint32_t current_length = alignment.contig_end - alignment.contig_start; // Length is end - start
     if (current_length > max_alignment_length_) {
       max_alignment_length_ = current_length;
     }
@@ -311,7 +295,7 @@ void AlignmentStore::export_tab_delimited(const string& prefix)
 
   // Write headers
   alignments_out << "read_id\tread_start\tread_end\tcontig_id\tcontig_start\tcontig_end\tmutation_count\tis_reverse\n";
-  mutations_out << "read_id\tcontig_id\tmutation_type\tcontig_position\tread_position\tread_nts\tref_nts\n";
+  mutations_out << "read_id\tcontig_id\tmutation_type\tcontig_position\tnts\n";
 
   // Write alignments and mutations
   for (const auto& alignment : alignments_) {
@@ -328,39 +312,34 @@ void AlignmentStore::export_tab_delimited(const string& prefix)
                    << alignment.contig_end << "\t"
                    << alignment.mutations.size() << "\t"
                    << (alignment.is_reverse ? "true" : "false") << "\n";
-    // Write detailed mutation data
-    for (const auto& mutation : alignment.mutations) {
-      string mutation_type;
+
+    // Write detailed mutation data by fetching from store
+    for (uint32_t mutation_index : alignment.mutations) { // Iterate indices
+      // Get the actual mutation object
+      const Mutation& mutation = get_mutation(alignment.contig_index, mutation_index);
+
+      string mutation_type_str;
       switch (mutation.type) {
       case MutationType::SUBSTITUTION:
-        mutation_type = "SUB";
+        mutation_type_str = "SUB";
         break;
       case MutationType::INSERTION:
-        mutation_type = "INS";
+        mutation_type_str = "INS";
         break;
       case MutationType::DELETION:
-        mutation_type = "DEL";
+        mutation_type_str = "DEL";
         break;
       default:
         massert(false, "Unknown mutation type");
         break;
       }
 
-      // Calculate read position from contig position
-      uint32_t read_position;
-      if (alignment.is_reverse) {
-        read_position = alignment.read_end - (mutation.position - alignment.contig_start);
-      } else {
-        read_position = alignment.read_start + (mutation.position - alignment.contig_start);
-      }
-
+      // Mutation position is now absolute contig position
       mutations_out << read_id << "\t"
                     << contig_id << "\t"
-                    << mutation_type << "\t"
-                    << mutation.position << "\t"
-                    << read_position << "\t"
-                    << mutation.read_nts << "\t"
-                    << mutation.ref_nts << "\n";
+                    << mutation_type_str << "\t"
+                    << mutation.position << "\t" // Absolute contig position
+                    << mutation.nts << "\n";
     }
   }
 
@@ -429,7 +408,10 @@ std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignme
   size_t contig_index = contig_map_it->second;
 
   auto align_map_it = alignment_index_by_contig_.find(contig_index);
-  massert(align_map_it != alignment_index_by_contig_.end(), "contig index not found: %zu", contig_index);
+  // It's possible a contig exists but has no alignments, so don't assert here.
+  if (align_map_it == alignment_index_by_contig_.end()) {
+    return result; // No alignments for this contig
+  }
 
   const auto& indices = align_map_it->second;
   if (indices.empty()) {
@@ -457,4 +439,25 @@ std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignme
   }
 
   return result;
+}
+
+// Add unique mutation (during build phase only)
+uint32_t AlignmentStore::add_mutation(uint32_t contig_index, const Mutation& mutation)
+{
+  massert(!loaded_, "cannot add mutations after store has been loaded");
+
+  string key = mutation.create_key(contig_index);
+  auto it = mutation_key_to_index_.find(key);
+
+  if (it != mutation_key_to_index_.end()) {
+    // Found existing mutation, return its index
+    return it->second;
+  } else {
+    // New mutation, add to store and map
+    auto& contig_mutations = mutations_[contig_index]; // Get or create vector
+    contig_mutations.push_back(mutation);
+    uint32_t new_index = contig_mutations.size() - 1;
+    mutation_key_to_index_[key] = new_index;
+    return new_index;
+  }
 }

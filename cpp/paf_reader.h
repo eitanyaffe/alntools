@@ -19,12 +19,13 @@ class PafReader {
 
   void split_line(const string& line, char delimiter, vector<string>& fields);
   void parse_cs_string(const string& cs_string, vector<char>& actions, vector<string>& values);
-  bool add_mutations(const string& cs_string, Alignment& alignment);
+  // Parses cs string, adds unique mutations to store, populates alignment's mutation indices, returns success
+  bool add_mutations(const string& cs_string, Alignment& alignment, AlignmentStore& store);
 
-  void verify_cs_string(const string& cs_string, Alignment& alignment, size_t line_number);
+  void verify_cs_string(const string& cs_string, const Alignment& alignment, const AlignmentStore& store, size_t line_number);
 
   // returns true if PAF alignment tag is correct (by applying it to contig and comparing to read)
-  bool verify_alignment(Alignment& alignment, const string& read_id, const string& contig_id);
+  bool verify_alignment(const Alignment& alignment, const AlignmentStore& store, const string& read_id, const string& contig_id);
 
   public:
   void read_paf(const string& filename, AlignmentStore& store, int max_reads, bool should_verify, bool quit_on_error);

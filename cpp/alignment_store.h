@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -13,30 +14,27 @@ using std::string;
 using std::unordered_map;
 using std::vector;
 
-// Enum for mutation position integer type
-enum class MutationIntType {
-  UINT16,
-  UINT32
-};
-
 class AlignmentStore {
   private:
   std::vector<Contig> contigs_;
   std::vector<Read> reads_;
   std::vector<Alignment> alignments_;
+  std::map<uint32_t, std::vector<Mutation>> mutations_;
   unordered_map<string, size_t> read_id_to_index;
   unordered_map<string, size_t> contig_id_to_index;
+  // Transient map for mutation deduplication during initial build
+  std::map<string, uint32_t> mutation_key_to_index_;
   unordered_map<size_t, vector<size_t>> alignment_index_by_contig_;
   uint32_t max_alignment_length_ = 0;
-
-  // Helper functions for saving/loading positions
-  static void save_position(std::ofstream& file, uint32_t position, MutationIntType type);
-  static uint32_t load_position(std::ifstream& file, MutationIntType type);
+  bool loaded_ = false; // Flag to prevent additions after loading
 
   public:
   // Add methods
   void add_contig(const Contig& contig) { contigs_.push_back(contig); }
   void add_read(const Read& read) { reads_.push_back(read); }
+  // Adds a unique mutation (handling deduplication) and returns its index.
+  // Only usable before load() is called.
+  uint32_t add_mutation(uint32_t contig_index, const Mutation& mutation);
   void add_alignment(const Alignment& alignment) { alignments_.push_back(alignment); }
 
   // Getter methods
@@ -48,6 +46,9 @@ class AlignmentStore {
   std::vector<Contig>& get_contigs() { return contigs_; }
   std::vector<Read>& get_reads() { return reads_; }
   std::vector<Alignment>& get_alignments() { return alignments_; }
+
+  // Get a specific mutation object by its contig index and mutation index
+  const Mutation& get_mutation(uint32_t contig_idx, uint32_t mutation_idx) const;
 
   void export_tab_delimited(const string& prefix);
 

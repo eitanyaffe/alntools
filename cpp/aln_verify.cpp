@@ -59,10 +59,11 @@ void verify_command(
          << "  Contig: " << contig_id << " [" << alignment.contig_start << "," << alignment.contig_end << "] "
          << "  Is reverse: " << (alignment.is_reverse ? "yes" : "no") << "\n";
 
-    // Count mutations by type
-    auto count_mutations_by_type = [](const vector<Mutation>& mutations) {
+    // Count mutations by type - Updated lambda signature
+    auto count_mutations_by_type = [&](const AlignmentStore& store_ref, uint32_t ctg_idx, const vector<uint32_t>& mutation_indices) {
       size_t subs = 0, ins = 0, dels = 0;
-      for (const auto& mut : mutations) {
+      for (uint32_t index : mutation_indices) {
+        const Mutation& mut = store_ref.get_mutation(ctg_idx, index);
         switch (mut.type) {
         case MutationType::SUBSTITUTION:
           subs++;
@@ -78,7 +79,8 @@ void verify_command(
       return make_tuple(subs, ins, dels);
     };
 
-    auto [num_subs, num_ins, num_dels] = count_mutations_by_type(alignment.mutations);
+    // Pass store, contig index, and mutation indices to the lambda
+    auto [num_subs, num_ins, num_dels] = count_mutations_by_type(store, alignment.contig_index, alignment.mutations);
     cout << "Mutations - Substitutions: " << num_subs
          << ", Insertions: " << num_ins
          << ", Deletions: " << num_dels << "\n";
@@ -96,7 +98,7 @@ void verify_command(
     string contig_fragment = contigs[contig_id].substr(alignment.contig_start,
         alignment.contig_end - alignment.contig_start);
 
-    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, read_id, contig_id);
+    string mutated_contig = apply_mutations(contig_fragment, alignment.mutations, store, alignment, read_id, contig_id);
     string read_segment = reads[read_id].substr(alignment.read_start,
         alignment.read_end - alignment.read_start);
 

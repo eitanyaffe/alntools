@@ -29,7 +29,7 @@ void QueryFull::generate_output_data()
       const auto& aln = alignment_ref.get();
       string read_id = store.get_read_id(aln.read_index);
       string contig_id = store.get_contig_id(aln.contig_index);
-      string cs_string = generate_cs_tag(aln);
+      string cs_string = generate_cs_tag(aln, store);
 
       // Count mutations for this alignment
       int num_mutations = aln.mutations.size();
@@ -47,7 +47,11 @@ void QueryFull::generate_output_data()
           num_mutations,
           0 });
 
-      for (const auto& mutation : aln.mutations) {
+      for (uint32_t mutation_index : aln.mutations) { // Iterate indices
+        // Fetch mutation object
+        const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
+
+        // Position is absolute contig coordinate
         // initialize height to 0, will be set later by alignment height
         output_mutations.push_back({ current_alignment_index,
             read_id,

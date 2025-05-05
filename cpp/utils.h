@@ -38,9 +38,13 @@ void write_fasta(const string& filename,
 void write_fastq(const string& filename,
     unordered_map<string, string>& reads);
 
+class AlignmentStore; // Forward declaration
+
 // Function to apply mutations to a contig fragment
 string apply_mutations(const string& contig_fragment,
-    const vector<Mutation>& mutations,
+    const vector<uint32_t>& mutation_indices,
+    const AlignmentStore& store,
+    const Alignment& alignment,
     const string& read_id,
     const string& contig_id);
 
@@ -56,4 +60,4 @@ double get_file_size_mb(const std::string& filename);
 
 void read_intervals(const std::string& filename, std::vector<Interval>& intervals);
 
-string generate_cs_tag(const Alignment& alignment);
+string generate_cs_tag(const Alignment& alignment, const AlignmentStore& store);

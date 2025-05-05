@@ -38,28 +38,37 @@ inline std::ostream& operator<<(std::ostream& os, const MutationType& type)
 // Structure to represent a mutation
 struct Mutation {
   MutationType type; // Type of mutation
-  uint32_t position; // Position relative to the start of the alignment
-  string read_nts; // Bases in the query sequence (for substitutions and insertions)
-  string ref_nts; // Bases in the target sequence (for substitutions and deletions)
+  // Position of the mutation on the contig (absolute coordinate)
+  uint32_t position;
+  string nts; // Bases involved: SUB: src+tgt, INS: inserted, DEL: deleted
 
-  Mutation(MutationType type, uint32_t position, const string& read_nts = "",
-      const string& ref_nts = "")
+  Mutation(MutationType type, uint32_t position, const string& nts = "")
       : type(type)
       , position(position)
-      , read_nts(read_nts)
-      , ref_nts(ref_nts)
+      , nts(nts)
   {
   }
+
+  // Create a unique string key for this mutation on a given contig
+  std::string create_key(uint32_t contig_index) const;
 
   string to_string() const
   {
     switch (type) {
     case MutationType::SUBSTITUTION:
-      return read_nts + ":" + ref_nts;
+      // Ensure nts has at least 2 characters for substitution
+      if (nts.length() >= 2) {
+        return string(1, nts[0]) + ":" + string(1, nts[1]);
+      } else {
+        // Handle error or return a default value
+        return "ERR_SUB"; // Or throw an exception, log error, etc.
+      }
     case MutationType::INSERTION:
-      return "+" + read_nts;
+      return "+" + nts;
     case MutationType::DELETION:
-      return "-" + ref_nts;
+      return "-" + nts;
+    default:
+      return "UNK";
     }
   }
 };
@@ -95,7 +104,8 @@ struct Alignment {
   uint32_t contig_start;
   uint32_t contig_end;
   bool is_reverse;
-  vector<Mutation> mutations; // Vector to store mutations
+  // Indices into the global mutation store for the corresponding contig
+  vector<uint32_t> mutations;
 
   Alignment(uint32_t read_idx = 0, uint32_t contig_idx = 0,
       uint32_t c_start = 0, uint32_t c_end = 0,
@@ -111,13 +121,13 @@ struct Alignment {
   {
   }
 
-  // Add a mutation to the alignment
-  void add_mutation(const Mutation& mutation)
+  // Add a mutation index to the alignment
+  void add_mutation_index(uint32_t mutation_index)
   {
-    mutations.push_back(mutation);
+    mutations.push_back(mutation_index);
   }
 
-  // Clear all mutations
+  // Clear all mutation indices
   void clear_mutations()
   {
     mutations.clear();

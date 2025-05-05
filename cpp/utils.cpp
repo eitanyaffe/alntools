@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "alignment_store.h"
 #include "aln_types.h"
 
 using namespace std;
@@ -176,86 +177,102 @@ void write_fastq(const string& filename, unordered_map<string, string>& reads)
 }
 
 // Function to apply mutations to a contig fragment
-string apply_mutations(const string& seq, const vector<Mutation>& mutations,
+// Note: Now takes AlignmentStore to fetch mutations by index
+string apply_mutations(const string& seq, const vector<uint32_t>& mutation_indices,
+    const AlignmentStore& store, const Alignment& alignment,
     const string& read_id, const string& contig_id)
 {
   string result;
-  size_t prev_pos = 0, current_pos = 0;
+  size_t prev_pos_rel = 0, current_pos_rel = 0;
   bool error_found = false;
 
-  // cout << "applying " << mutations.size() << " mutations to read " << read_id
-  //      << " on contig " << contig_id << endl;
+  // cout << "applying " << mutation_indices.size() << " mutations to read " << read_id
+  //      << " on contig " << contig_id << " starting at " << alignment.contig_start << endl;
 
   int count = 0;
-  // Process each mutation in order
-  for (const auto& mutation : mutations) {
-    current_pos = mutation.position;
+  // Process each mutation index
+  for (uint32_t mut_idx : mutation_indices) {
     count++;
+    // Fetch the actual mutation object
+    const Mutation& mutation = store.get_mutation(alignment.contig_index, mut_idx);
 
-    // Verify position is within bounds
-    massert(current_pos <= seq.size(),
-        "mutation %u position %u is outside fragment bounds %u for read "
-        "%s, contig %s",
-        count, current_pos, seq.size(), read_id.c_str(), contig_id.c_str());
+    // Get the absolute position from the mutation object
+    uint32_t current_pos_abs = mutation.position;
+
+    // Calculate the position relative to the fragment start
+    massert(current_pos_abs >= alignment.contig_start,
+        "Mutation absolute position %u is before alignment start %u",
+        current_pos_abs, alignment.contig_start);
+    current_pos_rel = current_pos_abs - alignment.contig_start;
+
+    // Verify relative position is within fragment bounds
+    massert(current_pos_rel <= seq.size(),
+        "mutation %d relative position %zu is outside fragment bounds %zu for read "
+        "%s, contig %s (abs pos %u, aln start %u)",
+        count, current_pos_rel, seq.size(), read_id.c_str(), contig_id.c_str(),
+        current_pos_abs, alignment.contig_start);
 
     // Copy unchanged sequence up to this mutation
-    size_t gap = current_pos - prev_pos;
-    if (gap > 0)
-      result.append(seq.substr(prev_pos, gap));
-
-    string ref_nts = to_upper(mutation.ref_nts);
-    string read_nts = to_upper(mutation.read_nts);
+    size_t gap = current_pos_rel - prev_pos_rel;
+    if (gap > 0) {
+      massert(prev_pos_rel + gap <= seq.size(), "Gap calculation error: prev=%zu, gap=%zu, size=%zu", prev_pos_rel, gap, seq.size());
+      result.append(seq.substr(prev_pos_rel, gap));
+    }
 
     // Apply mutation based on type
     switch (mutation.type) {
-    case MutationType::SUBSTITUTION:
+    case MutationType::SUBSTITUTION: {
+      massert(mutation.nts.length() == 2, "SUB mutation nts length is not 2");
+      string read_nts = to_upper(mutation.nts.substr(0, 1)); // read is first char
+      string ref_nts = to_upper(mutation.nts.substr(1, 1)); // ref is second char
 
       // Verify reference bases match expected
-      if (seq.substr(current_pos, ref_nts.size()) != ref_nts) {
+      massert(current_pos_rel + ref_nts.size() <= seq.size(), "Substitution check out of bounds");
+      if (seq.substr(current_pos_rel, ref_nts.size()) != ref_nts) {
         printf(
-            "reference bases at position %zu do not match expected. "
+            "reference bases at relative position %zu (abs %u) do not match expected. "
             "expected: %s, found: %s\n",
-            current_pos, ref_nts.c_str(),
-            seq.substr(current_pos, ref_nts.size()).c_str());
+            current_pos_rel, current_pos_abs, ref_nts.c_str(),
+            seq.substr(current_pos_rel, ref_nts.size()).c_str());
         error_found = true;
       }
-      // Verify substitution lengths match
-      if (read_nts.size() != ref_nts.size()) {
-        printf(
-            "substitution lengths do not match at position %zu. read: %zu, "
-            "ref: %zu\n",
-            current_pos, read_nts.size(), ref_nts.size());
-        error_found = true;
-      }
-      // Add the substituted bases
+      // Add the substituted bases (read_nts)
       result.append(read_nts);
-      current_pos += read_nts.size();
-      break;
-
-    case MutationType::INSERTION:
-      // Add inserted bases
-      result.append(read_nts);
-      break;
-
-    case MutationType::DELETION:
-      // Verify reference bases match expected
-      string obs_nts = seq.substr(current_pos, ref_nts.size());
-      if (obs_nts != ref_nts) {
-        printf(
-            "reference bases at position %zu do not match expected for "
-            "deletion. expected: %s, found: %s\n",
-            current_pos, obs_nts.c_str(), ref_nts.c_str());
-        error_found = true;
-      }
-      current_pos += ref_nts.size();
+      // Advance relative position past the substitution (length is always 1 for SUB)
+      current_pos_rel += 1; // ref_nts.size() is always 1
       break;
     }
-    prev_pos = current_pos;
+    case MutationType::INSERTION: {
+      string read_nts = to_upper(mutation.nts);
+      // Add inserted bases
+      result.append(read_nts);
+      // Position does not advance on reference
+      break;
+    }
+    case MutationType::DELETION: {
+      string ref_nts = to_upper(mutation.nts);
+      // Verify reference bases match expected
+      massert(current_pos_rel + ref_nts.size() <= seq.size(), "Deletion check out of bounds");
+      string obs_nts = seq.substr(current_pos_rel, ref_nts.size());
+      if (obs_nts != ref_nts) {
+        printf(
+            "reference bases at relative position %zu (abs %u) do not match expected for "
+            "deletion. expected: %s, found: %s\n",
+            current_pos_rel, current_pos_abs, obs_nts.c_str(), ref_nts.c_str());
+        error_found = true;
+      }
+      // Advance relative position past the deletion
+      current_pos_rel += ref_nts.size();
+      break;
+    }
+    }
+    // Update previous relative position for next iteration's gap calculation
+    prev_pos_rel = current_pos_rel;
   }
 
   // Append any remaining reference sequence
-  if (current_pos < seq.size()) {
-    result.append(seq.substr(current_pos));
+  if (prev_pos_rel < seq.size()) {
+    result.append(seq.substr(prev_pos_rel));
   }
 
   if (error_found) {
@@ -337,43 +354,57 @@ void read_intervals(const std::string& filename,
   file.close();
 }
 
-string generate_cs_tag(const Alignment& alignment)
+// Note: Needs update to work with mutation indices and AlignmentStore
+string generate_cs_tag(const Alignment& alignment, const AlignmentStore& store)
 {
   string result;
-  uint32_t current_pos = 0;
+  // Position relative to the start of the alignment
+  uint32_t current_relative_pos = 0;
 
-  for (size_t i = 0; i < alignment.mutations.size(); ++i) {
-    const Mutation& mut = alignment.mutations[i];
+  for (const auto& mut_idx : alignment.mutations) {
+    // Fetch the actual mutation object
+    const Mutation& mut = store.get_mutation(alignment.contig_index, mut_idx);
 
-    // add match segment if there's a gap
-    uint32_t gap = mut.position - current_pos;
+    // Calculate the relative position for this mutation
+    massert(mut.position >= alignment.contig_start, "Mutation position %u before alignment start %u", mut.position, alignment.contig_start);
+    uint32_t mutation_relative_pos = mut.position - alignment.contig_start;
+
+    // add match segment if there's a gap relative to the previous operation
+    uint32_t gap = mutation_relative_pos - current_relative_pos;
     if (gap > 0) {
       result += ":" + std::to_string(gap);
-      current_pos += gap;
+      current_relative_pos += gap;
     }
 
     // add the mutation
     switch (mut.type) {
-    case MutationType::SUBSTITUTION:
-      result += "*" + to_lower(mut.ref_nts) + to_lower(mut.read_nts);
-      current_pos = mut.position + 1; // substitution advances one position
+    case MutationType::SUBSTITUTION: {
+      massert(mut.nts.length() == 2, "SUB mutation nts length is not 2 for cs tag generation");
+      string read_nt = mut.nts.substr(0, 1);
+      string ref_nt = mut.nts.substr(1, 1);
+      result += "*" + to_lower(ref_nt) + to_lower(read_nt);
+      // Substitution advances relative position by 1
+      current_relative_pos = mutation_relative_pos + 1;
       break;
+    }
     case MutationType::INSERTION:
-      result += "+" + to_lower(mut.read_nts);
-      // insertion doesn't advance position
+      result += "+" + to_lower(mut.nts);
+      // insertion doesn't advance relative position
       break;
-    case MutationType::DELETION:
-      result += "-" + to_lower(mut.ref_nts);
-      current_pos = mut.position + mut.ref_nts.length();
+    case MutationType::DELETION: {
+      string deleted_nts = mut.nts;
+      result += "-" + to_lower(deleted_nts);
+      // Deletion advances relative position by the length of the deleted sequence
+      current_relative_pos = mutation_relative_pos + deleted_nts.length();
       break;
+    }
     default:
       massert(false, "unknown mutation type");
       break;
     }
   }
 
-  // add a final match segment if needed (assuming we know the reference length)
-  uint32_t gap = alignment.contig_end - alignment.contig_start - current_pos;
+  uint32_t gap = alignment.contig_end - alignment.contig_start - current_relative_pos;
   if (gap > 0)
     result += ":" + std::to_string(gap);
 
