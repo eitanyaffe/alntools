@@ -146,4 +146,9 @@ struct Interval {
       , end(end)
   {
   }
+
+  string to_string() const
+  {
+    return contig + ":" + std::to_string(start) + "-" + std::to_string(end);
+  }
 };

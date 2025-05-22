@@ -23,8 +23,12 @@ void QueryFull::generate_output_data()
   output_alignments.clear();
   output_mutations.clear();
 
+  cout << "number of intervals: " << intervals.size() << endl;
   for (const auto& interval : intervals) {
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
+    std::vector<std::reference_wrapper<const Alignment>> alignments =
+      store.get_alignments_in_interval(interval);
+    cout << "interval: " << interval.to_string() << endl;
+    cout << "number of alignments: " << alignments.size() << endl;
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
       string read_id = store.get_read_id(aln.read_index);
@@ -154,13 +158,14 @@ void QueryFull::calculate_heights_by_coord()
 {
   // Group alignments by contig_id
   std::map<std::string, std::vector<FullOutputAlignments*>> alignments_by_contig;
-  cout << "calculating heights by coord" << endl;
+  cout << "calculating heights by coord, number of alignments: " << output_alignments.size() << endl;
 
   for (auto& aln : output_alignments) {
     alignments_by_contig[aln.contig_id].push_back(&aln);
   }
 
   // Process each contig separately
+  cout << "number of contigs: " << alignments_by_contig.size() << endl;
   for (auto& contig_pair : alignments_by_contig) {
     auto& alignments = contig_pair.second;
 
@@ -201,6 +206,7 @@ void QueryFull::calculate_heights_by_mutations()
   std::vector<std::pair<int, float>> alignment_densities;
   cout << "calculating heights by mutations" << endl;
   // Calculate densities - we can now use the num_mutations field directly
+  cout << "number of alignments: " << output_alignments.size() << endl;
   for (int i = 0; i < static_cast<int>(output_alignments.size()); i++) {
     const auto& aln = output_alignments[i];
     int aln_length = aln.contig_end - aln.contig_start;
@@ -212,6 +218,7 @@ void QueryFull::calculate_heights_by_mutations()
   }
 
   // Sort by mutation density (highest first)
+  cout << "sorting alignment densities" << endl;
   std::sort(alignment_densities.begin(), alignment_densities.end(),
       [](const std::pair<int, float>& a, const std::pair<int, float>& b) {
         return a.second > b.second;
@@ -221,6 +228,7 @@ void QueryFull::calculate_heights_by_mutations()
   std::map<std::string, std::vector<std::vector<std::pair<int, int>>>> contig_heights;
 
   // Assign heights in order of decreasing density while preventing overlaps
+  cout << "assigning heights, number of mutation densities: " << alignment_densities.size() << endl;
   for (const auto& aln_density : alignment_densities) {
     int aln_idx = aln_density.first;
     FullOutputAlignments& aln = output_alignments[aln_idx];
