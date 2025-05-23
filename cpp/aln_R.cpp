@@ -247,6 +247,7 @@ List aln_query_full(
   const std::vector<FullOutputAlignments>& alignments = queryFull.get_output_alignments();
   NumericVector out_aln_idx;
   CharacterVector out_aln_read_id;
+  IntegerVector out_aln_read_length;
   CharacterVector out_aln_contig_id;
   IntegerVector out_aln_read_start;
   IntegerVector out_aln_read_end;
@@ -260,6 +261,7 @@ List aln_query_full(
   for (const auto& aln : alignments) {
     out_aln_idx.push_back(static_cast<double>(aln.alignment_index + 1)); // R numeric can hold uint64_t
     out_aln_read_id.push_back(aln.read_id);
+    out_aln_read_length.push_back(aln.read_length);
     out_aln_contig_id.push_back(aln.contig_id);
     out_aln_read_start.push_back(aln.read_start);
     out_aln_read_end.push_back(aln.read_end);
@@ -274,6 +276,7 @@ List aln_query_full(
   DataFrame alignments_df = DataFrame::create(
       Named("alignment_index") = out_aln_idx,
       Named("read_id") = out_aln_read_id,
+      Named("read_length") = out_aln_read_length,
       Named("contig_id") = out_aln_contig_id,
       Named("read_start") = out_aln_read_start,
       Named("read_end") = out_aln_read_end,

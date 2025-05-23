@@ -25,8 +25,7 @@ void QueryFull::generate_output_data()
 
   cout << "number of intervals: " << intervals.size() << endl;
   for (const auto& interval : intervals) {
-    std::vector<std::reference_wrapper<const Alignment>> alignments =
-      store.get_alignments_in_interval(interval);
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
     cout << "interval: " << interval.to_string() << endl;
     cout << "number of alignments: " << alignments.size() << endl;
     for (const auto& alignment_ref : alignments) {
@@ -35,12 +34,16 @@ void QueryFull::generate_output_data()
       string contig_id = store.get_contig_id(aln.contig_index);
       string cs_string = generate_cs_tag(aln, store);
 
+      // Get read length from the store
+      uint32_t read_length = store.get_reads()[aln.read_index].length;
+
       // Count mutations for this alignment
       int num_mutations = aln.mutations.size();
 
       // initialize height to 0, will be set later
       output_alignments.push_back({ current_alignment_index,
           read_id,
+          static_cast<int>(read_length),
           contig_id,
           static_cast<int>(aln.read_start),
           static_cast<int>(aln.read_end),
@@ -83,13 +86,14 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
     exit(1);
   }
 
-  // Write header with added height column
-  ofs_alignments << "alignment_index\tread_id\tcontig_id\tread_start\tread_end\tcontig_start\tcontig_end\tis_reverse\tcs_tag\tmutation_count\theight\n";
+  // Write header with read_length and height columns
+  ofs_alignments << "alignment_index\tread_id\tread_length\tcontig_id\tread_start\tread_end\tcontig_start\tcontig_end\tis_reverse\tcs_tag\tmutation_count\theight\n";
 
   // Write data
   for (const auto& aln_data : output_alignments) {
     ofs_alignments << aln_data.alignment_index << "\t"
                    << aln_data.read_id << "\t"
+                   << aln_data.read_length << "\t"
                    << aln_data.contig_id << "\t"
                    << aln_data.read_start << "\t"
                    << aln_data.read_end << "\t"

@@ -16,6 +16,7 @@ enum class HeightStyle {
 struct FullOutputAlignments {
   uint64_t alignment_index;
   std::string read_id;
+  int read_length;
   std::string contig_id;
   int read_start;
   int read_end;
