@@ -79,6 +79,18 @@ query_full <- function() {
 }
 
 ################################################################################
+# QueryByReadIds
+################################################################################
+
+query_by_read_ids <- function(read_ids) {
+  cat("querying by read IDs example\n")
+  read_results <- aln_alignments_from_read_ids(aln, read_ids)
+  ofn <- paste0(ofn_prefix, "_read_query.tsv")
+  cat(paste0("saving output to ", ofn, "\n"))
+  write.table(read_results, file = ofn, sep = "\t", row.names = F, quote = F)
+}
+
+################################################################################
 # main
 ################################################################################
 
@@ -93,6 +105,7 @@ tryCatch(
     query_bins()
     query_pileup()
     query_full()
+    query_by_read_ids(c("read1", "read2"))
   },
   error = function(e) {
     cat("Error: ", e$message, "\n")

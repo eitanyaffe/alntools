@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -60,6 +61,84 @@ std::vector<Interval> Rcpp_DataFrame_to_Intervals(DataFrame df)
     intervals.emplace_back(as<std::string>(contig[i]), start[i] - 1, end[i]);
   }
   return intervals;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// QueryByReadIds function
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+DataFrame aln_alignments_from_read_ids(
+    XPtr<AlignmentStore> store_ptr,
+    CharacterVector read_ids)
+{
+  // Validate the external pointer
+  if (!store_ptr) {
+    stop("Invalid AlignmentStore pointer provided.");
+  }
+
+  // Get reference to the AlignmentStore object (non-const since get_read_index isn't const)
+  AlignmentStore& store = *store_ptr;
+
+  // Get alignments
+  const std::vector<Alignment>& all_alignments = store.get_alignments();
+
+  // Collect read indices
+  std::unordered_set<uint32_t> target_read_indices;
+  for (int i = 0; i < read_ids.length(); ++i) {
+    std::string read_id = as<std::string>(read_ids[i]);
+    try {
+      size_t read_index = store.get_read_index(read_id);
+      target_read_indices.insert(read_index);
+    } catch (const std::runtime_error&) {
+      // Read ID not found, just skip it
+      Rcout << "warning: read ID '" << read_id << "' not found, skipping" << std::endl;
+    }
+  }
+
+  // Output vectors for DataFrame
+  NumericVector out_aln_idx;
+  CharacterVector out_aln_read_id;
+  IntegerVector out_aln_read_length;
+  CharacterVector out_aln_contig_id;
+  IntegerVector out_aln_read_start;
+  IntegerVector out_aln_read_end;
+  IntegerVector out_aln_contig_start;
+  IntegerVector out_aln_contig_end;
+  LogicalVector out_aln_is_reverse;
+  IntegerVector out_aln_num_mutations;
+
+  // Collect alignments for target reads
+  for (size_t i = 0; i < all_alignments.size(); ++i) {
+    const Alignment& aln = all_alignments[i];
+
+    if (target_read_indices.find(aln.read_index) != target_read_indices.end()) {
+      // This alignment belongs to one of our target reads
+      out_aln_idx.push_back(i);
+      out_aln_read_id.push_back(store.get_read_id(aln.read_index));
+      out_aln_read_length.push_back(store.get_reads()[aln.read_index].length);
+      out_aln_contig_id.push_back(store.get_contig_id(aln.contig_index));
+      out_aln_read_start.push_back(aln.read_start);
+      out_aln_read_end.push_back(aln.read_end);
+      out_aln_contig_start.push_back(aln.contig_start);
+      out_aln_contig_end.push_back(aln.contig_end);
+      out_aln_is_reverse.push_back(aln.is_reverse);
+      out_aln_num_mutations.push_back(aln.mutations.size());
+    }
+  }
+
+  return DataFrame::create(
+      Named("alignment_index") = out_aln_idx,
+      Named("read_id") = out_aln_read_id,
+      Named("read_length") = out_aln_read_length,
+      Named("contig_id") = out_aln_contig_id,
+      Named("read_start") = out_aln_read_start,
+      Named("read_end") = out_aln_read_end,
+      Named("contig_start") = out_aln_contig_start,
+      Named("contig_end") = out_aln_contig_end,
+      Named("is_reverse") = out_aln_is_reverse,
+      Named("num_mutations") = out_aln_num_mutations,
+      Named("stringsAsFactors") = false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
