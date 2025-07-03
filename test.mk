@@ -17,7 +17,7 @@ TEST_INTERVALS_LARGE = examples/intervals_large.txt
 TEST_BIN_SIZE = 1000
 
 .PHONY: test test_basic test_full test_query_full test_query_bin \
-test_query_pileup test_query_all test_R_all test_R_commands test_R_plot \
+test_query_pileup test_coverage test_query_all test_R_all test_R_commands test_R_plot \
 test_create_dense_paf clean-test test-r-load
 
 ########################################################################################
@@ -95,7 +95,16 @@ test_query_pileup: $(TARGET)
 	@echo "QUERY PILEUP completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-test_query_all: test_query_full test_query_bin test_query_pileup
+test_coverage: $(TARGET)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running COVERAGE TEST"
+	$(TARGET) coverage \
+		-ifn $(TEST_OUTPUT_DIR)/test.aln \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/coverage_test
+	@echo "COVERAGE TEST completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+test_query_all: test_query_full test_query_bin test_query_pileup test_coverage
 
 ########################################################################################
 # Test R interface

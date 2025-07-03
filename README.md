@@ -7,6 +7,7 @@
   - **Full mode**: Retrieves complete alignment and mutation details with height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
   - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
+- **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
 - **R interface** for seamless integration with analysis workflows in R
 
 This makes alntools useful for visualizing and investigating read coverage and mutation patterns across regions of interest.
@@ -153,6 +154,42 @@ alntools query -ifn_aln output/test.aln \
    -ofn_prefix output/query -mode pileup -pileup_mode mutated
 ```
 
+### 4. coverage
+
+Generates comprehensive alignment coverage statistics for the entire ALN file, including detailed analysis of aligned and non-aligned regions.
+
+```bash
+alntools coverage -ifn <input.aln> -ofn_prefix <output_prefix>
+```
+
+**Mandatory Arguments:**
+* `-ifn <fn>`: Input ALN file.
+* `-ofn_prefix <fn>`: Output prefix for result files.
+
+**Example:**
+```bash
+alntools coverage -ifn output/test.aln -ofn_prefix output/coverage_stats
+```
+
+**Output Files:**
+- `{prefix}_coverage.txt`: Main statistics table with tab-delimited format containing:
+  - `contig_count`: Number of contigs
+  - `read_count`: Number of reads  
+  - `alignment_count`: Number of alignments
+  - `total_read_bp`: Total read base pairs
+  - `total_assembly_bp`: Total assembly base pairs
+  - `aligned_count`: Number of reads with at least one alignment
+  - `non_aligned_read_bp`: Total base pairs in unaligned read regions
+  - `non_aligned_contig_bp`: Total base pairs in unaligned contig regions
+- `{prefix}_non_aligned_reads.txt`: Non-aligned read intervals with columns: read_id, start, end, length (1-based coordinates)
+- `{prefix}_non_aligned_contigs.txt`: Non-aligned contig intervals with columns: contig_id, start, end, length (1-based coordinates)
+
+**Use Cases:**
+- Assess overall alignment quality and coverage
+- Identify regions with poor alignment coverage
+- Calculate genome-wide alignment statistics
+- Find specific genomic intervals that lack read coverage
+
 ## R Interface
 
 `alntools` provides an R interface for constructing, loading, and querying alignment stores.
@@ -261,6 +298,7 @@ make test
 # Run specific test groups
 make test_basic     # Basic functionality
 make test_query_all # All query modes
+make test_coverage  # Coverage analysis
 make test_R_all     # R interface tests
 ```
 
