@@ -178,6 +178,7 @@ alntools coverage -ifn output/test.aln -ofn_prefix output/coverage_stats
   - `alignment_count`: Number of alignments
   - `total_read_bp`: Total read base pairs
   - `total_assembly_bp`: Total assembly base pairs
+  - `contig_n50`: N50 statistic of contig lengths (length of shortest contig such that 50% of assembly is in contigs of that length or longer)
   - `aligned_count`: Number of reads with at least one alignment
   - `non_aligned_read_bp`: Total base pairs in unaligned read regions
   - `non_aligned_contig_bp`: Total base pairs in unaligned contig regions

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
@@ -64,6 +65,37 @@ vector<IntervalInfo> extract_unaligned_intervals(const string& id, const vector<
   return intervals;
 }
 
+// calculate N50 of contig lengths
+uint64_t calculate_contig_n50(const AlignmentStore& store)
+{
+  vector<uint64_t> lengths;
+  for (const auto& contig : store.get_contigs()) {
+    lengths.push_back(contig.length);
+  }
+
+  // sort in descending order
+  sort(lengths.begin(), lengths.end(), greater<uint64_t>());
+
+  // calculate total length
+  uint64_t total_length = 0;
+  for (uint64_t length : lengths) {
+    total_length += length;
+  }
+
+  // find N50
+  uint64_t cumulative_length = 0;
+  uint64_t target_length = total_length / 2;
+
+  for (uint64_t length : lengths) {
+    cumulative_length += length;
+    if (cumulative_length >= target_length) {
+      return length;
+    }
+  }
+
+  return 0; // should not happen if lengths is not empty
+}
+
 // calculate read coverage statistics
 ReadCoverageStats calculate_read_coverage_stats(const vector<vector<bool>>& read_coverage,
     const AlignmentStore& store,
@@ -126,7 +158,7 @@ ContigCoverageStats calculate_contig_coverage_stats(const vector<vector<bool>>& 
 // write main coverage statistics table
 void write_coverage_stats(const string& output_prefix,
     size_t contig_count, size_t read_count, size_t alignment_count,
-    uint64_t total_read_bp, uint64_t total_assembly_bp, size_t aligned_count,
+    uint64_t total_read_bp, uint64_t total_assembly_bp, uint64_t contig_n50, size_t aligned_count,
     const ReadCoverageStats& read_stats, const ContigCoverageStats& contig_stats)
 {
   string coverage_file = output_prefix + "_coverage.txt";
@@ -140,6 +172,7 @@ void write_coverage_stats(const string& output_prefix,
   coverage_out << "alignment_count\t" << alignment_count << "\n";
   coverage_out << "total_read_bp\t" << total_read_bp << "\n";
   coverage_out << "total_assembly_bp\t" << total_assembly_bp << "\n";
+  coverage_out << "contig_n50\t" << contig_n50 << "\n";
   coverage_out << "aligned_count\t" << aligned_count << "\n";
   coverage_out << "non_aligned_read_bp\t" << read_stats.non_aligned_read_bp << "\n";
   coverage_out << "non_aligned_contig_bp\t" << contig_stats.non_aligned_contig_bp << "\n";
@@ -204,6 +237,9 @@ void coverage_command(const string& aln_file, const string& output_prefix)
     total_assembly_bp += contig.length;
   }
 
+  // calculate contig N50
+  uint64_t contig_n50 = calculate_contig_n50(store);
+
   // prepare for bitmap analysis
   vector<vector<bool>> read_coverage(read_count);
   vector<vector<bool>> contig_coverage(contig_count);
@@ -239,7 +275,7 @@ void coverage_command(const string& aln_file, const string& output_prefix)
 
   // write output files
   write_coverage_stats(output_prefix, contig_count, read_count, alignment_count,
-      total_read_bp, total_assembly_bp, aligned_count, read_stats, contig_stats);
+      total_read_bp, total_assembly_bp, contig_n50, aligned_count, read_stats, contig_stats);
   write_read_intervals(output_prefix, read_stats);
   write_contig_intervals(output_prefix, contig_stats);
 
