@@ -15,9 +15,13 @@ HeightStyle string_to_height_style(const std::string& style_str)
 {
   if (style_str == "by_mutations") {
     return HeightStyle::BY_MUTATIONS;
+  } else if (style_str == "by_coord_left") {
+    return HeightStyle::BY_COORD_LEFT;
+  } else if (style_str == "by_coord_right") {
+    return HeightStyle::BY_COORD_RIGHT;
   } else {
-    // default to BY_COORD
-    return HeightStyle::BY_COORD;
+    // default to BY_COORD_LEFT
+    return HeightStyle::BY_COORD_LEFT;
   }
 }
 
@@ -29,7 +33,9 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("mode", new ParserString("query mode (full, pileup, bin)", "full"), true);
   params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
-  params.add_parser("height_style", new ParserString("alignment height style for 'full' mode (by_coord, by_mutations)", "by_coord"), false);
+  params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
+  params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
+  params.add_parser("alignment_filter", new ParserString("alignment filter for 'full' mode (all, single, single_complete, only_multiple)", "all"), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -60,8 +66,17 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   // Validate height_style if mode is 'full'
   if (mode == "full") {
     string height_style = params.get_string("height_style");
-    if (height_style != "by_coord" && height_style != "by_mutations") {
-      cerr << "error: invalid height_style specified: " << height_style << ". Must be 'by_coord' or 'by_mutations'." << endl;
+    if (height_style != "by_coord_left" && height_style != "by_coord_right" && 
+        height_style != "by_mutations") {
+      cerr << "error: invalid height_style specified: " << height_style << ". Must be 'by_coord_left', 'by_coord_right', or 'by_mutations'." << endl;
+      exit(1);
+    }
+    
+    // validate alignment_filter if mode is 'full'
+    string alignment_filter = params.get_string("alignment_filter");
+    if (alignment_filter != "all" && alignment_filter != "single" && 
+        alignment_filter != "single_complete" && alignment_filter != "only_multiple") {
+      cerr << "error: invalid alignment_filter specified: " << alignment_filter << ". Must be 'all', 'single', 'single_complete', or 'only_multiple'." << endl;
       exit(1);
     }
   }
@@ -85,6 +100,12 @@ int query_main(const char* name, int argc, char** argv)
 
   // Get height style and convert to enum
   HeightStyle height_style = string_to_height_style(params.get_string("height_style"));
+  
+  // get max alignments parameter
+  int max_alignments = params.get_int("max_alignments");
+  
+  // get alignment filter parameter
+  string alignment_filter = params.get_string("alignment_filter");
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
@@ -99,6 +120,8 @@ int query_main(const char* name, int argc, char** argv)
   }
   if (mode == "full") {
     cout << "  height_style: " << params.get_string("height_style") << endl;
+    cout << "  max_alignments: " << max_alignments << endl;
+    cout << "  alignment_filter: " << alignment_filter << endl;
   }
 
   vector<Interval> intervals;
@@ -109,7 +132,7 @@ int query_main(const char* name, int argc, char** argv)
   store.load(ifn_aln);
 
   if (mode == "full") {
-    QueryFull queryFull(intervals, store, height_style);
+    QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter);
     queryFull.execute();
     queryFull.write_to_csv(ofn_prefix);
   } else if (mode == "pileup") {

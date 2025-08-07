@@ -1,11 +1,13 @@
 #include "alignment_store.h"
 #include "utils.h"
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -387,6 +389,16 @@ size_t AlignmentStore::add_or_get_contig_index(const string& contig_id, uint32_t
   }
 }
 
+bool AlignmentStore::has_read_id(const string& read_id) const
+{
+  return read_id_to_index.find(read_id) != read_id_to_index.end();
+}
+
+bool AlignmentStore::has_contig_id(const string& contig_id) const
+{
+  return contig_id_to_index.find(contig_id) != contig_id_to_index.end();
+}
+
 const string& AlignmentStore::get_read_id(size_t read_index) const
 {
   massert(read_index < reads_.size(), "read index out of bounds: %zu", read_index);
@@ -399,7 +411,7 @@ const string& AlignmentStore::get_contig_id(size_t contig_index) const
   return contigs_[contig_index].id;
 }
 
-std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignments_in_interval(const Interval& interval) const
+std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignments_in_interval(const Interval& interval, int max_alignments) const
 {
   std::vector<std::reference_wrapper<const Alignment>> result;
 
@@ -430,11 +442,33 @@ std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignme
         return query_end < alignments_[index].contig_start;
       });
 
+  // first pass: count valid alignments
+  size_t valid_count = 0;
   for (auto it = it_start; it != it_end; ++it) {
     massert(*it < alignments_.size(), "alignment index out of bounds: %zu", *it);
     const auto& alignment = alignments_[*it];
     if (alignment.contig_end >= interval.start) {
-      result.push_back(std::cref(alignment));
+      valid_count++;
+    }
+  }
+// print if we need to subsample
+  if (max_alignments > 0 && valid_count > static_cast<size_t>(max_alignments)) {
+    std::cout << "subsampling " << valid_count << " alignments to " << max_alignments << std::endl;
+  }
+  
+  // second pass: collect alignments with subsampling if needed
+  for (auto it = it_start; it != it_end; ++it) {
+    massert(*it < alignments_.size(), "alignment index out of bounds: %zu", *it);
+    const auto& alignment = alignments_[*it];
+    if (alignment.contig_end >= interval.start) {
+      if (max_alignments > 0 && valid_count > static_cast<size_t>(max_alignments)) {
+        // subsample: skip based on random number
+        if (rand() % valid_count < static_cast<size_t>(max_alignments)) {
+          result.push_back(std::cref(alignment));
+        }
+      } else {
+        result.push_back(std::cref(alignment));
+      }
     }
   }
 

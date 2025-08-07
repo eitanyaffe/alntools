@@ -4,7 +4,7 @@
 
 - **Fast binary storage** of read alignments from PAF format with mutation encoding
 - **Three query modes** for flexible analysis:
-  - **Full mode**: Retrieves complete alignment and mutation details with height calculations for stacked visualization
+  - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
   - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
@@ -126,8 +126,9 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `covered`: Report only positions with read coverage (default).
   - `mutated`: Report only positions with mutations.
 * `-binsize <int>`: For bin mode, size of bins in bp (default: `100`).
-* `-height_style <string>`: For full mode, how to calculate alignment height:
-  - `by_coord`: Minimize overlap between alignments (default).
+* `-height_style <string>`: For full mode, how to calculate read height:
+  - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
+  - `by_coord_right`: Minimize overlap between reads, sort by end position.
   - `by_mutations`: Arrange by mutation density.
 
 **Example of full query mode**
@@ -137,6 +138,11 @@ alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_large.txt \
    -ofn_prefix output/query -mode full
 ```
+
+This produces three output files:
+- `output/query_alignments.tsv`: Detailed alignment information with heights inherited from reads
+- `output/query_mutations.tsv`: Mutation details for each alignment
+- `output/query_reads.tsv`: Read statistics and height assignments (heights calculated on reads first)
 
 **Example of bin query mode**
 
@@ -239,11 +245,11 @@ report_mode <- "all"
 # Pileup query
 pileup_results <- aln_query_pileup(aln, intervals, report_mode)
 
-# height_style options: "by_coord", "by_mutations"
-height_style <- "by_coord"
+# height_style options: "by_coord_left", "by_coord_right", "by_mutations"
+height_style <- "by_coord_left"
 # Full query
 full_results <- aln_query_full(aln, intervals, height_style)
-# Returns a list with $alignments and $mutations dataframes
+# Returns a list with $alignments, $mutations, and $reads dataframes
 ```
 
 ### Example R Script
@@ -285,6 +291,8 @@ write.table(pileup_results, file = paste0(output_prefix, "_pileup.tsv"),
 write.table(full_results$alignments, file = paste0(output_prefix, "_alignments.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 write.table(full_results$mutations, file = paste0(output_prefix, "_mutations.tsv"), 
+            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(full_results$reads, file = paste0(output_prefix, "_reads.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 ```
 

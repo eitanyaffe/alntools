@@ -38,7 +38,6 @@ void QueryPileup::aggregate_data()
   cout << "total number of queried pile-up positions: " << total_positions << endl;
 
   // Loop through intervals (again) to process alignments associated with them
-  int processed_alignments = 0;
   for (const auto& interval : intervals) {
     // Get alignments overlapping this interval
     std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
@@ -69,7 +68,6 @@ void QueryPileup::aggregate_data()
           it->second.mutation_counts[mut_str]++;
         }
       }
-      processed_alignments++;
     }
   }
 }

@@ -51,7 +51,9 @@ ctg26175    230065  252386
 
 ### 1. Full Mode Output
 
-Produces two tab-delimited files:
+Produces three tab-delimited files:
+
+**Height Calculation**: Heights are calculated on reads first (based on read spans and mutation density), then inherited by alignments and mutations. This allows for cleaner visualization where all parts of a read (across multiple alignments) appear at the same height level.
 
 #### *_alignments.tsv:
 
@@ -80,6 +82,20 @@ Produces two tab-delimited files:
 | position       | Position on contig                       | int     |
 | desc           | Description of the mutation              | string  |
 | height         | Vertical position for visualization      | int     |
+
+#### *_reads.tsv:
+
+| Column               | Description                              | Type    |
+|----------------------|------------------------------------------|---------|
+| read_id              | ID of the read                           | string  |
+| contig_id            | ID of the contig                         | string  |
+| read_length          | Total length of the read                 | int     |
+| span_start           | Start of read's aligned region on contig| int     |
+| span_end             | End of read's aligned region on contig  | int     |
+| total_aligned_length | Total aligned base pairs                 | int     |
+| num_alignments       | Number of alignments for this read      | int     |
+| num_mutations        | Total mutations across all alignments   | int     |
+| height               | Vertical position for visualization      | int     |
 
 ### 2. Pileup Mode Output
 

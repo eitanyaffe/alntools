@@ -67,6 +67,9 @@ class AlignmentStore {
   size_t add_or_get_read_index(const string& read_id, uint32_t length);
   size_t add_or_get_contig_index(const string& contig_id, uint32_t length);
 
+  bool has_read_id(const string& read_id) const;
+  bool has_contig_id(const string& contig_id) const;
+
   // Get read index
   size_t get_read_index(const string& read_id);
   size_t get_contig_index(const string& contig_id) const;
@@ -76,5 +79,5 @@ class AlignmentStore {
   const string& get_contig_id(size_t contig_index) const;
 
   // New method to get alignments in a specific interval
-  std::vector<std::reference_wrapper<const Alignment>> get_alignments_in_interval(const Interval& interval) const;
+  std::vector<std::reference_wrapper<const Alignment>> get_alignments_in_interval(const Interval& interval, int max_alignments = 0) const;
 };

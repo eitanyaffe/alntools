@@ -87,13 +87,12 @@ DataFrame aln_alignments_from_read_ids(
   std::unordered_set<uint32_t> target_read_indices;
   for (int i = 0; i < read_ids.length(); ++i) {
     std::string read_id = as<std::string>(read_ids[i]);
-    try {
-      size_t read_index = store.get_read_index(read_id);
-      target_read_indices.insert(read_index);
-    } catch (const std::runtime_error&) {
-      // Read ID not found, just skip it
-      Rcout << "warning: read ID '" << read_id << "' not found, skipping" << std::endl;
+    if (!store.has_read_id(read_id)) {
+      cout << "Read ID '" << read_id << "' not found in alignment store" << endl;
+      continue;
     }
+    size_t read_index = store.get_read_index(read_id);
+    target_read_indices.insert(read_index);
   }
 
   // Output vectors for DataFrame
@@ -294,7 +293,9 @@ DataFrame aln_query_pileup(
 List aln_query_full(
     XPtr<AlignmentStore> store_ptr,
     DataFrame intervals_df,
-    std::string height_style_str = "by_coord")
+    std::string height_style_str = "by_coord_left",
+    int max_alignments = 0,
+    std::string alignment_filter = "all")
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -305,10 +306,12 @@ List aln_query_full(
   HeightStyle height_style;
   if (height_style_str == "by_mutations") {
     height_style = HeightStyle::BY_MUTATIONS;
-  } else if (height_style_str == "by_coord") {
-    height_style = HeightStyle::BY_COORD;
+  } else if (height_style_str == "by_coord_left") {
+    height_style = HeightStyle::BY_COORD_LEFT;
+  } else if (height_style_str == "by_coord_right") {
+    height_style = HeightStyle::BY_COORD_RIGHT;
   } else {
-    stop("Invalid height_style parameter. Must be 'by_coord' or 'by_mutations'.");
+    stop("Invalid height_style parameter. Must be 'by_coord_left', 'by_coord_right', or 'by_mutations'.");
   }
 
   // Get reference to the AlignmentStore object
@@ -317,7 +320,7 @@ List aln_query_full(
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
-  QueryFull queryFull(intervals, store, height_style);
+  QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter);
 
   // Run the steps
   queryFull.execute();
@@ -400,9 +403,49 @@ List aln_query_full(
       Named("height") = out_mut_height,
       Named("stringsAsFactors") = false);
 
+  // --- Create Reads DataFrame ---
+  const std::vector<FullOutputReads>& reads = queryFull.get_output_reads();
+  CharacterVector out_read_id;
+  CharacterVector out_read_contig_id;
+  IntegerVector out_read_length;
+  IntegerVector out_span_start;
+  IntegerVector out_span_end;
+  IntegerVector out_total_aligned_length;
+  IntegerVector out_num_alignments;
+  IntegerVector out_read_num_mutations;
+  IntegerVector out_read_height;
+  LogicalVector out_read_reversed;
+
+  for (const auto& read : reads) {
+    out_read_id.push_back(read.read_id);
+    out_read_contig_id.push_back(read.contig_id);
+    out_read_length.push_back(read.read_length);
+    out_span_start.push_back(read.span_start);
+    out_span_end.push_back(read.span_end);
+    out_total_aligned_length.push_back(read.total_aligned_length);
+    out_num_alignments.push_back(read.num_alignments);
+    out_read_num_mutations.push_back(read.num_mutations);
+    out_read_height.push_back(read.height);
+    out_read_reversed.push_back(read.read_reversed);
+  }
+
+  DataFrame reads_df = DataFrame::create(
+      Named("read_id") = out_read_id,
+      Named("contig_id") = out_read_contig_id,
+      Named("read_length") = out_read_length,
+      Named("span_start") = out_span_start,
+      Named("span_end") = out_span_end,
+      Named("total_aligned_length") = out_total_aligned_length,
+      Named("num_alignments") = out_num_alignments,
+      Named("num_mutations") = out_read_num_mutations,
+      Named("height") = out_read_height,
+      Named("is_reverse") = out_read_reversed,
+      Named("stringsAsFactors") = false);
+
   return List::create(
       Named("alignments") = alignments_df,
-      Named("mutations") = mutations_df);
+      Named("mutations") = mutations_df,
+      Named("reads") = reads_df);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,6 +483,70 @@ XPtr<AlignmentStore> aln_construct(
     delete store;
     stop("an unknown C++ error occurred during construction");
   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Get all contigs
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+DataFrame aln_get_contigs(XPtr<AlignmentStore> store_ptr)
+{
+  // validate the external pointer
+  if (!store_ptr) {
+    stop("invalid AlignmentStore pointer provided");
+  }
+
+  // get reference to the AlignmentStore object
+  const AlignmentStore& store = *store_ptr;
+
+  // get all contigs
+  const std::vector<Contig>& contigs = store.get_contigs();
+
+  // prepare output vectors
+  CharacterVector out_contig_id;
+  IntegerVector out_length;
+
+  // fill output vectors
+  for (const auto& contig : contigs) {
+    out_contig_id.push_back(contig.id);
+    out_length.push_back(contig.length);
+  }
+
+  return DataFrame::create(
+      Named("contig_id") = out_contig_id,
+      Named("length") = out_length,
+      Named("stringsAsFactors") = false);
+}
+
+// [[Rcpp::export]]
+DataFrame aln_get_reads(XPtr<AlignmentStore> store_ptr)
+{
+  // validate the external pointer
+  if (!store_ptr) {
+    stop("invalid AlignmentStore pointer provided");
+  }
+
+  // get reference to the AlignmentStore object
+  const AlignmentStore& store = *store_ptr;
+
+  // get all reads
+  const std::vector<Read>& reads = store.get_reads();
+
+  // prepare output vectors
+  CharacterVector out_read_id;
+  IntegerVector out_length;
+
+  // fill output vectors
+  for (const auto& read : reads) {
+    out_read_id.push_back(read.id);
+    out_length.push_back(read.length);
+  }
+
+  return DataFrame::create(
+      Named("read_id") = out_read_id,
+      Named("length") = out_length,
+      Named("stringsAsFactors") = false);
 }
 
 // [[Rcpp::export]]

@@ -69,13 +69,29 @@ query_pileup <- function() {
 
 query_full <- function() {
   cat("querying full example\n")
-  full_results <- aln_query_full(aln, intervals, "by_mutations")
+  full_results <- aln_query_full(aln, intervals, "by_coord_left")
   ofn_alignments <- paste0(ofn_prefix, "_alignments.tsv")
   ofn_mutations <- paste0(ofn_prefix, "_mutations.tsv")
+  ofn_reads <- paste0(ofn_prefix, "_reads.tsv")
   cat(paste0("saving alignments to ", ofn_alignments, "\n"))
   cat(paste0("saving mutations to ", ofn_mutations, "\n"))
+  cat(paste0("saving reads to ", ofn_reads, "\n"))
   write.table(full_results$alignments, file = ofn_alignments, sep = "\t", row.names = F, quote = F)
   write.table(full_results$mutations, file = ofn_mutations, sep = "\t", row.names = F, quote = F)
+  write.table(full_results$reads, file = ofn_reads, sep = "\t", row.names = F, quote = F)
+  
+  # demonstrate alignment_filter feature with only_multiple
+  cat("querying full with alignment_filter = 'only_multiple'\n")
+  full_results_multi <- aln_query_full(aln, intervals, "by_coord_left", 0, "only_multiple")
+  ofn_alignments_multi <- paste0(ofn_prefix, "_clean_alignments.tsv")
+  ofn_mutations_multi <- paste0(ofn_prefix, "_clean_mutations.tsv")
+  ofn_reads_multi <- paste0(ofn_prefix, "_clean_reads.tsv")
+  cat(paste0("saving multi-alignment-only alignments to ", ofn_alignments_multi, "\n"))
+  cat(paste0("saving multi-alignment-only mutations to ", ofn_mutations_multi, "\n"))
+  cat(paste0("saving multi-alignment-only reads to ", ofn_reads_multi, "\n"))
+  write.table(full_results_multi$alignments, file = ofn_alignments_multi, sep = "\t", row.names = F, quote = F)
+  write.table(full_results_multi$mutations, file = ofn_mutations_multi, sep = "\t", row.names = F, quote = F)
+  write.table(full_results_multi$reads, file = ofn_reads_multi, sep = "\t", row.names = F, quote = F)
 }
 
 ################################################################################
@@ -105,7 +121,7 @@ tryCatch(
     query_bins()
     query_pileup()
     query_full()
-    query_by_read_ids(c("read1", "read2"))
+    query_by_read_ids(c("read_1", "read_2"))
   },
   error = function(e) {
     cat("Error: ", e$message, "\n")

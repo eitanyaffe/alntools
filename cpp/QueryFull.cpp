@@ -10,11 +10,22 @@
 
 using namespace std;
 
-QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style)
+QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, const std::string& alignment_filter)
     : intervals(intervals)
     , store(store)
     , height_style(height_style)
+    , max_alignments(max_alignments)
+    , alignment_filter(alignment_filter)
 {
+  // validate alignment_filter parameter
+  if (alignment_filter != "all" && 
+      alignment_filter != "single" && 
+      alignment_filter != "single_complete" &&
+      alignment_filter != "only_multiple") {
+    cerr << "warning: invalid alignment_filter '" << alignment_filter 
+         << "'. using 'all' instead." << endl;
+    this->alignment_filter = "all";
+  }
 }
 
 void QueryFull::generate_output_data()
@@ -22,17 +33,50 @@ void QueryFull::generate_output_data()
   uint64_t current_alignment_index = 0;
   output_alignments.clear();
   output_mutations.clear();
+  output_reads.clear();
 
   cout << "number of intervals: " << intervals.size() << endl;
   for (const auto& interval : intervals) {
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval, max_alignments);
     cout << "interval: " << interval.to_string() << endl;
     cout << "number of alignments: " << alignments.size() << endl;
+
+    // pass one: determine read count for filtering
+    std::map<std::string, int> read_counts;
+    if (alignment_filter != "all") {
+      for (const auto& alignment_ref : alignments) {
+        const auto& aln = alignment_ref.get();
+        string read_id = store.get_read_id(aln.read_index);
+        read_counts[read_id]++;
+      }
+    }
+
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
       string read_id = store.get_read_id(aln.read_index);
       string contig_id = store.get_contig_id(aln.contig_index);
       string cs_string = generate_cs_tag(aln, store);
+
+      // apply filtering based on alignment_filter
+      if (alignment_filter == "single") {
+        if (read_counts[read_id] != 1) {
+          continue;
+        }
+      } else if (alignment_filter == "single_complete") {
+        if (read_counts[read_id] != 1) {
+          continue;
+        }
+        // check for clipping: read must span entire length
+        uint32_t read_length = store.get_reads()[aln.read_index].length;
+        if (aln.read_start != 0 || aln.read_end != read_length) {
+          continue;
+        }
+      } else if (alignment_filter == "only_multiple") {
+        if (read_counts[read_id] < 2) {
+          continue;
+        }
+      }
+      // "all" requires no filtering
 
       // Get read length from the store
       uint32_t read_length = store.get_reads()[aln.read_index].length;
@@ -72,8 +116,10 @@ void QueryFull::generate_output_data()
     }
   }
 
-  // calculate heights after all alignments are collected
-  calculate_heights();
+  // collect reads from alignments and calculate read heights
+  collect_reads_from_alignments();
+  calculate_read_heights();
+  assign_alignment_heights_from_reads();
 }
 
 void QueryFull::write_to_csv(const std::string& ofn_prefix)
@@ -130,6 +176,33 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
   }
   ofs_mutations.close();
   cout << "wrote " << output_mutations.size() << " mutations to " << ofn_prefix + "_mutations.tsv" << endl;
+
+  // --- Write Reads ---
+  cout << "writing reads to " << ofn_prefix + "_reads.tsv" << endl;
+  ofstream ofs_reads(ofn_prefix + "_reads.tsv");
+  if (!ofs_reads.is_open()) {
+    cerr << "error: could not open file " << ofn_prefix + "_reads.tsv" << endl;
+    exit(1);
+  }
+
+  // write header
+  ofs_reads << "read_id\tcontig_id\tread_length\tspan_start\tspan_end\ttotal_aligned_length\tnum_alignments\tnum_mutations\theight\tread_reversed\n";
+
+  // write data
+  for (const auto& read_data : output_reads) {
+    ofs_reads << read_data.read_id << "\t"
+              << read_data.contig_id << "\t"
+              << read_data.read_length << "\t"
+              << read_data.span_start << "\t"
+              << read_data.span_end << "\t"
+              << read_data.total_aligned_length << "\t"
+              << read_data.num_alignments << "\t"
+              << read_data.num_mutations << "\t"
+              << read_data.height << "\t"
+              << (read_data.read_reversed ? "true" : "false") << "\n";
+  }
+  ofs_reads.close();
+  cout << "wrote " << output_reads.size() << " reads to " << ofn_prefix + "_reads.tsv" << endl;
 }
 
 void QueryFull::execute()
@@ -137,127 +210,231 @@ void QueryFull::execute()
   generate_output_data();
 }
 
-void QueryFull::calculate_heights()
+void QueryFull::collect_reads_from_alignments()
 {
-  if (height_style == HeightStyle::BY_COORD) {
-    calculate_heights_by_coord();
+  // group alignments by (read_id, contig_id)
+  std::map<std::pair<std::string, std::string>, std::vector<const FullOutputAlignments*>> read_groups;
+
+  for (const auto& aln : output_alignments) {
+    auto key = std::make_pair(aln.read_id, aln.contig_id);
+    read_groups[key].push_back(&aln);
+  }
+
+  cout << "number of unique read-contig pairs: " << read_groups.size() << endl;
+
+  // create FullOutputReads from each group
+  for (const auto& group : read_groups) {
+    const std::string& read_id = group.first.first;
+    const std::string& contig_id = group.first.second;
+    const std::vector<const FullOutputAlignments*>& alignments = group.second;
+
+    // calculate statistics for this read
+    int span_start = alignments[0]->contig_start;
+    int span_end = alignments[0]->contig_end;
+    int total_aligned_length = 0;
+    int num_mutations = 0;
+    int read_length = alignments[0]->read_length; // should be same for all alignments
+
+    // find the first alignment in read coordinates
+    const FullOutputAlignments* first_alignment = alignments[0];
+    for (const auto* aln : alignments) {
+      if (aln->read_start < first_alignment->read_start) {
+        first_alignment = aln;
+      }
+    }
+    bool read_reversed = first_alignment->is_reverse;
+
+    for (const auto* aln : alignments) {
+      span_start = std::min(span_start, aln->contig_start);
+      span_end = std::max(span_end, aln->contig_end);
+      total_aligned_length += (aln->contig_end - aln->contig_start);
+      num_mutations += aln->num_mutations;
+    }
+
+    // create read output entry with height=0 initially
+    output_reads.push_back({
+        read_id,
+        contig_id,
+        read_length,
+        span_start,
+        span_end,
+        total_aligned_length,
+        static_cast<int>(alignments.size()),
+        num_mutations,
+        0,
+        read_reversed
+    });
+  }
+}
+
+void QueryFull::calculate_read_heights()
+{
+  if (height_style == HeightStyle::BY_COORD_LEFT) {
+    calculate_heights_by_coord(true); // sort by start
+  } else if (height_style == HeightStyle::BY_COORD_RIGHT) {
+    calculate_heights_by_coord(false); // sort by end
   } else if (height_style == HeightStyle::BY_MUTATIONS) {
     calculate_heights_by_mutations();
   }
+}
 
-  // update heights for mutations based on their alignment heights
+void QueryFull::assign_alignment_heights_from_reads()
+{
+  // create map from (read_id, contig_id) to read height
+  std::map<std::pair<std::string, std::string>, int> read_heights;
+  for (const auto& read : output_reads) {
+    auto key = std::make_pair(read.read_id, read.contig_id);
+    read_heights[key] = read.height;
+  }
+
+  // assign heights to alignments based on their reads
+  for (auto& aln : output_alignments) {
+    auto key = std::make_pair(aln.read_id, aln.contig_id);
+    if (read_heights.find(key) == read_heights.end()) {
+      cerr << "error: read height not found for read: " << aln.read_id << " contig: " << aln.contig_id << endl;
+      exit(1);
+    }
+    aln.height = read_heights[key];
+  }
+
+  // assign heights to mutations based on their alignments
   std::map<uint64_t, int> alignment_heights;
   for (const auto& aln : output_alignments) {
     alignment_heights[aln.alignment_index] = aln.height;
   }
 
   for (auto& mut : output_mutations) {
-    if (alignment_heights.find(mut.alignment_index) != alignment_heights.end()) {
-      mut.height = alignment_heights[mut.alignment_index];
+    if (alignment_heights.find(mut.alignment_index) == alignment_heights.end()) {
+      cerr << "error: alignment height not found for alignment: " << mut.alignment_index << endl;
+      exit(1);
     }
+    mut.height = alignment_heights[mut.alignment_index];
   }
 }
 
-void QueryFull::calculate_heights_by_coord()
+void QueryFull::calculate_heights_by_coord(bool sort_by_start)
 {
-  // Group alignments by contig_id
-  std::map<std::string, std::vector<FullOutputAlignments*>> alignments_by_contig;
-  cout << "calculating heights by coord, number of alignments: " << output_alignments.size() << endl;
+  // group reads by contig_id
+  std::map<std::string, std::vector<FullOutputReads*>> reads_by_contig;
+  cout << "calculating heights by coord (" << (sort_by_start ? "left" : "right") << "), number of reads: " << output_reads.size() << endl;
 
-  for (auto& aln : output_alignments) {
-    alignments_by_contig[aln.contig_id].push_back(&aln);
+  int max_coord = 0;
+  for (auto& read : output_reads) {
+    reads_by_contig[read.contig_id].push_back(&read);
+    max_coord = std::max(max_coord, read.span_end);
   }
+  cout << "Max coord: " << max_coord << endl;
 
-  // Process each contig separately
-  cout << "number of contigs: " << alignments_by_contig.size() << endl;
-  for (auto& contig_pair : alignments_by_contig) {
-    auto& alignments = contig_pair.second;
+  // process each contig separately
+  cout << "number of contigs: " << reads_by_contig.size() << endl;
+  for (auto& contig_pair : reads_by_contig) {
+    auto& reads = contig_pair.second;
 
-    // Sort alignments by start position
-    std::sort(alignments.begin(), alignments.end(),
-        [](const FullOutputAlignments* a, const FullOutputAlignments* b) {
-          return a->contig_start < b->contig_start;
-        });
+    // sort reads by start or end position
+    if (sort_by_start) {
+      std::sort(reads.begin(), reads.end(),
+          [](const FullOutputReads* a, const FullOutputReads* b) {
+            return a->span_start < b->span_start;
+          });
+    } else {
+      std::sort(reads.begin(), reads.end(),
+          [](const FullOutputReads* a, const FullOutputReads* b) {
+            return a->span_end > b->span_end;
+          });
+    }
 
-    // Assign heights to avoid overlaps
-    std::vector<int> height_ends; // tracks the end position at each height
+    // assign heights to avoid overlaps
+    std::vector<int> height_coord; // tracks the current position at each height
 
-    for (auto aln_ptr : alignments) {
-      // Find the lowest available height
+    for (auto read_ptr : reads) {
+      // find the lowest available height
       int height = 0;
-      while (height < static_cast<int>(height_ends.size())) {
-        if (aln_ptr->contig_start >= height_ends[height]) {
-          break;
+      while (height < static_cast<int>(height_coord.size())) {
+        if (sort_by_start) {
+          if (read_ptr->span_start >= height_coord[height]) {
+            break;
+          }
+         } else {
+            if (read_ptr->span_end <= height_coord[height]) {
+              break;
+            }
         }
         height++;
       }
 
-      // If we need a new height level
-      if (height >= static_cast<int>(height_ends.size())) {
-        height_ends.push_back(0);
+      // if we need a new height level
+      if (height >= static_cast<int>(height_coord.size())) {
+        if (sort_by_start) {
+          height_coord.push_back(0);
+        } else {
+          height_coord.push_back(max_coord);
+        }
       }
 
-      // Assign the height and update the end position
-      aln_ptr->height = height;
-      height_ends[height] = aln_ptr->contig_end;
+      // assign the height and update the end position
+      read_ptr->height = height;
+      if (sort_by_start) {
+        height_coord[height] = read_ptr->span_end;
+      } else {
+        height_coord[height] = read_ptr->span_start;
+      }
     }
   }
 }
 
 void QueryFull::calculate_heights_by_mutations()
 {
-  // Calculate mutation density for each alignment
-  std::vector<std::pair<int, float>> alignment_densities;
+  // calculate mutation density for each read
+  std::vector<std::pair<int, float>> read_densities;
   cout << "calculating heights by mutations" << endl;
-  // Calculate densities - we can now use the num_mutations field directly
-  cout << "number of alignments: " << output_alignments.size() << endl;
-  for (int i = 0; i < static_cast<int>(output_alignments.size()); i++) {
-    const auto& aln = output_alignments[i];
-    int aln_length = aln.contig_end - aln.contig_start;
-    if (aln_length <= 0)
-      aln_length = 1; // avoid division by zero
+  cout << "number of reads: " << output_reads.size() << endl;
+  for (int i = 0; i < static_cast<int>(output_reads.size()); i++) {
+    const auto& read = output_reads[i];
+    int aligned_length = read.total_aligned_length;
+    if (aligned_length <= 0)
+      aligned_length = 1; // avoid division by zero
 
-    float density = static_cast<float>(aln.num_mutations) / aln_length;
-    alignment_densities.push_back({ i, density });
+    float density = static_cast<float>(read.num_mutations) / aligned_length;
+    read_densities.push_back({ i, density });
   }
 
-  // Sort by mutation density (highest first)
-  cout << "sorting alignment densities" << endl;
-  std::sort(alignment_densities.begin(), alignment_densities.end(),
+  // sort by mutation density (highest first)
+  cout << "sorting read densities" << endl;
+  std::sort(read_densities.begin(), read_densities.end(),
       [](const std::pair<int, float>& a, const std::pair<int, float>& b) {
         return a.second > b.second;
       });
 
-  // Group alignments by contig_id for overlap prevention
+  // group reads by contig_id for overlap prevention
   std::map<std::string, std::vector<std::vector<std::pair<int, int>>>> contig_heights;
 
-  // Assign heights in order of decreasing density while preventing overlaps
-  cout << "assigning heights, number of mutation densities: " << alignment_densities.size() << endl;
-  for (const auto& aln_density : alignment_densities) {
-    int aln_idx = aln_density.first;
-    FullOutputAlignments& aln = output_alignments[aln_idx];
+  // assign heights in order of decreasing density while preventing overlaps
+  cout << "assigning heights, number of read densities: " << read_densities.size() << endl;
+  for (const auto& read_density : read_densities) {
+    int read_idx = read_density.first;
+    FullOutputReads& read = output_reads[read_idx];
 
-    // Get or create the heights vector for this contig
-    auto& heights = contig_heights[aln.contig_id];
+    // get or create the heights vector for this contig
+    auto& heights = contig_heights[read.contig_id];
 
-    // Find the minimum height with no overlap
+    // find the minimum height with no overlap
     int height = 0;
     bool overlap = true;
 
     while (overlap) {
-      // Add a new height level if needed
+      // add a new height level if needed
       if (height >= static_cast<int>(heights.size())) {
         heights.push_back(std::vector<std::pair<int, int>>());
         overlap = false;
       } else {
-        // Check for overlaps at the current height using binary search
+        // check for overlaps at the current height using binary search
         const auto& intervals_at_height = heights[height];
 
         if (intervals_at_height.empty()) {
-          // No intervals at this height yet
+          // no intervals at this height yet
           overlap = false;
         } else {
-          overlap = has_overlap(intervals_at_height, aln.contig_start, aln.contig_end);
+          overlap = has_overlap(intervals_at_height, read.span_start, read.span_end);
         }
       }
 
@@ -266,11 +443,11 @@ void QueryFull::calculate_heights_by_mutations()
       }
     }
 
-    // Assign height and add the interval to the height level
-    aln.height = height;
+    // assign height and add the interval to the height level
+    read.height = height;
 
-    // Add the new interval and maintain sorted order
-    add_sorted_interval(heights[height], aln.contig_start, aln.contig_end);
+    // add the new interval and maintain sorted order
+    add_sorted_interval(heights[height], read.span_start, read.span_end);
   }
 }
 
@@ -331,6 +508,11 @@ const std::vector<FullOutputAlignments>& QueryFull::get_output_alignments() cons
 const std::vector<FullOutputMutations>& QueryFull::get_output_mutations() const
 {
   return output_mutations;
+}
+
+const std::vector<FullOutputReads>& QueryFull::get_output_reads() const
+{
+  return output_reads;
 }
 
 void QueryFull::set_height_style(HeightStyle style)
