@@ -1,11 +1,13 @@
 #include "utils.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -410,3 +412,36 @@ string generate_cs_tag(const Alignment& alignment, const AlignmentStore& store)
 
   return result;
 }
+
+// calculate binomial right-tail probability
+double binomial_right_tail(uint32_t n, double p, uint32_t k)
+{
+  if (k > n) return 0.0;
+  if (p <= 0.0) return (k == 0) ? 1.0 : 0.0;
+  if (p >= 1.0) return (k <= n) ? 1.0 : 0.0;
+  
+  // use normal approximation for large n
+  if (n > 100) {
+    double mu = n * p;
+    double sigma = sqrt(n * p * (1 - p));
+    if (sigma > 0) {
+      double z = (k - 0.5 - mu) / sigma; // continuity correction
+      return 0.5 * erfc(z / sqrt(2.0));
+    }
+  }
+  
+  // exact calculation using log probabilities
+  double log_sum = -std::numeric_limits<double>::infinity();
+  for (uint32_t i = k; i <= n; ++i) {
+    double log_prob = lgamma(n + 1) - lgamma(i + 1) - lgamma(n - i + 1) 
+                     + i * log(p) + (n - i) * log(1 - p);
+    if (log_sum == -std::numeric_limits<double>::infinity()) {
+      log_sum = log_prob;
+    } else {
+      double max_log = std::max(log_sum, log_prob);
+      log_sum = max_log + log1p(exp(std::min(log_sum, log_prob) - max_log));
+    }
+  }
+  return exp(log_sum);
+}
+

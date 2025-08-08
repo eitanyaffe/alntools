@@ -122,7 +122,7 @@ void QueryBin::generate_output_rows()
   }
 }
 
-// New function to write the generated rows to a file
+// function to write the generated rows to a file
 void QueryBin::write_to_csv(const std::string& ofn_prefix)
 {
   string filename = ofn_prefix + "_bins.tsv";

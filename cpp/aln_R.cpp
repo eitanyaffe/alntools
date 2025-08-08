@@ -568,3 +568,83 @@ void aln_save(XPtr<AlignmentStore> store_ptr, std::string filepath)
     stop("an unknown C++ error occurred during saving");
   }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Break position detection
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+DataFrame aln_find_breaks(
+    XPtr<AlignmentStore> store_ptr,
+    int window_size,
+    double p_threshold,
+    int min_reads = 1)
+{
+  // validate the external pointer
+  if (!store_ptr) {
+    stop("invalid AlignmentStore pointer provided");
+  }
+
+  // validate parameters
+  if (window_size <= 0) {
+    stop("window size must be positive");
+  }
+  if (p_threshold <= 0.0 || p_threshold > 1.0) {
+    stop("p threshold must be between 0 and 1");
+  }
+  if (min_reads <= 0) {
+    stop("min reads must be positive");
+  }
+
+  // get reference to the AlignmentStore object
+  const AlignmentStore& store = *store_ptr;
+
+  try {
+    // find break positions
+    Rcout << "finding break positions with window size " << window_size 
+          << ", p threshold " << p_threshold 
+          << ", and min reads " << min_reads << "\n";
+    
+    auto results = store.find_break_positions(window_size, p_threshold, min_reads);
+
+    // prepare output vectors
+    CharacterVector out_contig_id;
+    IntegerVector out_position;
+    CharacterVector out_orientation;
+    IntegerVector out_t;
+    NumericVector out_e;
+    NumericVector out_enrichment;
+    NumericVector out_pval;
+    NumericVector out_qval;
+
+    // fill output vectors
+    for (const auto& result : results) {
+      out_contig_id.push_back(result.contig_id);
+      out_position.push_back(result.position);
+      out_orientation.push_back(result.orientation);
+      out_t.push_back(result.t);
+      out_e.push_back(result.e);
+      out_enrichment.push_back(result.enrichment);
+      out_pval.push_back(result.pval);
+      out_qval.push_back(result.qval);
+    }
+
+    Rcout << "found " << results.size() << " significant break positions\n";
+
+    return DataFrame::create(
+        Named("contig") = out_contig_id,
+        Named("position") = out_position,
+        Named("orientation") = out_orientation,
+        Named("t") = out_t,
+        Named("e") = out_e,
+        Named("enrichment") = out_enrichment,
+        Named("pval") = out_pval,
+        Named("qval") = out_qval,
+        Named("stringsAsFactors") = false);
+
+  } catch (const std::runtime_error& e) {
+    stop("failed to find break positions: %s", e.what());
+  } catch (...) {
+    stop("an unknown C++ error occurred during break position detection");
+  }
+}

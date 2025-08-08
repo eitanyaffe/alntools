@@ -8,6 +8,7 @@
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
   - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
+- **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **R interface** for seamless integration with analysis workflows in R
 
 This makes alntools useful for visualizing and investigating read coverage and mutation patterns across regions of interest.
@@ -197,6 +198,51 @@ alntools coverage -ifn output/test.aln -ofn_prefix output/coverage_stats
 - Calculate genome-wide alignment statistics
 - Find specific genomic intervals that lack read coverage
 
+### 5. breaks
+
+Identifies positions with an excessive number of reads that start or end exactly at that position, which may indicate structural variations, assembly artifacts, or other genomic features causing read clustering.
+
+```bash
+alntools breaks -ifn <input.aln> -ofn <output.tsv> -window <int> -pval <double> [options]
+```
+
+**Mandatory Arguments:**
+* `-ifn <fn>`: Input ALN file.
+* `-ofn <fn>`: Output TSV file for break positions.
+* `-window <int>`: Window size for background calculation (e.g., 1000).
+* `-pval <double>`: P-value threshold for reporting significant positions (e.g., 0.05).
+
+**Optional Arguments:**
+* `-min_reads <int>`: Minimum number of reads required to test a position (default: 1).
+
+**Examples:**
+```bash
+# Basic usage with default min_reads (1)
+alntools breaks -ifn output/test.aln -ofn output/breaks.tsv -window 1000 -pval 0.05
+
+# Only test positions with at least 5 supporting reads
+alntools breaks -ifn output/test.aln -ofn output/breaks.tsv -window 1000 -pval 0.05 -min_reads 5
+```
+
+**Output Format:**
+The output TSV file contains the following columns (sorted by contig, then position):
+- `contig`: Contig identifier
+- `position`: 1-based position on the contig
+- `orientation`: Either "left" (read starts) or "right" (read ends)
+- `t`: Number of reads starting/ending at this position
+- `e`: Expected number of reads per position (background rate)
+- `enrichment`: Observed/expected ratio (t/e)
+- `pval`: Raw p-value from binomial test
+- `qval`: Benjamini-Hochberg corrected q-value
+
+**Algorithm:**
+- Only counts alignments where the contig boundary corresponds to the actual read start (`read_start == 0`) or read end (`read_end == read_length`)
+- Filters positions to only test those with at least `min_reads` supporting reads
+- For each position, compares observed counts to expected counts in a sliding window using a binomial test
+- Calculates enrichment as observed/expected ratio (t/e)
+- Applies Benjamini-Hochberg correction for multiple testing
+- Reports positions with q-value ≤ threshold, sorted by contig and position
+
 ## R Interface
 
 `alntools` provides an R interface for constructing, loading, and querying alignment stores.
@@ -250,6 +296,11 @@ height_style <- "by_coord_left"
 # Full query
 full_results <- aln_query_full(aln, intervals, height_style)
 # Returns a list with $alignments, $mutations, and $reads dataframes
+
+# Break position detection
+breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 1)
+# Returns a dataframe with columns: contig, position, orientation, t, e, enrichment, pval, qval
+# Sorted by contig, then position
 ```
 
 ### Example R Script
@@ -282,6 +333,7 @@ intervals <- read.table(intervals_file, header = TRUE)
 bin_results <- aln_query_bin(aln, intervals, binsize)
 pileup_results <- aln_query_pileup(aln, intervals, "covered")
 full_results <- aln_query_full(aln, intervals, "by_mutations")
+breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
 
 # Save results
 write.table(bin_results, file = paste0(output_prefix, "_bins.tsv"), 
@@ -293,6 +345,8 @@ write.table(full_results$alignments, file = paste0(output_prefix, "_alignments.t
 write.table(full_results$mutations, file = paste0(output_prefix, "_mutations.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 write.table(full_results$reads, file = paste0(output_prefix, "_reads.tsv"), 
+            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(breaks_results, file = paste0(output_prefix, "_breaks.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 ```
 

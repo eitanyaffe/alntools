@@ -1,11 +1,14 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "aln_types.h"
 
@@ -61,3 +64,30 @@ double get_file_size_mb(const std::string& filename);
 void read_intervals(const std::string& filename, std::vector<Interval>& intervals);
 
 string generate_cs_tag(const Alignment& alignment, const AlignmentStore& store);
+
+// statistical functions
+double binomial_right_tail(uint32_t n, double p, uint32_t k);
+
+template<typename T, typename GetPval, typename GetQval>
+void apply_bh_correction(std::vector<T>& results, 
+                        GetPval get_pval,
+                        GetQval get_qval)
+{
+  if (results.empty()) return;
+  
+  // sort by p-value
+  std::sort(results.begin(), results.end(), 
+    [&get_pval](T& a, T& b) {
+      return get_pval(a) < get_pval(b);
+    });
+  
+  size_t m = results.size();
+  for (size_t i = 0; i < m; ++i) {
+    get_qval(results[i]) = get_pval(results[i]) * m / (i + 1);
+  }
+  
+  // ensure monotonicity
+  for (int i = m - 2; i >= 0; --i) {
+    get_qval(results[i]) = std::min(get_qval(results[i]), get_qval(results[i + 1]));
+  }
+}

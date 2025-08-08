@@ -1,6 +1,7 @@
 #include "alignment_store.h"
 #include "utils.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
@@ -52,7 +53,7 @@ void AlignmentStore::save(const string& filename)
   ofstream file(filename, ios::binary);
   massert(file.is_open(), "error opening file for writing: %s", filename.c_str());
 
-  // Define a magic number/version for the new format
+  // Define a magic number/version for the format
   const string MAGIC_NUMBER = "ALNSTV2";
   file.write(MAGIC_NUMBER.c_str(), MAGIC_NUMBER.size());
 
@@ -494,4 +495,132 @@ uint32_t AlignmentStore::add_mutation(uint32_t contig_index, const Mutation& mut
     mutation_key_to_index_[key] = new_index;
     return new_index;
   }
+}
+
+
+
+std::vector<AlignmentStore::BreakPosition> AlignmentStore::find_break_positions(
+    uint32_t window_size, double p_threshold, uint32_t min_reads) const
+{
+  massert(window_size > 0, "window size must be positive");
+  massert(p_threshold > 0.0 && p_threshold <= 1.0, "p threshold must be between 0 and 1");
+  massert(min_reads > 0, "min reads must be positive");
+  
+  std::vector<BreakPosition> all_results;
+  
+  // process each contig
+  for (size_t contig_idx = 0; contig_idx < contigs_.size(); ++contig_idx) {
+    const Contig& contig = contigs_[contig_idx];
+    
+    // skip empty contigs
+    if (contig.length == 0) continue;
+    
+    // build event count vectors
+    std::vector<uint32_t> left_events(contig.length, 0);
+    std::vector<uint32_t> right_events(contig.length, 0);
+    
+    // check if contig has alignments
+    auto align_it = alignment_index_by_contig_.find(contig_idx);
+    if (align_it != alignment_index_by_contig_.end()) {
+      // count events from alignments
+      for (size_t align_idx : align_it->second) {
+        const Alignment& aln = alignments_[align_idx];
+        const Read& read = reads_[aln.read_index];
+        
+        // count left break events (reads coming from the left)
+        // forward reads starting at position OR reverse reads ending at position
+        if ((aln.read_start == 0 && !aln.is_reverse) || 
+            (aln.read_end == read.length && aln.is_reverse)) {
+          uint32_t pos = aln.is_reverse ? aln.contig_start : aln.contig_start;
+          if (pos < contig.length) {
+            left_events[pos]++;
+          }
+        }
+        
+        // count right break events (reads coming from the right)
+        // forward reads ending at position OR reverse reads starting at position
+        if ((aln.read_end == read.length && !aln.is_reverse) || 
+            (aln.read_start == 0 && aln.is_reverse)) {
+          uint32_t pos = aln.is_reverse ? aln.contig_end - 1 : aln.contig_end - 1;
+          if (pos < contig.length) {
+            right_events[pos]++;
+          }
+        }
+      }
+    }
+    
+    // compute prefix sums for efficient window queries
+    std::vector<uint32_t> left_prefix(contig.length + 1, 0);
+    std::vector<uint32_t> right_prefix(contig.length + 1, 0);
+    for (uint32_t i = 0; i < contig.length; ++i) {
+      left_prefix[i + 1] = left_prefix[i] + left_events[i];
+      right_prefix[i + 1] = right_prefix[i] + right_events[i];
+    }
+    
+    // helper lambda to test events for a given orientation
+    auto test_events = [&](const std::vector<uint32_t>& events, 
+                          const std::vector<uint32_t>& prefix, 
+                          const string& orientation) {
+      for (uint32_t pos = 0; pos < contig.length; ++pos) {
+        uint32_t t = events[pos];
+        if (t < min_reads) continue;
+        
+        // compute window bounds
+        uint32_t half_window = window_size / 2;
+        uint32_t w_start = (pos >= half_window) ? pos - half_window : 0;
+        uint32_t w_end = std::min(pos + half_window + 1, contig.length);
+        
+        // adjust window to maintain size when possible
+        uint32_t actual_size = w_end - w_start;
+        if (actual_size < window_size && contig.length >= window_size) {
+          if (w_start == 0) {
+            w_end = std::min(window_size, contig.length);
+          } else if (w_end == contig.length) {
+            w_start = contig.length - window_size;
+          }
+          actual_size = w_end - w_start;
+        }
+        
+        uint32_t n_window = prefix[w_end] - prefix[w_start];
+        if (n_window == 0) continue;
+        
+        double p0 = 1.0 / actual_size;
+        double e = (double)n_window / actual_size;
+        double enrichment = e > 0.0 ? (double)t / e : 0.0;
+        double pval = binomial_right_tail(n_window, p0, t);
+        
+        all_results.push_back({
+          contig.id, pos + 1, orientation, t, e, enrichment, pval, 0.0
+        });
+      }
+    };
+    
+    // test left and right break events
+    test_events(left_events, left_prefix, "left");
+    test_events(right_events, right_prefix, "right");
+  }
+  
+  // apply bh correction
+  apply_bh_correction(all_results,
+    [](BreakPosition& bp) -> double& { return bp.pval; },
+    [](BreakPosition& bp) -> double& { return bp.qval; });
+  
+  // filter by q-value threshold
+  std::vector<BreakPosition> filtered_results;
+  for (const auto& result : all_results) {
+    if (result.qval <= p_threshold) {
+      filtered_results.push_back(result);
+    }
+  }
+  
+  // sort by contig id, then by position
+  std::sort(filtered_results.begin(), filtered_results.end(),
+    [](const BreakPosition& a, const BreakPosition& b) {
+      if (a.contig_id != b.contig_id) {
+        return a.contig_id < b.contig_id;
+      }
+      return a.position < b.position;
+    });
+  
+  return filtered_results;
 }

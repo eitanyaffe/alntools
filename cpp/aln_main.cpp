@@ -17,6 +17,7 @@ int extract_main(const char* name, int argc, char** argv);
 int verify_main(const char* name, int argc, char** argv);
 int query_main(const char* name, int argc, char** argv);
 int coverage_main(const char* name, int argc, char** argv);
+int breaks_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
@@ -31,6 +32,7 @@ void usage(const char* name)
   fprintf(stderr, "  verify: verify ALN file using reads and contigs\n");
   fprintf(stderr, "  query: query ALN file\n");
   fprintf(stderr, "  coverage: generate read and contig alignment coverage statistics\n");
+  fprintf(stderr, "  breaks: find positions with excessive read start/end events\n");
 }
 
 int main(int argc, char** argv)
@@ -55,6 +57,8 @@ int main(int argc, char** argv)
     rc = query_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "coverage") {
     rc = coverage_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "breaks") {
+    rc = breaks_main(name.c_str(), argc - 1, argv + 1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);

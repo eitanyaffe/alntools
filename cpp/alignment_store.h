@@ -22,6 +22,7 @@ class AlignmentStore {
   std::map<uint32_t, std::vector<Mutation>> mutations_;
   unordered_map<string, size_t> read_id_to_index;
   unordered_map<string, size_t> contig_id_to_index;
+
   // Transient map for mutation deduplication during initial build
   std::map<string, uint32_t> mutation_key_to_index_;
   unordered_map<size_t, vector<size_t>> alignment_index_by_contig_;
@@ -78,6 +79,21 @@ class AlignmentStore {
   const string& get_read_id(size_t read_index) const;
   const string& get_contig_id(size_t contig_index) const;
 
-  // New method to get alignments in a specific interval
+  // get alignments in a specific interval
   std::vector<std::reference_wrapper<const Alignment>> get_alignments_in_interval(const Interval& interval, int max_alignments = 0) const;
+
+  // break position detection result
+  struct BreakPosition {
+    string contig_id;
+    uint32_t position; // 1-based
+    string orientation; // "left" or "right"
+    uint32_t t; // events at position
+    double e; // expected events per position
+    double enrichment; // observed/expected ratio
+    double pval; // raw p-value
+    double qval; // bh-adjusted q-value
+  };
+
+  // find positions with excessive read start/end events
+  std::vector<BreakPosition> find_break_positions(uint32_t window_size, double p_threshold, uint32_t min_reads = 1) const;
 };
