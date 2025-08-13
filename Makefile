@@ -27,8 +27,8 @@ OBJS = $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 # Binary name
 TARGET = $(BIN_DIR)/alntools
 
-# Installation directory
-INSTALL_DIR = /usr/local/bin
+# Installation directory - local user directory
+INSTALL_DIR = $(HOME)/.local/bin
 
 # Default target
 all: $(TARGET)
