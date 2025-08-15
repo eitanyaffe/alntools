@@ -11,6 +11,15 @@
 struct BinData {
   int sequenced_basepairs = 0;
   int mutation_count = 0;
+  std::map<std::string, int> variant_counts; // key: position_type_nts, value: count
+  std::map<std::string, int> position_coverage; // key: position, value: read count at position
+  // mutation distance categories: counts of alignments in each category (per bp)
+  int dist_none = 0;         // exactly 0 mutations
+  int dist_5 = 0;            // 1e-5 to 1e-4 per bp (10-100 mutations per 100kb)
+  int dist_4 = 0;            // 1e-4 to 1e-3 per bp (100-1000 mutations per 100kb)
+  int dist_3 = 0;            // 1e-3 to 1e-2 per bp (1000-10000 mutations per 100kb)
+  int dist_2 = 0;            // 1e-2 to 1e-1 per bp (10000-100000 mutations per 100kb)
+  int dist_1_plus = 0;       // above 1e-1 per bp (>100000 mutations per 100kb)
 };
 
 // Data structure representing a single row in the bin output file
@@ -21,6 +30,14 @@ struct BinOutputRow {
   int bin_length;
   int sequenced_basepairs;
   int mutation_count;
+  double seg_sites_density; // segregating sites per bp
+  double non_ref_sites_density; // non-reference sites per bp
+  int dist_none;         // exactly 0 mutations
+  int dist_5;            // 1e-5 to 1e-4 per bp
+  int dist_4;            // 1e-4 to 1e-3 per bp
+  int dist_3;            // 1e-3 to 1e-2 per bp
+  int dist_2;            // 1e-2 to 1e-1 per bp
+  int dist_1_plus;       // above 1e-1 per bp
 };
 
 class QueryBin {
@@ -28,6 +45,8 @@ class QueryBin {
   const std::vector<Interval>& intervals;
   const AlignmentStore& store;
   int binsize;
+  double seg_threshold;
+  double non_ref_threshold;
 
   // Use a map to store results, keyed by {contig_index, bin_start}
   std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
@@ -44,7 +63,9 @@ class QueryBin {
   QueryBin(
       const std::vector<Interval>& intervals,
       const AlignmentStore& store,
-      int binsize);
+      int binsize,
+      double seg_threshold = 0.2,
+      double non_ref_threshold = 0.9);
 
   // execute the query
   void execute();

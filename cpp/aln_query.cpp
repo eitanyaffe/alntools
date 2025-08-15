@@ -33,9 +33,12 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("mode", new ParserString("query mode (full, pileup, bin)", "full"), true);
   params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
+  params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
+  params.add_parser("non_ref_threshold", new ParserDouble("non-reference sites threshold for 'bin' mode", 0.9), false);
   params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
   params.add_parser("alignment_filter", new ParserString("alignment filter for 'full' mode (all, single, single_complete, only_multiple)", "all"), false);
+  params.add_parser("min_mutations_density", new ParserDouble("minimum mutations density (mutations per 1000bp) for 'full' mode (0.0 for no filter)", 0.0), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -94,6 +97,8 @@ int query_main(const char* name, int argc, char** argv)
   string ofn_prefix = params.get_string("ofn_prefix");
   string mode = params.get_string("mode");
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
+  double seg_threshold = params.get_double("seg_threshold");
+  double non_ref_threshold = params.get_double("non_ref_threshold");
 
   // Get pileup mode string and convert to enum
   PileupReportMode pileup_mode = string_to_pileup_report_mode(params.get_string("pileup_mode"));
@@ -106,6 +111,9 @@ int query_main(const char* name, int argc, char** argv)
   
   // get alignment filter parameter
   string alignment_filter = params.get_string("alignment_filter");
+  
+  // get min mutations density parameter
+  double min_mutations_density = params.get_double("min_mutations_density");
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
@@ -114,6 +122,8 @@ int query_main(const char* name, int argc, char** argv)
   cout << "  mode: " << mode << endl;
   if (mode == "bin") {
     cout << "  binsize: " << binsize << endl;
+    cout << "  seg_threshold: " << seg_threshold << endl;
+    cout << "  non_ref_threshold: " << non_ref_threshold << endl;
   }
   if (mode == "pileup") {
     cout << "  pileup_mode: " << params.get_string("pileup_mode") << endl;
@@ -122,6 +132,7 @@ int query_main(const char* name, int argc, char** argv)
     cout << "  height_style: " << params.get_string("height_style") << endl;
     cout << "  max_alignments: " << max_alignments << endl;
     cout << "  alignment_filter: " << alignment_filter << endl;
+    cout << "  min_mutations_density: " << min_mutations_density << endl;
   }
 
   vector<Interval> intervals;
@@ -132,7 +143,7 @@ int query_main(const char* name, int argc, char** argv)
   store.load(ifn_aln);
 
   if (mode == "full") {
-    QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter);
+    QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter, min_mutations_density);
     queryFull.execute();
     queryFull.write_to_csv(ofn_prefix);
   } else if (mode == "pileup") {
@@ -140,7 +151,7 @@ int query_main(const char* name, int argc, char** argv)
     queryPileup.execute();
     queryPileup.write_to_csv(ofn_prefix);
   } else if (mode == "bin") {
-    QueryBin queryBin(intervals, store, binsize);
+    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold);
     queryBin.execute();
     queryBin.write_to_csv(ofn_prefix);
   }

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -12,13 +13,25 @@ using namespace std;
 QueryBin::QueryBin(
     const std::vector<Interval>& intervals,
     const AlignmentStore& store,
-    int binsize)
+    int binsize,
+    double seg_threshold,
+    double non_ref_threshold)
     : intervals(intervals)
     , store(store)
     , binsize(binsize)
+    , seg_threshold(seg_threshold)
+    , non_ref_threshold(non_ref_threshold)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
+    exit(1);
+  }
+  if (seg_threshold <= 0.0 || seg_threshold >= 0.5) {
+    cerr << "error: seg_threshold must be between 0 and 0.5." << endl;
+    exit(1);
+  }
+  if (non_ref_threshold <= 0.5 || non_ref_threshold >= 1.0) {
+    cerr << "error: non_ref_threshold must be between 0.5 and 1.0." << endl;
     exit(1);
   }
 }
@@ -27,6 +40,7 @@ void QueryBin::aggregate_data()
 {
   bin_results.clear();
 
+  // First pass: initialize all relevant bins across all intervals
   for (const auto& interval : intervals) {
     uint32_t contig_index = store.get_contig_index(interval.contig);
 
@@ -37,18 +51,49 @@ void QueryBin::aggregate_data()
       continue;
     uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
 
-    // Initialize Relevant Bins in the map
+    // Initialize relevant bins in the map
     for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
       bin_results.try_emplace({ contig_index, b_start }, BinData());
     }
+  }
 
-    // Get alignments overlapping the *original* interval
+  // Collect all unique alignments across all intervals
+  std::set<const Alignment*> processed_alignments;
+  
+  for (const auto& interval : intervals) {
+    // Get alignments overlapping this interval
     std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
-
+    
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
+      processed_alignments.insert(&aln);
+    }
+  }
 
-      // Iterate through the relevant bins for this interval
+  // Second pass: process each alignment only once
+  for (const Alignment* aln_ptr : processed_alignments) {
+    const auto& aln = *aln_ptr;
+
+    // Calculate alignment length for mutation distance calculation
+    uint32_t alignment_length = aln.contig_end - aln.contig_start;
+    double mutations_per_bp = (alignment_length > 0) ? 
+      (static_cast<double>(aln.mutations.size()) / alignment_length) : 0.0;
+
+    // Process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
+    for (const auto& interval : intervals) {
+      if (aln.contig_index != store.get_contig_index(interval.contig)) {
+        continue;
+      }
+
+      // Skip if alignment doesn't overlap this interval
+      if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
+        continue;
+      }
+
+      uint32_t adjusted_start = (interval.start / binsize) * binsize;
+      uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+
+      // Check overlap with each bin in this interval
       for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
         uint32_t b_end = b_start + binsize;
 
@@ -59,43 +104,98 @@ void QueryBin::aggregate_data()
         int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
 
         if (overlap_length > 0) {
-          auto it = bin_results.find({ contig_index, b_start });
-          // We should always find it because we pre-populated
+          auto it = bin_results.find({ aln.contig_index, b_start });
           if (it != bin_results.end()) {
-            // Using int now, check potential overflow? (unlikely for overlap_length)
             it->second.sequenced_basepairs += overlap_length;
-          } else {
-            // This case indicates a logic error in initialization or calculation
-            cerr << "error: bin " << b_start << " on contig " << interval.contig
-                 << " should have been initialized but wasn't." << endl;
+            
+            // track coverage for segregating sites calculation
+            for (uint32_t pos = effective_start; pos < effective_end; pos++) {
+              it->second.position_coverage[std::to_string(pos)]++;
+            }
           }
         }
       }
+    }
 
-      // Process mutations
-      for (uint32_t mutation_index : aln.mutations) { // Iterate indices
-        // Fetch the mutation object
-        const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
+    // Process mutations for this alignment only once
+    for (uint32_t mutation_index : aln.mutations) {
+      // Fetch the mutation object
+      const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
+      uint32_t mutation_contig_pos = mutation.position;
+      uint32_t mutation_bin_start = (mutation_contig_pos / binsize) * binsize;
 
-        // Position is now absolute contig coordinate
-        uint32_t mutation_contig_pos = mutation.position;
-
-        // Ignore mutations outside the original interval
-        if (mutation_contig_pos < interval.start || mutation_contig_pos >= interval.end) {
+      // Check if this mutation falls within any of our intervals
+      for (const auto& interval : intervals) {
+        if (aln.contig_index != store.get_contig_index(interval.contig)) {
           continue;
         }
 
-        uint32_t mutation_bin_start = (mutation_contig_pos / binsize) * binsize;
+        // Check if mutation is within this interval
+        if (mutation_contig_pos >= interval.start && mutation_contig_pos < interval.end) {
+          auto it = bin_results.find({ aln.contig_index, mutation_bin_start });
+          if (it != bin_results.end()) {
+            it->second.mutation_count++;
+            
+            // create variant key for segregating sites
+            std::string variant_key = std::to_string(mutation_contig_pos) + "_" + 
+              std::to_string(static_cast<int>(mutation.type)) + "_" + mutation.nts;
+            it->second.variant_counts[variant_key]++;
+            
+            break; // Only count the mutation once even if it's in multiple overlapping intervals
+          }
+        }
+      }
+    }
 
-        // Find the bin in our map (it must be relevant if pos is within interval)
-        auto it = bin_results.find({ contig_index, mutation_bin_start });
-        if (it != bin_results.end()) {
-          it->second.mutation_count++;
-        } else {
-          // Logic error if mutation is inside interval but bin wasn't initialized.
-          // Could happen if interval.end=0 edge case calculation was wrong.
-          cerr << "error: bin " << mutation_bin_start << " on contig " << interval.contig
-               << " should have been initialized but wasn't." << endl;
+    // categorize this alignment by mutation rate for all bins it overlaps
+    std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
+    for (const auto& interval : intervals) {
+      if (aln.contig_index != store.get_contig_index(interval.contig)) {
+        continue;
+      }
+
+      // Skip if alignment doesn't overlap this interval
+      if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
+        continue;
+      }
+
+      uint32_t adjusted_start = (interval.start / binsize) * binsize;
+      uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+
+      // Check overlap with each bin in this interval
+      for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
+        uint32_t b_end = b_start + binsize;
+
+        // Calculate overlap considering alignment, bin, AND original interval boundaries
+        uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
+        uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
+
+        int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
+
+        if (overlap_length > 0) {
+          // only process each bin once per alignment
+          std::pair<uint32_t, uint32_t> bin_key = { aln.contig_index, b_start };
+          if (processed_bins_for_alignment.find(bin_key) == processed_bins_for_alignment.end()) {
+            processed_bins_for_alignment.insert(bin_key);
+            
+            auto it = bin_results.find(bin_key);
+            if (it != bin_results.end()) {
+              // categorize alignment by mutation distance (per bp)
+              if (aln.mutations.size() == 0) {
+                it->second.dist_none++;
+              } else if (mutations_per_bp < 1e-4) {
+                it->second.dist_5++;  // 1e-5 to 1e-4 per bp
+              } else if (mutations_per_bp < 1e-3) {
+                it->second.dist_4++;  // 1e-4 to 1e-3 per bp
+              } else if (mutations_per_bp < 1e-2) {
+                it->second.dist_3++;  // 1e-3 to 1e-2 per bp
+              } else if (mutations_per_bp < 1e-1) {
+                it->second.dist_2++;  // 1e-2 to 1e-1 per bp
+              } else {
+                it->second.dist_1_plus++;  // above 1e-1 per bp
+              }
+            }
+          }
         }
       }
     }
@@ -117,8 +217,41 @@ void QueryBin::generate_output_rows()
 
     string contig_id = store.get_contig_id(contig_index);
 
+    // calculate segregating and non-reference sites density
+    int segregating_sites = 0;
+    int non_ref_sites = 0;
+    for (const auto& variant_entry : data.variant_counts) {
+      // extract position from variant key
+      size_t first_underscore = variant_entry.first.find('_');
+      if (first_underscore != string::npos) {
+        string pos_str = variant_entry.first.substr(0, first_underscore);
+        uint32_t position = std::stoul(pos_str);
+        
+        // get coverage at this position
+        auto cov_it = data.position_coverage.find(std::to_string(position));
+        if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+          double frequency = static_cast<double>(variant_entry.second) / cov_it->second;
+          
+          // check if segregating
+          if (frequency >= seg_threshold && frequency <= (1.0 - seg_threshold)) {
+            segregating_sites++;
+          }
+          
+          // check if non-reference (high frequency)
+          if (frequency >= non_ref_threshold) {
+            non_ref_sites++;
+          }
+        }
+      }
+    }
+    
+    double seg_sites_density = static_cast<double>(segregating_sites) / binsize;
+    double non_ref_sites_density = static_cast<double>(non_ref_sites) / binsize;
+
     output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
-        data.sequenced_basepairs, data.mutation_count });
+        data.sequenced_basepairs, data.mutation_count, seg_sites_density, non_ref_sites_density,
+        data.dist_none, data.dist_5, data.dist_4,
+        data.dist_3, data.dist_2, data.dist_1_plus });
   }
 }
 
@@ -135,8 +268,10 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
     exit(1);
   }
 
-  // Write header - removed coverage column previously present
-  ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tmutation_count\n";
+  // Write header with new columns
+  ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tmutation_count\t"
+      << "seg_sites_density\tnon_ref_sites_density\tdist_none\tdist_5\tdist_4\t"
+      << "dist_3\tdist_2\tdist_1_plus\n";
 
   for (const auto& row : output_rows) {
     ofs << row.contig << "\t"
@@ -144,7 +279,15 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
         << row.bin_end << "\t"
         << row.bin_length << "\t"
         << row.sequenced_basepairs << "\t"
-        << row.mutation_count << "\n";
+        << row.mutation_count << "\t"
+        << row.seg_sites_density << "\t"
+        << row.non_ref_sites_density << "\t"
+        << row.dist_none << "\t"
+        << row.dist_5 << "\t"
+        << row.dist_4 << "\t"
+        << row.dist_3 << "\t"
+        << row.dist_2 << "\t"
+        << row.dist_1_plus << "\n";
   }
 
   ofs.close();

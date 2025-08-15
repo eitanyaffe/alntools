@@ -59,6 +59,7 @@ class QueryFull {
   HeightStyle height_style;
   int max_alignments;
   std::string alignment_filter;
+  double min_mutations_density;
 
   std::vector<FullOutputAlignments> output_alignments;
   std::vector<FullOutputMutations> output_mutations;
@@ -87,7 +88,8 @@ class QueryFull {
       const AlignmentStore& store,
       HeightStyle height_style = HeightStyle::BY_COORD_LEFT,
       int max_alignments = 0,
-      const std::string& alignment_filter = "all");
+      const std::string& alignment_filter = "all",
+      double min_mutations_density = 0.0);
 
   // execute the query
   void execute();

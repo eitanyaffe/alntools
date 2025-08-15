@@ -178,7 +178,9 @@ XPtr<AlignmentStore> aln_load(std::string filepath)
 DataFrame aln_query_bin(
     XPtr<AlignmentStore> store_ptr,
     DataFrame intervals_df,
-    int binsize)
+    int binsize,
+    double seg_threshold = 0.2,
+    double non_ref_threshold = 0.9)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -191,7 +193,7 @@ DataFrame aln_query_bin(
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
-  QueryBin queryBin(intervals, store, binsize);
+  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold);
 
   // Run the steps
   queryBin.execute();
@@ -206,6 +208,14 @@ DataFrame aln_query_bin(
   IntegerVector out_bin_length;
   IntegerVector out_sequenced_bp; // Using IntegerVector for R 'integer' type
   IntegerVector out_mutation_count;
+  NumericVector out_seg_sites_density;
+  NumericVector out_non_ref_sites_density;
+  IntegerVector out_dist_none;
+  IntegerVector out_dist_5;
+  IntegerVector out_dist_4;
+  IntegerVector out_dist_3;
+  IntegerVector out_dist_2;
+  IntegerVector out_dist_1_plus;
 
   for (const auto& row : results) {
     out_contig.push_back(row.contig);
@@ -214,6 +224,14 @@ DataFrame aln_query_bin(
     out_bin_length.push_back(row.bin_length);
     out_sequenced_bp.push_back(row.sequenced_basepairs);
     out_mutation_count.push_back(row.mutation_count);
+    out_seg_sites_density.push_back(row.seg_sites_density);
+    out_non_ref_sites_density.push_back(row.non_ref_sites_density);
+    out_dist_none.push_back(row.dist_none);
+    out_dist_5.push_back(row.dist_5);
+    out_dist_4.push_back(row.dist_4);
+    out_dist_3.push_back(row.dist_3);
+    out_dist_2.push_back(row.dist_2);
+    out_dist_1_plus.push_back(row.dist_1_plus);
   }
 
   return DataFrame::create(
@@ -223,6 +241,14 @@ DataFrame aln_query_bin(
       Named("length") = out_bin_length,
       Named("read_count") = out_sequenced_bp,
       Named("mutation_count") = out_mutation_count,
+      Named("seg_sites_density") = out_seg_sites_density,
+      Named("non_ref_sites_density") = out_non_ref_sites_density,
+      Named("dist_none") = out_dist_none,
+      Named("dist_5") = out_dist_5,
+      Named("dist_4") = out_dist_4,
+      Named("dist_3") = out_dist_3,
+      Named("dist_2") = out_dist_2,
+      Named("dist_1_plus") = out_dist_1_plus,
       Named("stringsAsFactors") = false // Good practice
   );
 }
@@ -295,7 +321,8 @@ List aln_query_full(
     DataFrame intervals_df,
     std::string height_style_str = "by_coord_left",
     int max_alignments = 0,
-    std::string alignment_filter = "all")
+    std::string alignment_filter = "all",
+    double min_mutations_density = 0.0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -320,7 +347,7 @@ List aln_query_full(
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
-  QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter);
+  QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter, min_mutations_density);
 
   // Run the steps
   queryFull.execute();

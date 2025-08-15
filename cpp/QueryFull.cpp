@@ -10,12 +10,13 @@
 
 using namespace std;
 
-QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, const std::string& alignment_filter)
+QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, const std::string& alignment_filter, double min_mutations_density)
     : intervals(intervals)
     , store(store)
     , height_style(height_style)
     , max_alignments(max_alignments)
     , alignment_filter(alignment_filter)
+    , min_mutations_density(min_mutations_density)
 {
   // validate alignment_filter parameter
   if (alignment_filter != "all" && 
@@ -83,6 +84,15 @@ void QueryFull::generate_output_data()
 
       // Count mutations for this alignment
       int num_mutations = aln.mutations.size();
+
+      // apply mutations density filtering if specified
+      if (min_mutations_density > 0.0) {
+        int alignment_length = static_cast<int>(aln.contig_end - aln.contig_start + 1);
+        double mutations_density = static_cast<double>(num_mutations) / (static_cast<double>(alignment_length) / 1000.0);
+        if (mutations_density < min_mutations_density) {
+          continue;
+        }
+      }
 
       // initialize height to 0, will be set later
       output_alignments.push_back({ current_alignment_index,

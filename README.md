@@ -6,7 +6,7 @@
 - **Three query modes** for flexible analysis:
   - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
-  - **Bin mode**: Generates binned coverage statistics for detecting coverage patterns
+  - **Bin mode**: Generates binned coverage statistics with segregating sites analysis and mutation rate categorization
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **R interface** for seamless integration with analysis workflows in R
@@ -127,6 +127,8 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `covered`: Report only positions with read coverage (default).
   - `mutated`: Report only positions with mutations.
 * `-binsize <int>`: For bin mode, size of bins in bp (default: `100`).
+* `-seg_threshold <double>`: For bin mode, threshold for segregating sites detection (default: `0.2`). Variants with frequency between this value and (1 - this value) are considered segregating.
+* `-non_ref_threshold <double>`: For bin mode, threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
 * `-height_style <string>`: For full mode, how to calculate read height:
   - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
@@ -150,8 +152,16 @@ This produces three output files:
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query -mode bin -binsize 1000
+   -ofn_prefix output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9
 ```
+
+This produces a single output file:
+- `output/query_bins.tsv`: Binned alignment statistics including:
+  - Basic bin information: `contig`, `bin_start`, `bin_end`, `bin_length`
+  - Coverage statistics: `sequenced_bp`, `mutation_count`
+  - **Segregating sites analysis**: `seg_sites_density` (sites per bp)
+  - **Non-reference sites analysis**: `non_ref_sites_density` (sites per bp)
+  - **Mutation distance categories**: `dist_none` (0 mutations), `dist_5` (1e-5 to 1e-4 per bp), `dist_4` (1e-4 to 1e-3 per bp), `dist_3` (1e-3 to 1e-2 per bp), `dist_2` (1e-2 to 1e-1 per bp), `dist_1_plus` (>1e-1 per bp)
 
 **Example of pile-up query mode**
 
@@ -282,8 +292,8 @@ aln <- aln_load(aln_file)
 interval_file <- "examples/intervals_dense.txt"
 intervals <- read.delim(interval_file)
 
-# Bin query
-bin_results <- aln_query_bin(aln, intervals, binsize)
+# Bin query with optional thresholds
+bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9)
 
 # report_mode options: "all", "covered", "mutated"
 report_mode <- "all"
@@ -330,7 +340,7 @@ aln <- aln_load(aln_file)
 intervals <- read.table(intervals_file, header = TRUE)
 
 # Run queries
-bin_results <- aln_query_bin(aln, intervals, binsize)
+bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9)
 pileup_results <- aln_query_pileup(aln, intervals, "covered")
 full_results <- aln_query_full(aln, intervals, "by_mutations")
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
