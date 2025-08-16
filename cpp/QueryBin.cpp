@@ -107,6 +107,7 @@ void QueryBin::aggregate_data()
           auto it = bin_results.find({ aln.contig_index, b_start });
           if (it != bin_results.end()) {
             it->second.sequenced_basepairs += overlap_length;
+            it->second.unique_reads.insert(aln.read_index); // track unique reads
             
             // track coverage for segregating sites calculation
             for (uint32_t pos = effective_start; pos < effective_end; pos++) {
@@ -249,7 +250,7 @@ void QueryBin::generate_output_rows()
     double non_ref_sites_density = static_cast<double>(non_ref_sites) / binsize;
 
     output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
-        data.sequenced_basepairs, data.mutation_count, seg_sites_density, non_ref_sites_density,
+        data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), data.mutation_count, seg_sites_density, non_ref_sites_density,
         data.dist_none, data.dist_5, data.dist_4,
         data.dist_3, data.dist_2, data.dist_1_plus });
   }
@@ -268,8 +269,8 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
     exit(1);
   }
 
-  // Write header with new columns
-  ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tmutation_count\t"
+  // Write header with columns
+  ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
       << "seg_sites_density\tnon_ref_sites_density\tdist_none\tdist_5\tdist_4\t"
       << "dist_3\tdist_2\tdist_1_plus\n";
 
@@ -279,6 +280,7 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
         << row.bin_end << "\t"
         << row.bin_length << "\t"
         << row.sequenced_basepairs << "\t"
+        << row.read_count << "\t"
         << row.mutation_count << "\t"
         << row.seg_sites_density << "\t"
         << row.non_ref_sites_density << "\t"

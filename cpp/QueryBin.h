@@ -3,6 +3,7 @@
 
 #include "alignment_store.h" // Includes aln_types.h indirectly
 #include <map>
+#include <set>
 #include <string>
 #include <utility> // For std::pair
 #include <vector>
@@ -11,6 +12,7 @@
 struct BinData {
   int sequenced_basepairs = 0;
   int mutation_count = 0;
+  std::set<uint32_t> unique_reads; // track unique read indices for read count
   std::map<std::string, int> variant_counts; // key: position_type_nts, value: count
   std::map<std::string, int> position_coverage; // key: position, value: read count at position
   // mutation distance categories: counts of alignments in each category (per bp)
@@ -29,6 +31,7 @@ struct BinOutputRow {
   uint32_t bin_end;
   int bin_length;
   int sequenced_basepairs;
+  int read_count; // number of unique reads
   int mutation_count;
   double seg_sites_density; // segregating sites per bp
   double non_ref_sites_density; // non-reference sites per bp

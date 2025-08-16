@@ -206,7 +206,8 @@ DataFrame aln_query_bin(
   IntegerVector out_bin_start;
   IntegerVector out_bin_end;
   IntegerVector out_bin_length;
-  IntegerVector out_sequenced_bp; // Using IntegerVector for R 'integer' type
+  IntegerVector out_sequenced_bp;
+  IntegerVector out_read_count;
   IntegerVector out_mutation_count;
   NumericVector out_seg_sites_density;
   NumericVector out_non_ref_sites_density;
@@ -223,6 +224,7 @@ DataFrame aln_query_bin(
     out_bin_end.push_back(row.bin_end);
     out_bin_length.push_back(row.bin_length);
     out_sequenced_bp.push_back(row.sequenced_basepairs);
+    out_read_count.push_back(row.read_count);
     out_mutation_count.push_back(row.mutation_count);
     out_seg_sites_density.push_back(row.seg_sites_density);
     out_non_ref_sites_density.push_back(row.non_ref_sites_density);
@@ -239,7 +241,8 @@ DataFrame aln_query_bin(
       Named("start") = out_bin_start,
       Named("end") = out_bin_end,
       Named("length") = out_bin_length,
-      Named("read_count") = out_sequenced_bp,
+      Named("sequenced_bp") = out_sequenced_bp,
+      Named("read_count") = out_read_count,
       Named("mutation_count") = out_mutation_count,
       Named("seg_sites_density") = out_seg_sites_density,
       Named("non_ref_sites_density") = out_non_ref_sites_density,
