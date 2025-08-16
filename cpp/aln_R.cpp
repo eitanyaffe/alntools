@@ -1,3 +1,10 @@
+// [[Rcpp::plugins(cpp17)]]
+
+// OpenMP support - configured via environment variables in R startup
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "QueryBin.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
@@ -180,7 +187,8 @@ DataFrame aln_query_bin(
     DataFrame intervals_df,
     int binsize,
     double seg_threshold = 0.2,
-    double non_ref_threshold = 0.9)
+    double non_ref_threshold = 0.9,
+    int num_threads = 0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -193,7 +201,7 @@ DataFrame aln_query_bin(
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
-  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold);
+  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads);
 
   // Run the steps
   queryBin.execute();

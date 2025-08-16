@@ -39,6 +39,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
   params.add_parser("alignment_filter", new ParserString("alignment filter for 'full' mode (all, single, single_complete, only_multiple)", "all"), false);
   params.add_parser("min_mutations_density", new ParserDouble("minimum mutations density (mutations per 1000bp) for 'full' mode (0.0 for no filter)", 0.0), false);
+  params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' mode (0 for auto)", 0), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -151,7 +152,8 @@ int query_main(const char* name, int argc, char** argv)
     queryPileup.execute();
     queryPileup.write_to_csv(ofn_prefix);
   } else if (mode == "bin") {
-    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold);
+    int num_threads = params.get_int("num_threads");
+    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads);
     queryBin.execute();
     queryBin.write_to_csv(ofn_prefix);
   }

@@ -7,6 +7,10 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <thread>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 using namespace std;
 
@@ -15,12 +19,14 @@ QueryBin::QueryBin(
     const AlignmentStore& store,
     int binsize,
     double seg_threshold,
-    double non_ref_threshold)
+    double non_ref_threshold,
+    int num_threads)
     : intervals(intervals)
     , store(store)
     , binsize(binsize)
     , seg_threshold(seg_threshold)
     , non_ref_threshold(non_ref_threshold)
+    , num_threads(num_threads)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
@@ -33,6 +39,186 @@ QueryBin::QueryBin(
   if (non_ref_threshold <= 0.5 || non_ref_threshold >= 1.0) {
     cerr << "error: non_ref_threshold must be between 0.5 and 1.0." << endl;
     exit(1);
+  }
+  
+  // set number of threads
+  if (this->num_threads <= 0) {
+    this->num_threads = std::thread::hardware_concurrency();
+    if (this->num_threads <= 0) this->num_threads = 1;
+  }
+  
+#ifdef _OPENMP
+  omp_set_num_threads(this->num_threads);
+#endif
+}
+
+void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinData>& local_data)
+{
+  for (const auto& entry : local_data) {
+    const auto& key = entry.first;
+    const auto& local_bin = entry.second;
+    
+    auto it = bin_results.find(key);
+    if (it != bin_results.end()) {
+      // merge into existing bin
+      BinData& global_bin = it->second;
+      
+      // sum simple counts
+      global_bin.sequenced_basepairs += local_bin.sequenced_basepairs;
+      global_bin.mutation_count += local_bin.mutation_count;
+      global_bin.dist_none += local_bin.dist_none;
+      global_bin.dist_5 += local_bin.dist_5;
+      global_bin.dist_4 += local_bin.dist_4;
+      global_bin.dist_3 += local_bin.dist_3;
+      global_bin.dist_2 += local_bin.dist_2;
+      global_bin.dist_1_plus += local_bin.dist_1_plus;
+      
+      // merge unique_reads set
+      global_bin.unique_reads.insert(local_bin.unique_reads.begin(), local_bin.unique_reads.end());
+      
+      // merge variant_counts map
+      for (const auto& variant_entry : local_bin.variant_counts) {
+        global_bin.variant_counts[variant_entry.first] += variant_entry.second;
+      }
+      
+      // merge position_coverage map
+      for (const auto& pos_entry : local_bin.position_coverage) {
+        global_bin.position_coverage[pos_entry.first] += pos_entry.second;
+      }
+    } else {
+      // create new bin entry
+      bin_results[key] = local_bin;
+    }
+  }
+}
+
+void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results)
+{
+  // calculate alignment length for mutation distance calculation
+  uint32_t alignment_length = aln.contig_end - aln.contig_start;
+  double mutations_per_bp = (alignment_length > 0) ? 
+    (static_cast<double>(aln.mutations.size()) / alignment_length) : 0.0;
+
+  // process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
+  for (const auto& interval : intervals) {
+    if (aln.contig_index != store.get_contig_index(interval.contig)) {
+      continue;
+    }
+
+    // skip if alignment doesn't overlap this interval
+    if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
+      continue;
+    }
+
+    uint32_t adjusted_start = (interval.start / binsize) * binsize;
+    uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+
+    // check overlap with each bin in this interval
+    for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
+      uint32_t b_end = b_start + binsize;
+
+      // calculate overlap considering alignment, bin, AND original interval boundaries
+      uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
+      uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
+
+      int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
+
+      if (overlap_length > 0) {
+        auto it = target_bin_results.find({ aln.contig_index, b_start });
+        if (it != target_bin_results.end()) {
+          it->second.sequenced_basepairs += overlap_length;
+          it->second.unique_reads.insert(aln.read_index); // track unique reads
+          
+          // track coverage for segregating sites calculation
+          for (uint32_t pos = effective_start; pos < effective_end; pos++) {
+            it->second.position_coverage[std::to_string(pos)]++;
+          }
+        }
+      }
+    }
+  }
+
+  // process mutations for this alignment only once
+  for (uint32_t mutation_index : aln.mutations) {
+    // fetch the mutation object
+    const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
+    uint32_t mutation_contig_pos = mutation.position;
+    uint32_t mutation_bin_start = (mutation_contig_pos / binsize) * binsize;
+
+    // check if this mutation falls within any of our intervals
+    for (const auto& interval : intervals) {
+      if (aln.contig_index != store.get_contig_index(interval.contig)) {
+        continue;
+      }
+
+      // check if mutation is within this interval
+      if (mutation_contig_pos >= interval.start && mutation_contig_pos < interval.end) {
+        auto it = target_bin_results.find({ aln.contig_index, mutation_bin_start });
+        if (it != target_bin_results.end()) {
+          it->second.mutation_count++;
+          
+          // create variant key for segregating sites
+          std::string variant_key = std::to_string(mutation_contig_pos) + "_" + 
+            std::to_string(static_cast<int>(mutation.type)) + "_" + mutation.nts;
+          it->second.variant_counts[variant_key]++;
+          
+          break; // only count the mutation once even if it's in multiple overlapping intervals
+        }
+      }
+    }
+  }
+
+  // categorize this alignment by mutation rate for all bins it overlaps
+  std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
+  for (const auto& interval : intervals) {
+    if (aln.contig_index != store.get_contig_index(interval.contig)) {
+      continue;
+    }
+
+    // skip if alignment doesn't overlap this interval
+    if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
+      continue;
+    }
+
+    uint32_t adjusted_start = (interval.start / binsize) * binsize;
+    uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+
+    // check overlap with each bin in this interval
+    for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
+      uint32_t b_end = b_start + binsize;
+
+      // calculate overlap considering alignment, bin, AND original interval boundaries
+      uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
+      uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
+
+      int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
+
+      if (overlap_length > 0) {
+        // only process each bin once per alignment
+        std::pair<uint32_t, uint32_t> bin_key = { aln.contig_index, b_start };
+        if (processed_bins_for_alignment.find(bin_key) == processed_bins_for_alignment.end()) {
+          processed_bins_for_alignment.insert(bin_key);
+          
+          auto it = target_bin_results.find(bin_key);
+          if (it != target_bin_results.end()) {
+            // categorize alignment by mutation distance (per bp)
+            if (aln.mutations.size() == 0) {
+              it->second.dist_none++;
+            } else if (mutations_per_bp < 1e-4) {
+              it->second.dist_5++;  // 1e-5 to 1e-4 per bp
+            } else if (mutations_per_bp < 1e-3) {
+              it->second.dist_4++;  // 1e-4 to 1e-3 per bp
+            } else if (mutations_per_bp < 1e-2) {
+              it->second.dist_3++;  // 1e-3 to 1e-2 per bp
+            } else if (mutations_per_bp < 1e-1) {
+              it->second.dist_2++;  // 1e-2 to 1e-1 per bp
+            } else {
+              it->second.dist_1_plus++;  // above 1e-1 per bp
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -58,7 +244,7 @@ void QueryBin::aggregate_data()
   }
 
   // Collect all unique alignments across all intervals
-  std::set<const Alignment*> processed_alignments;
+  std::set<const Alignment*> processed_alignments_set;
   
   for (const auto& interval : intervals) {
     // Get alignments overlapping this interval
@@ -66,141 +252,47 @@ void QueryBin::aggregate_data()
     
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
-      processed_alignments.insert(&aln);
+      processed_alignments_set.insert(&aln);
     }
   }
 
-  // Second pass: process each alignment only once
+  // Convert to vector for indexed access in OpenMP
+  std::vector<const Alignment*> processed_alignments(processed_alignments_set.begin(), processed_alignments_set.end());
+
+  // Second pass: process each alignment only once (parallelized)
+#ifdef _OPENMP
+  #pragma omp parallel
+  {
+    #pragma omp single
+    {
+      cout << "using " << omp_get_num_threads() << " threads for " << processed_alignments.size() << " alignments" << endl;
+    }
+    // thread-local bin results
+    std::map<std::pair<uint32_t, uint32_t>, BinData> local_bin_results;
+    
+    // initialize local bins with empty data
+    for (const auto& entry : bin_results) {
+      local_bin_results[entry.first] = BinData();
+    }
+    
+    #pragma omp for
+    for (size_t i = 0; i < processed_alignments.size(); ++i) {
+      const Alignment* aln_ptr = processed_alignments[i];
+      process_single_alignment(*aln_ptr, local_bin_results);
+    }
+    
+    // merge local results into global bin_results
+    #pragma omp critical
+    {
+      merge_bin_data(local_bin_results);
+    }
+  }
+#else
+  cout << "processing " << processed_alignments.size() << " alignments sequentially" << endl;
   for (const Alignment* aln_ptr : processed_alignments) {
-    const auto& aln = *aln_ptr;
-
-    // Calculate alignment length for mutation distance calculation
-    uint32_t alignment_length = aln.contig_end - aln.contig_start;
-    double mutations_per_bp = (alignment_length > 0) ? 
-      (static_cast<double>(aln.mutations.size()) / alignment_length) : 0.0;
-
-    // Process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
-    for (const auto& interval : intervals) {
-      if (aln.contig_index != store.get_contig_index(interval.contig)) {
-        continue;
-      }
-
-      // Skip if alignment doesn't overlap this interval
-      if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
-        continue;
-      }
-
-      uint32_t adjusted_start = (interval.start / binsize) * binsize;
-      uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
-
-      // Check overlap with each bin in this interval
-      for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
-        uint32_t b_end = b_start + binsize;
-
-        // Calculate overlap considering alignment, bin, AND original interval boundaries
-        uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
-        uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
-
-        int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
-
-        if (overlap_length > 0) {
-          auto it = bin_results.find({ aln.contig_index, b_start });
-          if (it != bin_results.end()) {
-            it->second.sequenced_basepairs += overlap_length;
-            it->second.unique_reads.insert(aln.read_index); // track unique reads
-            
-            // track coverage for segregating sites calculation
-            for (uint32_t pos = effective_start; pos < effective_end; pos++) {
-              it->second.position_coverage[std::to_string(pos)]++;
-            }
-          }
-        }
-      }
-    }
-
-    // Process mutations for this alignment only once
-    for (uint32_t mutation_index : aln.mutations) {
-      // Fetch the mutation object
-      const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
-      uint32_t mutation_contig_pos = mutation.position;
-      uint32_t mutation_bin_start = (mutation_contig_pos / binsize) * binsize;
-
-      // Check if this mutation falls within any of our intervals
-      for (const auto& interval : intervals) {
-        if (aln.contig_index != store.get_contig_index(interval.contig)) {
-          continue;
-        }
-
-        // Check if mutation is within this interval
-        if (mutation_contig_pos >= interval.start && mutation_contig_pos < interval.end) {
-          auto it = bin_results.find({ aln.contig_index, mutation_bin_start });
-          if (it != bin_results.end()) {
-            it->second.mutation_count++;
-            
-            // create variant key for segregating sites
-            std::string variant_key = std::to_string(mutation_contig_pos) + "_" + 
-              std::to_string(static_cast<int>(mutation.type)) + "_" + mutation.nts;
-            it->second.variant_counts[variant_key]++;
-            
-            break; // Only count the mutation once even if it's in multiple overlapping intervals
-          }
-        }
-      }
-    }
-
-    // categorize this alignment by mutation rate for all bins it overlaps
-    std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
-    for (const auto& interval : intervals) {
-      if (aln.contig_index != store.get_contig_index(interval.contig)) {
-        continue;
-      }
-
-      // Skip if alignment doesn't overlap this interval
-      if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
-        continue;
-      }
-
-      uint32_t adjusted_start = (interval.start / binsize) * binsize;
-      uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
-
-      // Check overlap with each bin in this interval
-      for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
-        uint32_t b_end = b_start + binsize;
-
-        // Calculate overlap considering alignment, bin, AND original interval boundaries
-        uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
-        uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
-
-        int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
-
-        if (overlap_length > 0) {
-          // only process each bin once per alignment
-          std::pair<uint32_t, uint32_t> bin_key = { aln.contig_index, b_start };
-          if (processed_bins_for_alignment.find(bin_key) == processed_bins_for_alignment.end()) {
-            processed_bins_for_alignment.insert(bin_key);
-            
-            auto it = bin_results.find(bin_key);
-            if (it != bin_results.end()) {
-              // categorize alignment by mutation distance (per bp)
-              if (aln.mutations.size() == 0) {
-                it->second.dist_none++;
-              } else if (mutations_per_bp < 1e-4) {
-                it->second.dist_5++;  // 1e-5 to 1e-4 per bp
-              } else if (mutations_per_bp < 1e-3) {
-                it->second.dist_4++;  // 1e-4 to 1e-3 per bp
-              } else if (mutations_per_bp < 1e-2) {
-                it->second.dist_3++;  // 1e-3 to 1e-2 per bp
-              } else if (mutations_per_bp < 1e-1) {
-                it->second.dist_2++;  // 1e-2 to 1e-1 per bp
-              } else {
-                it->second.dist_1_plus++;  // above 1e-1 per bp
-              }
-            }
-          }
-        }
-      }
-    }
+    process_single_alignment(*aln_ptr, bin_results);
   }
+#endif
 }
 
 void QueryBin::generate_output_rows()

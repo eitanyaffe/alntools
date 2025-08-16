@@ -50,6 +50,7 @@ class QueryBin {
   int binsize;
   double seg_threshold;
   double non_ref_threshold;
+  int num_threads;
 
   // Use a map to store results, keyed by {contig_index, bin_start}
   std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
@@ -58,6 +59,12 @@ class QueryBin {
 
   // execute the query
   void aggregate_data();
+
+  // process a single alignment into bin results (thread-safe)
+  void process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results);
+
+  // merge thread-local BinData into global bin_results
+  void merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinData>& local_data);
 
   // generate the output rows
   void generate_output_rows();
@@ -68,7 +75,8 @@ class QueryBin {
       const AlignmentStore& store,
       int binsize,
       double seg_threshold = 0.2,
-      double non_ref_threshold = 0.9);
+      double non_ref_threshold = 0.9,
+      int num_threads = 0);
 
   // execute the query
   void execute();

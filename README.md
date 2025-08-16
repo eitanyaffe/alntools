@@ -19,6 +19,9 @@ This makes alntools useful for visualizing and investigating read coverage and m
 
 *   A modern C++ compiler (supporting C++17)
 *   gnumake
+*   OpenMP library (for threading support in bin queries)
+    *   **Linux**: Usually included with gcc (`libgomp`)
+    *   **macOS**: Install via Homebrew: `brew install libomp`
 
 Tested on macOS 13.3.1 and Ubuntu 20.04.
 
@@ -152,7 +155,7 @@ This produces three output files:
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9
+   -ofn_prefix output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9 -num_threads 4
 ```
 
 This produces a single output file:
@@ -292,8 +295,8 @@ aln <- aln_load(aln_file)
 interval_file <- "examples/intervals_dense.txt"
 intervals <- read.delim(interval_file)
 
-# Bin query with optional thresholds
-bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9)
+# Bin query with threading support
+bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0)
 
 # report_mode options: "all", "covered", "mutated"
 report_mode <- "all"
@@ -340,7 +343,7 @@ aln <- aln_load(aln_file)
 intervals <- read.table(intervals_file, header = TRUE)
 
 # Run queries
-bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9)
+bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0)
 pileup_results <- aln_query_pileup(aln, intervals, "covered")
 full_results <- aln_query_full(aln, intervals, "by_mutations")
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)

@@ -2,10 +2,38 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra
 LDFLAGS = -lz
 
-SRC_DIR = cpp
-
-# Detect the operating system
+# OpenMP support - different for different systems
 UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    # macOS - check if OpenMP is available
+    OPENMP_TEST := $(shell echo | $(CXX) -fopenmp -x c++ -c - -o /dev/null 2>/dev/null && echo true || echo false)
+    ifeq ($(OPENMP_TEST),true)
+        CXXFLAGS += -fopenmp
+        LDFLAGS += -fopenmp
+    else
+        # Try with libomp if available (Homebrew installation)
+        HOMEBREW_LIBOMP := $(shell test -d /opt/homebrew/opt/libomp && echo true || echo false)
+        ifeq ($(HOMEBREW_LIBOMP),true)
+            CXXFLAGS += -Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include
+            LDFLAGS += -L/opt/homebrew/opt/libomp/lib -lomp
+        else
+            # Try with system libomp
+            LIBOMP_TEST := $(shell echo | $(CXX) -Xpreprocessor -fopenmp -lomp -x c++ -c - -o /dev/null 2>/dev/null && echo true || echo false)
+            ifeq ($(LIBOMP_TEST),true)
+                CXXFLAGS += -Xpreprocessor -fopenmp
+                LDFLAGS += -lomp
+            else
+                $(warning OpenMP not available, compiling without threading support)
+            endif
+        endif
+    endif
+else
+    # Linux - assume OpenMP is available
+    CXXFLAGS += -fopenmp
+    LDFLAGS += -fopenmp
+endif
+
+SRC_DIR = cpp
 
 ifeq ($(UNAME_S),Linux)
     OBJ_DIR = obj/linux

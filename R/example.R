@@ -23,6 +23,14 @@ cat(paste0("ofn_prefix: ", ofn_prefix, "\n"))
 # Compile and load the C++ code (can specify build directory)
 cdir <- ".Rcpp_dir"
 rebuild <- F
+
+# Configure OpenMP for threading support in bin queries
+if (Sys.info()["sysname"] == "Darwin" && file.exists("/opt/homebrew/opt/libomp/include/omp.h")) {
+  # macOS with Homebrew libomp - enables parallel processing of large alignment datasets
+  Sys.setenv(PKG_CPPFLAGS = "-I/opt/homebrew/opt/libomp/include -Xpreprocessor -fopenmp -D_OPENMP=200805")
+  Sys.setenv(PKG_LIBS = "-L/opt/homebrew/opt/libomp/lib -lomp")
+}
+
 sourceCpp("cpp/aln_R.cpp", verbose = T, cacheDir = cdir, rebuild = rebuild)
 
 ################################################################################
