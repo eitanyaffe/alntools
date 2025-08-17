@@ -445,3 +445,90 @@ double binomial_right_tail(uint32_t n, double p, uint32_t k)
   return exp(log_sum);
 }
 
+// alignment filtering functions
+ClipMode string_to_clip_mode(const std::string& mode)
+{
+  if (mode == "all") {
+    return ClipMode::ALL;
+  } else if (mode == "complete") {
+    return ClipMode::COMPLETE;
+  } else if (mode == "allow_one_side_clip") {
+    return ClipMode::ALLOW_ONE_SIDE_CLIP;
+  } else if (mode == "only_one_side_clipped") {
+    return ClipMode::ONLY_ONE_SIDE_CLIPPED;
+  } else if (mode == "only_two_side_clipped") {
+    return ClipMode::ONLY_TWO_SIDE_CLIPPED;
+  } else {
+    cerr << "error: invalid clip_mode '" << mode << "'. must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', or 'only_two_side_clipped'." << endl;
+    exit(1);
+  }
+}
+
+bool passes_alignment_filter(const Alignment& alignment, 
+                           const AlignmentStore& store,
+                           ClipMode clip_mode,
+                           int clip_margin,
+                           double min_mutations_percent,
+                           double max_mutations_percent)
+{
+  // get read length
+  uint32_t read_length = store.get_reads()[alignment.read_index].length;
+  
+  // check clipping based on clip_mode
+  bool starts_at_beginning = (alignment.read_start <= static_cast<uint32_t>(clip_margin));
+  bool ends_at_end = (alignment.read_end >= (read_length - static_cast<uint32_t>(clip_margin)));
+  
+  if (clip_mode == ClipMode::COMPLETE) {
+    // alignment must cover all read from start to end (with margin)
+    if (!starts_at_beginning || !ends_at_end) {
+      return false;
+    }
+  } else if (clip_mode == ClipMode::ALLOW_ONE_SIDE_CLIP) {
+    // allow clipped on one side: either start at read start or end at read end
+    if (!starts_at_beginning && !ends_at_end) {
+      return false;
+    }
+  } else if (clip_mode == ClipMode::ONLY_ONE_SIDE_CLIPPED) {
+    // show only alignments clipped on exactly one side
+    if ((starts_at_beginning && ends_at_end) || (!starts_at_beginning && !ends_at_end)) {
+      return false;
+    }
+  } else if (clip_mode == ClipMode::ONLY_TWO_SIDE_CLIPPED) {
+    // show only alignments clipped on both sides
+    if (starts_at_beginning || ends_at_end) {
+      return false;
+    }
+  }
+  // ClipMode::ALL allows all alignments, no clipping check needed
+  
+  // check mutations percentage range
+  if (min_mutations_percent >= 0.0 || max_mutations_percent >= 0.0) {
+    uint32_t alignment_length = alignment.contig_end - alignment.contig_start;
+    if (alignment_length > 0) {
+      double actual_mutations_percent = (static_cast<double>(alignment.mutations.size()) / alignment_length) * 100.0;
+      
+      // check minimum threshold
+      if (min_mutations_percent >= 0.0 && actual_mutations_percent < min_mutations_percent) {
+        return false;
+      }
+      
+      // check maximum threshold
+      if (max_mutations_percent >= 0.0) {
+        // special case: if max_mutations_percent is 0, only allow alignments with exactly 0 mutations
+        if (max_mutations_percent == 0.0) {
+          if (alignment.mutations.size() > 0) {
+            return false;
+          }
+        } else {
+          // normal case: filter if above threshold
+          if (actual_mutations_percent > max_mutations_percent) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  
+  return true;
+}
+

@@ -3,6 +3,7 @@
 
 #include "alignment_store.h"
 #include "aln_types.h"
+#include "utils.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -58,8 +59,10 @@ class QueryFull {
   const AlignmentStore& store;
   HeightStyle height_style;
   int max_alignments;
-  std::string alignment_filter;
-  double min_mutations_density;
+  ClipMode clip_mode;
+  int clip_margin;
+  double min_mutations_percent;
+  double max_mutations_percent;
 
   std::vector<FullOutputAlignments> output_alignments;
   std::vector<FullOutputMutations> output_mutations;
@@ -88,8 +91,10 @@ class QueryFull {
       const AlignmentStore& store,
       HeightStyle height_style = HeightStyle::BY_COORD_LEFT,
       int max_alignments = 0,
-      const std::string& alignment_filter = "all",
-      double min_mutations_density = 0.0);
+      ClipMode clip_mode = ClipMode::ALL,
+      int clip_margin = 10,
+      double min_mutations_percent = 0.0,
+      double max_mutations_percent = 10.0);
 
   // execute the query
   void execute();

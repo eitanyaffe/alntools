@@ -37,8 +37,10 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("non_ref_threshold", new ParserDouble("non-reference sites threshold for 'bin' mode", 0.9), false);
   params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
-  params.add_parser("alignment_filter", new ParserString("alignment filter for 'full' mode (all, single, single_complete, only_multiple)", "all"), false);
-  params.add_parser("min_mutations_density", new ParserDouble("minimum mutations density (mutations per 1000bp) for 'full' mode (0.0 for no filter)", 0.0), false);
+  params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped)", "all"), false);
+  params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
+  params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
+  params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 10.0)", 10.0), false);
   params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' mode (0 for auto)", 0), false);
 
   if (argc == 1) {
@@ -76,11 +78,11 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
       exit(1);
     }
     
-    // validate alignment_filter if mode is 'full'
-    string alignment_filter = params.get_string("alignment_filter");
-    if (alignment_filter != "all" && alignment_filter != "single" && 
-        alignment_filter != "single_complete" && alignment_filter != "only_multiple") {
-      cerr << "error: invalid alignment_filter specified: " << alignment_filter << ". Must be 'all', 'single', 'single_complete', or 'only_multiple'." << endl;
+    // validate clip_mode parameter
+    string clip_mode_str = params.get_string("clip_mode");
+    if (clip_mode_str != "all" && clip_mode_str != "complete" && clip_mode_str != "allow_one_side_clip" && 
+        clip_mode_str != "only_one_side_clipped" && clip_mode_str != "only_two_side_clipped") {
+      cerr << "error: invalid clip_mode specified: " << clip_mode_str << ". Must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', or 'only_two_side_clipped'." << endl;
       exit(1);
     }
   }
@@ -110,11 +112,11 @@ int query_main(const char* name, int argc, char** argv)
   // get max alignments parameter
   int max_alignments = params.get_int("max_alignments");
   
-  // get alignment filter parameter
-  string alignment_filter = params.get_string("alignment_filter");
-  
-  // get min mutations density parameter
-  double min_mutations_density = params.get_double("min_mutations_density");
+  // get alignment filtering parameters
+  ClipMode clip_mode = string_to_clip_mode(params.get_string("clip_mode"));
+  int clip_margin = params.get_int("clip_margin");
+  double min_mutations_percent = params.get_double("min_mutations_percent");
+  double max_mutations_percent = params.get_double("max_mutations_percent");
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
@@ -132,9 +134,12 @@ int query_main(const char* name, int argc, char** argv)
   if (mode == "full") {
     cout << "  height_style: " << params.get_string("height_style") << endl;
     cout << "  max_alignments: " << max_alignments << endl;
-    cout << "  alignment_filter: " << alignment_filter << endl;
-    cout << "  min_mutations_density: " << min_mutations_density << endl;
   }
+  // print filtering parameters for all modes
+  cout << "  clip_mode: " << params.get_string("clip_mode") << endl;
+  cout << "  clip_margin: " << clip_margin << endl;
+  cout << "  min_mutations_percent: " << min_mutations_percent << endl;
+  cout << "  max_mutations_percent: " << max_mutations_percent << endl;
 
   vector<Interval> intervals;
   read_intervals(ifn_intervals, intervals);
@@ -144,16 +149,16 @@ int query_main(const char* name, int argc, char** argv)
   store.load(ifn_aln);
 
   if (mode == "full") {
-    QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter, min_mutations_density);
+    QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
     queryFull.execute();
     queryFull.write_to_csv(ofn_prefix);
   } else if (mode == "pileup") {
-    QueryPileup queryPileup(intervals, store, pileup_mode);
+    QueryPileup queryPileup(intervals, store, pileup_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
     queryPileup.execute();
     queryPileup.write_to_csv(ofn_prefix);
   } else if (mode == "bin") {
     int num_threads = params.get_int("num_threads");
-    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads);
+    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
     queryBin.execute();
     queryBin.write_to_csv(ofn_prefix);
   }

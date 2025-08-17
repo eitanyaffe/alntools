@@ -10,23 +10,17 @@
 
 using namespace std;
 
-QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, const std::string& alignment_filter, double min_mutations_density)
+QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, ClipMode clip_mode, int clip_margin, double min_mutations_percent, double max_mutations_percent)
     : intervals(intervals)
     , store(store)
     , height_style(height_style)
     , max_alignments(max_alignments)
-    , alignment_filter(alignment_filter)
-    , min_mutations_density(min_mutations_density)
+    , clip_mode(clip_mode)
+    , clip_margin(clip_margin)
+    , min_mutations_percent(min_mutations_percent)
+    , max_mutations_percent(max_mutations_percent)
 {
-  // validate alignment_filter parameter
-  if (alignment_filter != "all" && 
-      alignment_filter != "single" && 
-      alignment_filter != "single_complete" &&
-      alignment_filter != "only_multiple") {
-    cerr << "warning: invalid alignment_filter '" << alignment_filter 
-         << "'. using 'all' instead." << endl;
-    this->alignment_filter = "all";
-  }
+  // no validation needed as ClipMode is type-safe
 }
 
 void QueryFull::generate_output_data()
@@ -42,57 +36,23 @@ void QueryFull::generate_output_data()
     cout << "interval: " << interval.to_string() << endl;
     cout << "number of alignments: " << alignments.size() << endl;
 
-    // pass one: determine read count for filtering
-    std::map<std::string, int> read_counts;
-    if (alignment_filter != "all") {
-      for (const auto& alignment_ref : alignments) {
-        const auto& aln = alignment_ref.get();
-        string read_id = store.get_read_id(aln.read_index);
-        read_counts[read_id]++;
-      }
-    }
-
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
+      
+      // apply alignment filtering
+      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent)) {
+        continue;
+      }
+      
       string read_id = store.get_read_id(aln.read_index);
       string contig_id = store.get_contig_id(aln.contig_index);
       string cs_string = generate_cs_tag(aln, store);
 
-      // apply filtering based on alignment_filter
-      if (alignment_filter == "single") {
-        if (read_counts[read_id] != 1) {
-          continue;
-        }
-      } else if (alignment_filter == "single_complete") {
-        if (read_counts[read_id] != 1) {
-          continue;
-        }
-        // check for clipping: read must span entire length
-        uint32_t read_length = store.get_reads()[aln.read_index].length;
-        if (aln.read_start != 0 || aln.read_end != read_length) {
-          continue;
-        }
-      } else if (alignment_filter == "only_multiple") {
-        if (read_counts[read_id] < 2) {
-          continue;
-        }
-      }
-      // "all" requires no filtering
-
-      // Get read length from the store
+      // get read length from the store
       uint32_t read_length = store.get_reads()[aln.read_index].length;
 
-      // Count mutations for this alignment
+      // count mutations for this alignment
       int num_mutations = aln.mutations.size();
-
-      // apply mutations density filtering if specified
-      if (min_mutations_density > 0.0) {
-        int alignment_length = static_cast<int>(aln.contig_end - aln.contig_start + 1);
-        double mutations_density = static_cast<double>(num_mutations) / (static_cast<double>(alignment_length) / 1000.0);
-        if (mutations_density < min_mutations_density) {
-          continue;
-        }
-      }
 
       // initialize height to 0, will be set later
       output_alignments.push_back({ current_alignment_index,

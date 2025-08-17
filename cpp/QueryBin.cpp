@@ -1,6 +1,7 @@
 #include "QueryBin.h"
 #include <algorithm> // For std::min/max
 #include <cassert>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -20,13 +21,21 @@ QueryBin::QueryBin(
     int binsize,
     double seg_threshold,
     double non_ref_threshold,
-    int num_threads)
+    int num_threads,
+    ClipMode clip_mode,
+    int clip_margin,
+    double min_mutations_percent,
+    double max_mutations_percent)
     : intervals(intervals)
     , store(store)
     , binsize(binsize)
     , seg_threshold(seg_threshold)
     , non_ref_threshold(non_ref_threshold)
     , num_threads(num_threads)
+    , clip_mode(clip_mode)
+    , clip_margin(clip_margin)
+    , min_mutations_percent(min_mutations_percent)
+    , max_mutations_percent(max_mutations_percent)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
@@ -94,9 +103,14 @@ void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinD
 
 void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results)
 {
+  // apply alignment filtering
+  if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent)) {
+    return;
+  }
+  
   // calculate alignment length for mutation distance calculation
   uint32_t alignment_length = aln.contig_end - aln.contig_start;
-  double mutations_per_bp = (alignment_length > 0) ? 
+  double local_mutations_per_bp = (alignment_length > 0) ? 
     (static_cast<double>(aln.mutations.size()) / alignment_length) : 0.0;
 
   // process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
@@ -204,13 +218,13 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
             // categorize alignment by mutation distance (per bp)
             if (aln.mutations.size() == 0) {
               it->second.dist_none++;
-            } else if (mutations_per_bp < 1e-4) {
+            } else if (local_mutations_per_bp < 1e-4) {
               it->second.dist_5++;  // 1e-5 to 1e-4 per bp
-            } else if (mutations_per_bp < 1e-3) {
+            } else if (local_mutations_per_bp < 1e-3) {
               it->second.dist_4++;  // 1e-4 to 1e-3 per bp
-            } else if (mutations_per_bp < 1e-2) {
+            } else if (local_mutations_per_bp < 1e-2) {
               it->second.dist_3++;  // 1e-3 to 1e-2 per bp
-            } else if (mutations_per_bp < 1e-1) {
+            } else if (local_mutations_per_bp < 1e-1) {
               it->second.dist_2++;  // 1e-2 to 1e-1 per bp
             } else {
               it->second.dist_1_plus++;  // above 1e-1 per bp
@@ -259,6 +273,9 @@ void QueryBin::aggregate_data()
   // Convert to vector for indexed access in OpenMP
   std::vector<const Alignment*> processed_alignments(processed_alignments_set.begin(), processed_alignments_set.end());
 
+  // Start timing
+  auto start_time = std::chrono::high_resolution_clock::now();
+
   // Second pass: process each alignment only once (parallelized)
 #ifdef _OPENMP
   #pragma omp parallel
@@ -293,6 +310,11 @@ void QueryBin::aggregate_data()
     process_single_alignment(*aln_ptr, bin_results);
   }
 #endif
+
+  // End timing and report
+  auto end_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+  cout << "binning completed in " << duration.count() << " ms" << endl;
 }
 
 void QueryBin::generate_output_rows()

@@ -65,6 +65,24 @@ void read_intervals(const std::string& filename, std::vector<Interval>& interval
 
 string generate_cs_tag(const Alignment& alignment, const AlignmentStore& store);
 
+// alignment filtering
+enum class ClipMode {
+  ALL,                  // allow all alignments
+  COMPLETE,            // alignment covers all read from start to end
+  ALLOW_ONE_SIDE_CLIP, // allow clipped on one side (start at read start or read end)
+  ONLY_ONE_SIDE_CLIPPED, // show only alignments clipped on one side
+  ONLY_TWO_SIDE_CLIPPED  // show only alignments clipped on both sides
+};
+
+ClipMode string_to_clip_mode(const std::string& mode);
+
+bool passes_alignment_filter(const Alignment& alignment, 
+                           const AlignmentStore& store,
+                           ClipMode clip_mode,
+                           int clip_margin,
+                           double min_mutations_percent,
+                           double max_mutations_percent);
+
 // statistical functions
 double binomial_right_tail(uint32_t n, double p, uint32_t k);
 

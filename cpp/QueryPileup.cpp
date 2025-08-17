@@ -13,10 +13,18 @@ using namespace std;
 QueryPileup::QueryPileup(
     const std::vector<Interval>& intervals,
     const AlignmentStore& store,
-    PileupReportMode report_mode)
+    PileupReportMode report_mode,
+    ClipMode clip_mode,
+    int clip_margin,
+    double min_mutations_percent,
+    double max_mutations_percent)
     : intervals(intervals)
     , store(store)
     , report_mode(report_mode)
+    , clip_mode(clip_mode)
+    , clip_margin(clip_margin)
+    , min_mutations_percent(min_mutations_percent)
+    , max_mutations_percent(max_mutations_percent)
 {
   // Constructor implementation (basic initialization done via initializer list)
 }
@@ -45,6 +53,12 @@ void QueryPileup::aggregate_data()
     // Loop through alignments
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
+      
+      // apply alignment filtering
+      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent)) {
+        continue;
+      }
+      
       uint32_t contig_index = aln.contig_index;
 
       // Calculate coverage for relevant positions.

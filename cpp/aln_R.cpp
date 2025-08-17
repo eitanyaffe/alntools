@@ -188,7 +188,11 @@ DataFrame aln_query_bin(
     int binsize,
     double seg_threshold = 0.2,
     double non_ref_threshold = 0.9,
-    int num_threads = 0)
+    int num_threads = 0,
+    std::string clip_mode_str = "all",
+    int clip_margin = 10,
+    double min_mutations_percent = 0.0,
+    double max_mutations_percent = 10.0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -201,7 +205,10 @@ DataFrame aln_query_bin(
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
-  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads);
+  // Convert clip_mode_str to ClipMode enum
+  ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
+  
+  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
 
   // Run the steps
   queryBin.execute();
@@ -272,7 +279,11 @@ DataFrame aln_query_bin(
 DataFrame aln_query_pileup(
     XPtr<AlignmentStore> store_ptr,
     DataFrame intervals_df,
-    std::string report_mode_str)
+    std::string report_mode_str,
+    std::string clip_mode_str = "all",
+    int clip_margin = 10,
+    double min_mutations_percent = 0.0,
+    double max_mutations_percent = 10.0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -286,7 +297,11 @@ DataFrame aln_query_pileup(
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
   PileupReportMode report_mode = string_to_pileup_report_mode(report_mode_str);
-  QueryPileup queryPileup(intervals, store, report_mode);
+  
+  // Convert clip_mode_str to ClipMode enum
+  ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
+  
+  QueryPileup queryPileup(intervals, store, report_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
 
   // Run the steps
   queryPileup.execute();
@@ -332,8 +347,10 @@ List aln_query_full(
     DataFrame intervals_df,
     std::string height_style_str = "by_coord_left",
     int max_alignments = 0,
-    std::string alignment_filter = "all",
-    double min_mutations_density = 0.0)
+    std::string clip_mode_str = "all",
+    int clip_margin = 10,
+    double min_mutations_percent = 0.0,
+    double max_mutations_percent = 10.0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -358,7 +375,10 @@ List aln_query_full(
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
 
-  QueryFull queryFull(intervals, store, height_style, max_alignments, alignment_filter, min_mutations_density);
+  // Convert clip_mode_str to ClipMode enum
+  ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
+  
+  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
 
   // Run the steps
   queryFull.execute();

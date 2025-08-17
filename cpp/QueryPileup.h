@@ -2,6 +2,7 @@
 #define QUERYPILEUP_H
 
 #include "alignment_store.h" // Includes aln_types.h indirectly
+#include "utils.h"
 #include <map>
 #include <string>
 #include <utility> // For std::pair
@@ -38,6 +39,10 @@ class QueryPileup {
   const std::vector<Interval>& intervals;
   const AlignmentStore& store;
   PileupReportMode report_mode;
+  ClipMode clip_mode;
+  int clip_margin;
+  double min_mutations_percent;
+  double max_mutations_percent;
 
   // Use a map to store results, keyed by {contig_index, position (0-based)}
   std::map<std::pair<uint32_t, uint32_t>, PileupData> pileup_results;
@@ -49,7 +54,13 @@ class QueryPileup {
   void write_rows_to_file(const std::string& ofn_prefix);
 
   public:
-  QueryPileup(const std::vector<Interval>& intervals, const AlignmentStore& store, PileupReportMode report_mode);
+  QueryPileup(const std::vector<Interval>& intervals, 
+              const AlignmentStore& store, 
+              PileupReportMode report_mode,
+              ClipMode clip_mode = ClipMode::ALL,
+              int clip_margin = 10,
+              double min_mutations_percent = 0.0,
+              double max_mutations_percent = 10.0);
 
   // execute the query
   void execute();
