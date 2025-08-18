@@ -62,8 +62,7 @@ class QueryBin {
   // Vector to store the formatted output rows before writing
   std::vector<BinOutputRow> output_rows;
 
-  // execute the query
-  void aggregate_data();
+
 
   // process a single alignment into bin results (thread-safe)
   void process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results);
@@ -89,6 +88,9 @@ class QueryBin {
 
   // execute the query
   void execute();
+  
+  // execute data aggregation (made public for GPU wrapper)
+  void aggregate_data();
 
   // write the output rows to a table
   void write_to_csv(const std::string& ofn_prefix);

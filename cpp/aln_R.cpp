@@ -5,6 +5,13 @@
 #include <omp.h>
 #endif
 
+// GPU support includes
+#ifdef METAL_SUPPORT
+#include "QueryBin_gpu.h"
+// Include Metal implementation directly so symbols are present in this TU
+#include "QueryBin_metal.mm"
+#endif
+
 #include "QueryBin.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
@@ -178,7 +185,7 @@ XPtr<AlignmentStore> aln_load(std::string filepath)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// QueryBin functions
+// QueryBin functions - GPU enabled
 ////////////////////////////////////////////////////////////////////////////////
 
 // [[Rcpp::export]]
@@ -192,7 +199,8 @@ DataFrame aln_query_bin(
     std::string clip_mode_str = "all",
     int clip_margin = 10,
     double min_mutations_percent = 0.0,
-    double max_mutations_percent = 10.0)
+    double max_mutations_percent = 10.0,
+    bool use_gpu = false)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -208,13 +216,30 @@ DataFrame aln_query_bin(
   // Convert clip_mode_str to ClipMode enum
   ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
   
+  std::vector<BinOutputRow> results;
+  
+#ifdef METAL_SUPPORT
+  if (use_gpu) {
+    cout << "using GPU for bin query" << endl;
+    QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+    queryBin.execute();
+    results = queryBin.get_output_rows();
+  } else {
+    cout << "using CPU for bin query" << endl;
+    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+    queryBin.execute();
+    results = queryBin.get_output_rows();
+  }
+#else
+  if (use_gpu) {
+    cout << "GPU support not compiled, using CPU for bin query" << endl;
+  } else {
+    cout << "using CPU for bin query" << endl;
+  }
   QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
-
-  // Run the steps
   queryBin.execute();
-
-  // Get the results
-  const std::vector<BinOutputRow>& results = queryBin.get_output_rows();
+  results = queryBin.get_output_rows();
+#endif
 
   // Convert results to R DataFrame
   CharacterVector out_contig;
