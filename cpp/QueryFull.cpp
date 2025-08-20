@@ -274,7 +274,9 @@ void QueryFull::assign_alignment_heights_from_reads()
     alignment_heights[aln.alignment_index] = aln.height;
   }
 
-  cout << "assigning heights to " << output_mutations.size() << " mutations" << endl;
+
+  cout << "assigning heights to mutations" << endl;
+  cout << "number of mutations: " << output_mutations.size() << endl;
   for (auto& mut : output_mutations) {
     if (alignment_heights.find(mut.alignment_index) == alignment_heights.end()) {
       cerr << "error: alignment height not found for alignment: " << mut.alignment_index << endl;
@@ -282,7 +284,7 @@ void QueryFull::assign_alignment_heights_from_reads()
     }
     mut.height = alignment_heights[mut.alignment_index];
   }
-  cout << "done assigning heights" << endl;
+  cout << "done assigning heights to " << output_mutations.size() << " mutations" << endl;
 }
 
 void QueryFull::calculate_heights_by_coord(bool sort_by_start)
