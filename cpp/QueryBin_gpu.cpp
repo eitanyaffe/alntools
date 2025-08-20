@@ -264,11 +264,11 @@ void QueryBinGPU::aggregate_data() {
                 }
             }
             
-            std::cout << "gPU processing completed successfully with " 
+            std::cout << "GPU processing completed successfully with " 
                       << result_count << " bins" << std::endl;
             return;
         } else {
-            std::cout << "gPU processing failed, falling back to CPU" << std::endl;
+            std::cout << "GPU processing failed, falling back to CPU" << std::endl;
             use_gpu = false;
         }
     }
