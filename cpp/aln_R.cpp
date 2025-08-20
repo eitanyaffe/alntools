@@ -463,14 +463,15 @@ List aln_query_full(
   CharacterVector out_mut_desc;
   IntegerVector out_mut_height;
 
+  // lookup table for mutation types to avoid stringstream overhead
+  static const std::vector<std::string> mutation_type_lookup = {"SUB", "INS", "DEL"};
+
   for (const auto& mut : mutations) {
     out_mut_aln_idx.push_back(static_cast<double>(mut.alignment_index + 1)); // R numeric can hold uint64_t
     out_mut_read_id.push_back(mut.read_id);
     out_mut_contig_id.push_back(mut.contig_id);
-    // Convert MutationType enum to string for R
-    std::stringstream ss;
-    ss << mut.type; // Use the overloaded operator<< from aln_types.h
-    out_mut_type.push_back(ss.str());
+    // convert MutationType enum to string using lookup table
+    out_mut_type.push_back(mutation_type_lookup[static_cast<int>(mut.type)]);
     out_mut_position.push_back(mut.position);
     out_mut_desc.push_back(mut.desc);
     out_mut_height.push_back(mut.height);

@@ -280,6 +280,7 @@ void QueryFull::assign_alignment_heights_from_reads()
     }
     mut.height = alignment_heights[mut.alignment_index];
   }
+  cout << "done assigning heights" << endl;
 }
 
 void QueryFull::calculate_heights_by_coord(bool sort_by_start)
