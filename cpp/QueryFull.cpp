@@ -250,6 +250,7 @@ void QueryFull::calculate_read_heights()
 
 void QueryFull::assign_alignment_heights_from_reads()
 {
+  cout << "assigning alignment heights from reads" << endl;
   // create map from (read_id, contig_id) to read height
   std::map<std::pair<std::string, std::string>, int> read_heights;
   for (const auto& read : output_reads) {
@@ -273,6 +274,7 @@ void QueryFull::assign_alignment_heights_from_reads()
     alignment_heights[aln.alignment_index] = aln.height;
   }
 
+  cout << "assigning heights to " << output_mutations.size() << " mutations" << endl;
   for (auto& mut : output_mutations) {
     if (alignment_heights.find(mut.alignment_index) == alignment_heights.end()) {
       cerr << "error: alignment height not found for alignment: " << mut.alignment_index << endl;
