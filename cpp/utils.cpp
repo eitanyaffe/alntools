@@ -459,8 +459,8 @@ ClipMode string_to_clip_mode(const std::string& mode)
   } else if (mode == "only_two_side_clipped") {
     return ClipMode::ONLY_TWO_SIDE_CLIPPED;
   } else {
-    cerr << "error: invalid clip_mode '" << mode << "'. must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', or 'only_two_side_clipped'." << endl;
-    exit(1);
+    cerr << "warning: invalid clip_mode '" << mode << "', defaulting to 'all'" << endl;
+    return ClipMode::ALL;
   }
 }
 

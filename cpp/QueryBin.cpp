@@ -41,13 +41,16 @@ QueryBin::QueryBin(
     cerr << "error: binsize must be positive." << endl;
     exit(1);
   }
-  if (seg_threshold <= 0.0 || seg_threshold >= 0.5) {
-    cerr << "error: seg_threshold must be between 0 and 0.5." << endl;
-    exit(1);
+  // validate and correct seg_threshold
+  if (seg_threshold < 0.0 || seg_threshold >= 0.5 || !std::isfinite(seg_threshold)) {
+    cerr << "warning: invalid seg_threshold (" << seg_threshold << "), setting to default 0.2" << endl;
+    this->seg_threshold = 0.2;
   }
-  if (non_ref_threshold <= 0.5 || non_ref_threshold >= 1.0) {
-    cerr << "error: non_ref_threshold must be between 0.5 and 1.0." << endl;
-    exit(1);
+  
+  // validate and correct non_ref_threshold
+  if (non_ref_threshold <= 0.5 || non_ref_threshold >= 1.0 || !std::isfinite(non_ref_threshold)) {
+    cerr << "warning: invalid non_ref_threshold (" << non_ref_threshold << "), setting to default 0.9" << endl;
+    this->non_ref_threshold = 0.9;
   }
   
   // set number of threads
@@ -93,6 +96,16 @@ void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinD
       // merge position_coverage map
       for (const auto& pos_entry : local_bin.position_coverage) {
         global_bin.position_coverage[pos_entry.first] += pos_entry.second;
+      }
+      
+      // merge clip_left_counts map
+      for (const auto& clip_entry : local_bin.clip_left_counts) {
+        global_bin.clip_left_counts[clip_entry.first] += clip_entry.second;
+      }
+      
+      // merge clip_right_counts map
+      for (const auto& clip_entry : local_bin.clip_right_counts) {
+        global_bin.clip_right_counts[clip_entry.first] += clip_entry.second;
       }
     } else {
       // create new bin entry
@@ -177,6 +190,53 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
           it->second.variant_counts[variant_key]++;
           
           break; // only count the mutation once even if it's in multiple overlapping intervals
+        }
+      }
+    }
+  }
+
+  // process clips for this alignment
+  uint32_t read_length = store.get_reads()[aln.read_index].length;
+  bool is_left_clipped = (aln.read_start > static_cast<uint32_t>(clip_margin));
+  bool is_right_clipped = (aln.read_end < (read_length - static_cast<uint32_t>(clip_margin)));
+
+  // process left clip
+  if (is_left_clipped) {
+    uint32_t clip_contig_pos = aln.contig_start;
+    uint32_t clip_bin_start = (clip_contig_pos / binsize) * binsize;
+    
+    for (const auto& interval : intervals) {
+      if (aln.contig_index != store.get_contig_index(interval.contig)) {
+        continue;
+      }
+      
+      // check if clip position is within this interval
+      if (clip_contig_pos >= interval.start && clip_contig_pos < interval.end) {
+        auto it = target_bin_results.find({ aln.contig_index, clip_bin_start });
+        if (it != target_bin_results.end()) {
+          it->second.clip_left_counts[std::to_string(clip_contig_pos)]++;
+          break;
+        }
+      }
+    }
+  }
+
+  // process right clip
+  if (is_right_clipped) {
+    uint32_t clip_contig_pos = aln.contig_end;
+    uint32_t clip_bin_start = (clip_contig_pos / binsize) * binsize;
+    
+    for (const auto& interval : intervals) {
+      if (aln.contig_index != store.get_contig_index(interval.contig)) {
+        continue;
+      }
+      
+      // check if clip position is within this interval
+      if (clip_contig_pos >= interval.start && clip_contig_pos < interval.end) {
+        auto it = target_bin_results.find({ aln.contig_index, clip_bin_start });
+        if (it != target_bin_results.end()) {
+          it->second.clip_right_counts[std::to_string(clip_contig_pos)]++;
+          break;
         }
       }
     }
@@ -348,7 +408,9 @@ void QueryBin::generate_output_rows()
           double frequency = static_cast<double>(variant_entry.second) / cov_it->second;
           
           // check if segregating
-          if (frequency >= seg_threshold && frequency <= (1.0 - seg_threshold)) {
+          double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
+          double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
+          if (frequency > min_freq && frequency < max_freq) {
             segregating_sites++;
           }
           
@@ -363,8 +425,60 @@ void QueryBin::generate_output_rows()
     double seg_sites_density = static_cast<double>(segregating_sites) / binsize;
     double non_ref_sites_density = static_cast<double>(non_ref_sites) / binsize;
 
+    // calculate segregating and non-reference clip sites density
+    int segregating_clip_sites = 0;
+    int non_ref_clip_sites = 0;
+    
+    // process left clips
+    for (const auto& clip_entry : data.clip_left_counts) {
+      
+      // get coverage at this position
+      auto cov_it = data.position_coverage.find(clip_entry.first);
+      if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+        double frequency = static_cast<double>(clip_entry.second) / cov_it->second;
+        
+        // check if segregating
+        double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
+        double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
+        if (frequency > min_freq && frequency < max_freq) {
+          segregating_clip_sites++;
+        }
+        
+        // check if non-reference (high frequency)
+        if (frequency >= non_ref_threshold) {
+          non_ref_clip_sites++;
+        }
+      }
+    }
+    
+    // process right clips
+    for (const auto& clip_entry : data.clip_right_counts) {
+      
+      // get coverage at this position
+      auto cov_it = data.position_coverage.find(clip_entry.first);
+      if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+        double frequency = static_cast<double>(clip_entry.second) / cov_it->second;
+        
+        // check if segregating
+        double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
+        double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
+        if (frequency > min_freq && frequency < max_freq) {
+          segregating_clip_sites++;
+        }
+        
+        // check if non-reference (high frequency)
+        if (frequency >= non_ref_threshold) {
+          non_ref_clip_sites++;
+        }
+      }
+    }
+    
+    double seg_clip_density = static_cast<double>(segregating_clip_sites) / binsize;
+    double non_ref_clip_density = static_cast<double>(non_ref_clip_sites) / binsize;
+
     output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
         data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), data.mutation_count, seg_sites_density, non_ref_sites_density,
+        seg_clip_density, non_ref_clip_density,
         data.dist_none, data.dist_5, data.dist_4,
         data.dist_3, data.dist_2, data.dist_1_plus });
   }
@@ -385,8 +499,8 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
 
   // Write header with columns
   ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
-      << "seg_sites_density\tnon_ref_sites_density\tdist_none\tdist_5\tdist_4\t"
-      << "dist_3\tdist_2\tdist_1_plus\n";
+      << "seg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
+      << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\n";
 
   for (const auto& row : output_rows) {
     ofs << row.contig << "\t"
@@ -398,6 +512,8 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
         << row.mutation_count << "\t"
         << row.seg_sites_density << "\t"
         << row.non_ref_sites_density << "\t"
+        << row.seg_clip_density << "\t"
+        << row.non_ref_clip_density << "\t"
         << row.dist_none << "\t"
         << row.dist_5 << "\t"
         << row.dist_4 << "\t"

@@ -222,19 +222,66 @@ void QueryBinGPU::aggregate_data() {
                 }
             }
 
-            // efficient coverage recompute per bin only at positions with variants
+            // process clips for density calculations
+            for (const Alignment* aln_ptr : filtered_alignments) {
+                const Alignment& aln = *aln_ptr;
+                uint32_t read_length = store.get_reads()[aln.read_index].length;
+                bool is_left_clipped = (aln.read_start > static_cast<uint32_t>(clip_margin));
+                bool is_right_clipped = (aln.read_end < (read_length - static_cast<uint32_t>(clip_margin)));
+
+                // process left clip
+                if (is_left_clipped) {
+                    uint32_t clip_pos = aln.contig_start;
+                    for (const auto& interval : intervals) {
+                        if (store.get_contig_index(interval.contig) != aln.contig_index) continue;
+                        if (clip_pos < interval.start || clip_pos >= interval.end) continue;
+                        uint32_t bstart = (clip_pos / static_cast<uint32_t>(binsize)) * static_cast<uint32_t>(binsize);
+                        auto it = bin_results.find({aln.contig_index, bstart});
+                        if (it != bin_results.end()) {
+                            it->second.clip_left_counts[std::to_string(clip_pos)]++;
+                        }
+                        break;
+                    }
+                }
+
+                // process right clip
+                if (is_right_clipped) {
+                    uint32_t clip_pos = aln.contig_end;
+                    for (const auto& interval : intervals) {
+                        if (store.get_contig_index(interval.contig) != aln.contig_index) continue;
+                        if (clip_pos < interval.start || clip_pos >= interval.end) continue;
+                        uint32_t bstart = (clip_pos / static_cast<uint32_t>(binsize)) * static_cast<uint32_t>(binsize);
+                        auto it = bin_results.find({aln.contig_index, bstart});
+                        if (it != bin_results.end()) {
+                            it->second.clip_right_counts[std::to_string(clip_pos)]++;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // efficient coverage recompute per bin only at positions with variants and clips
             for (auto &entry : bin_results) {
                 uint32_t contig_index = entry.first.first;
                 uint32_t b_start = entry.first.second;
                 BinData &data = entry.second;
                 // collect positions to evaluate coverage for
                 std::vector<uint32_t> positions;
-                positions.reserve(data.variant_counts.size());
+                positions.reserve(data.variant_counts.size() + data.clip_left_counts.size() + data.clip_right_counts.size());
                 for (const auto &ve : data.variant_counts) {
                     const std::string &key = ve.first;
                     size_t u = key.find('_');
                     if (u == std::string::npos) continue;
                     uint32_t p = static_cast<uint32_t>(std::stoul(key.substr(0, u)));
+                    positions.push_back(p);
+                }
+                // add clip positions
+                for (const auto &ce : data.clip_left_counts) {
+                    uint32_t p = static_cast<uint32_t>(std::stoul(ce.first));
+                    positions.push_back(p);
+                }
+                for (const auto &ce : data.clip_right_counts) {
+                    uint32_t p = static_cast<uint32_t>(std::stoul(ce.first));
                     positions.push_back(p);
                 }
                 if (positions.empty()) continue;
@@ -320,7 +367,9 @@ void QueryBinGPU::generate_output_rows() {
                 if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
                     double frequency = static_cast<double>(variant_entry.second) / cov_it->second;
                     
-                    if (frequency >= seg_threshold && frequency <= (1.0 - seg_threshold)) {
+                    double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
+                    double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
+                    if (frequency > min_freq && frequency < max_freq) {
                         segregating_sites++;
                     }
                     
@@ -334,9 +383,55 @@ void QueryBinGPU::generate_output_rows() {
         double seg_sites_density = static_cast<double>(segregating_sites) / binsize;
         double non_ref_sites_density = static_cast<double>(non_ref_sites) / binsize;
 
+        // calculate segregating and non-reference clip sites density
+        int segregating_clip_sites = 0;
+        int non_ref_clip_sites = 0;
+        
+        // process left clips
+        for (const auto& clip_entry : data.clip_left_counts) {
+            
+            auto cov_it = data.position_coverage.find(clip_entry.first);
+            if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+                double frequency = static_cast<double>(clip_entry.second) / cov_it->second;
+                
+                double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
+                double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
+                if (frequency > min_freq && frequency < max_freq) {
+                    segregating_clip_sites++;
+                }
+                
+                if (frequency >= non_ref_threshold) {
+                    non_ref_clip_sites++;
+                }
+            }
+        }
+        
+        // process right clips
+        for (const auto& clip_entry : data.clip_right_counts) {
+            
+            auto cov_it = data.position_coverage.find(clip_entry.first);
+            if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+                double frequency = static_cast<double>(clip_entry.second) / cov_it->second;
+                
+                double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
+                double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
+                if (frequency > min_freq && frequency < max_freq) {
+                    segregating_clip_sites++;
+                }
+                
+                if (frequency >= non_ref_threshold) {
+                    non_ref_clip_sites++;
+                }
+            }
+        }
+        
+        double seg_clip_density = static_cast<double>(segregating_clip_sites) / binsize;
+        double non_ref_clip_density = static_cast<double>(non_ref_clip_sites) / binsize;
+
         output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
             data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), 
             data.mutation_count, seg_sites_density, non_ref_sites_density,
+            seg_clip_density, non_ref_clip_density,
             data.dist_none, data.dist_5, data.dist_4,
             data.dist_3, data.dist_2, data.dist_1_plus });
     }
@@ -359,8 +454,8 @@ void QueryBinGPU::write_to_csv(const std::string& ofn_prefix) {
 
     // write header
     ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
-        << "seg_sites_density\tnon_ref_sites_density\tdist_none\tdist_5\tdist_4\t"
-        << "dist_3\tdist_2\tdist_1_plus\n";
+        << "seg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
+        << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\n";
 
     for (const auto& row : output_rows) {
         ofs << row.contig << "\t"
@@ -372,6 +467,8 @@ void QueryBinGPU::write_to_csv(const std::string& ofn_prefix) {
             << row.mutation_count << "\t"
             << row.seg_sites_density << "\t"
             << row.non_ref_sites_density << "\t"
+            << row.seg_clip_density << "\t"
+            << row.non_ref_clip_density << "\t"
             << row.dist_none << "\t"
             << row.dist_5 << "\t"
             << row.dist_4 << "\t"

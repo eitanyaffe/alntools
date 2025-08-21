@@ -16,6 +16,8 @@ struct BinData {
   std::set<uint32_t> unique_reads; // track unique read indices for read count
   std::map<std::string, int> variant_counts; // key: position_type_nts, value: count
   std::map<std::string, int> position_coverage; // key: position, value: read count at position
+  std::map<std::string, int> clip_left_counts; // key: position, value: count of left clips
+  std::map<std::string, int> clip_right_counts; // key: position, value: count of right clips
   // mutation distance categories: counts of alignments in each category (per bp)
   int dist_none = 0;         // exactly 0 mutations
   int dist_5 = 0;            // 1e-5 to 1e-4 per bp (10-100 mutations per 100kb)
@@ -36,6 +38,8 @@ struct BinOutputRow {
   int mutation_count;
   double seg_sites_density; // segregating sites per bp
   double non_ref_sites_density; // non-reference sites per bp
+  double seg_clip_density; // segregating clip sites per bp
+  double non_ref_clip_density; // non-reference clip sites per bp
   int dist_none;         // exactly 0 mutations
   int dist_5;            // 1e-5 to 1e-4 per bp
   int dist_4;            // 1e-4 to 1e-3 per bp
