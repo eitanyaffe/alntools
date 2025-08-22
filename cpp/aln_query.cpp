@@ -39,7 +39,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("use_gpu", new ParserBoolean("use gpu for 'bin' mode (T|F)", false), false);
   params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
-  params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped)", "all"), false);
+  params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped)", "all"), false);
   params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
   params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
   params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 10.0)", 10.0), false);
@@ -83,8 +83,8 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
     // validate clip_mode parameter
     string clip_mode_str = params.get_string("clip_mode");
     if (clip_mode_str != "all" && clip_mode_str != "complete" && clip_mode_str != "allow_one_side_clip" && 
-        clip_mode_str != "only_one_side_clipped" && clip_mode_str != "only_two_side_clipped") {
-      cerr << "error: invalid clip_mode specified: " << clip_mode_str << ". Must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', or 'only_two_side_clipped'." << endl;
+        clip_mode_str != "only_one_side_clipped" && clip_mode_str != "only_two_side_clipped" && clip_mode_str != "only_clipped") {
+      cerr << "error: invalid clip_mode specified: " << clip_mode_str << ". Must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', 'only_two_side_clipped', or 'only_clipped'." << endl;
       exit(1);
     }
   }

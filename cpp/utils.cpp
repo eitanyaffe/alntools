@@ -458,6 +458,8 @@ ClipMode string_to_clip_mode(const std::string& mode)
     return ClipMode::ONLY_ONE_SIDE_CLIPPED;
   } else if (mode == "only_two_side_clipped") {
     return ClipMode::ONLY_TWO_SIDE_CLIPPED;
+  } else if (mode == "only_clipped") {
+    return ClipMode::ONLY_CLIPPED;
   } else {
     cerr << "warning: invalid clip_mode '" << mode << "', defaulting to 'all'" << endl;
     return ClipMode::ALL;
@@ -496,6 +498,11 @@ bool passes_alignment_filter(const Alignment& alignment,
   } else if (clip_mode == ClipMode::ONLY_TWO_SIDE_CLIPPED) {
     // show only alignments clipped on both sides
     if (starts_at_beginning || ends_at_end) {
+      return false;
+    }
+  } else if (clip_mode == ClipMode::ONLY_CLIPPED) {
+    // show alignments clipped on one or both sides
+    if (starts_at_beginning && ends_at_end) {
       return false;
     }
   }
