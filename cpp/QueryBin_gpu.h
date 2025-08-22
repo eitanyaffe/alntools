@@ -31,6 +31,8 @@ private:
     int clip_margin;
     double min_mutations_percent;
     double max_mutations_percent;
+    int min_alignment_length;
+    int max_alignment_length;
     
     std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
     std::vector<BinOutputRow> output_rows;
@@ -46,7 +48,9 @@ public:
         ClipMode clip_mode = ClipMode::ALL,
         int clip_margin = 10,
         double min_mutations_percent = 0.0,
-        double max_mutations_percent = 10.0);
+        double max_mutations_percent = 10.0,
+        int min_alignment_length = 0,
+        int max_alignment_length = 0);
     
     ~QueryBinGPU();
     

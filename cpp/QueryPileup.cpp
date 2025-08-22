@@ -17,7 +17,9 @@ QueryPileup::QueryPileup(
     ClipMode clip_mode,
     int clip_margin,
     double min_mutations_percent,
-    double max_mutations_percent)
+    double max_mutations_percent,
+    int min_alignment_length,
+    int max_alignment_length)
     : intervals(intervals)
     , store(store)
     , report_mode(report_mode)
@@ -25,6 +27,8 @@ QueryPileup::QueryPileup(
     , clip_margin(clip_margin)
     , min_mutations_percent(min_mutations_percent)
     , max_mutations_percent(max_mutations_percent)
+    , min_alignment_length(min_alignment_length)
+    , max_alignment_length(max_alignment_length)
 {
   // Constructor implementation (basic initialization done via initializer list)
 }
@@ -55,7 +59,7 @@ void QueryPileup::aggregate_data()
       const auto& aln = alignment_ref.get();
       
       // apply alignment filtering
-      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent)) {
+      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
         continue;
       }
       

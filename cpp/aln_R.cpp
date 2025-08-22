@@ -200,6 +200,8 @@ DataFrame aln_query_bin(
     int clip_margin = 10,
     double min_mutations_percent = 0.0,
     double max_mutations_percent = 10.0,
+    int min_alignment_length = 0,
+    int max_alignment_length = 0,
     bool use_gpu = false)
 {
   // Validate the external pointer
@@ -221,12 +223,12 @@ DataFrame aln_query_bin(
 #ifdef METAL_SUPPORT
   if (use_gpu) {
     cout << "using GPU for bin query" << endl;
-    QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+    QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryBin.execute();
     results = queryBin.get_output_rows();
   } else {
     cout << "using CPU for bin query" << endl;
-    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryBin.execute();
     results = queryBin.get_output_rows();
   }
@@ -236,7 +238,7 @@ DataFrame aln_query_bin(
   } else {
     cout << "using CPU for bin query" << endl;
   }
-  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
   queryBin.execute();
   results = queryBin.get_output_rows();
 #endif
@@ -314,7 +316,9 @@ DataFrame aln_query_pileup(
     std::string clip_mode_str = "all",
     int clip_margin = 10,
     double min_mutations_percent = 0.0,
-    double max_mutations_percent = 10.0)
+    double max_mutations_percent = 10.0,
+    int min_alignment_length = 0,
+    int max_alignment_length = 0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -332,7 +336,7 @@ DataFrame aln_query_pileup(
   // Convert clip_mode_str to ClipMode enum
   ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
   
-  QueryPileup queryPileup(intervals, store, report_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+  QueryPileup queryPileup(intervals, store, report_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
 
   // Run the steps
   queryPileup.execute();
@@ -381,7 +385,9 @@ List aln_query_full(
     std::string clip_mode_str = "all",
     int clip_margin = 10,
     double min_mutations_percent = 0.0,
-    double max_mutations_percent = 10.0)
+    double max_mutations_percent = 10.0,
+    int min_alignment_length = 0,
+    int max_alignment_length = 0)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -409,7 +415,7 @@ List aln_query_full(
   // Convert clip_mode_str to ClipMode enum
   ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
   
-  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
 
   // Run the steps
   queryFull.execute();

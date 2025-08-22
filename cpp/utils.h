@@ -82,7 +82,9 @@ bool passes_alignment_filter(const Alignment& alignment,
                            ClipMode clip_mode,
                            int clip_margin,
                            double min_mutations_percent,
-                           double max_mutations_percent);
+                           double max_mutations_percent,
+                           int min_alignment_length = 0,
+                           int max_alignment_length = 0);
 
 // statistical functions
 double binomial_right_tail(uint32_t n, double p, uint32_t k);

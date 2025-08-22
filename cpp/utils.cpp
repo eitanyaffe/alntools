@@ -471,7 +471,9 @@ bool passes_alignment_filter(const Alignment& alignment,
                            ClipMode clip_mode,
                            int clip_margin,
                            double min_mutations_percent,
-                           double max_mutations_percent)
+                           double max_mutations_percent,
+                           int min_alignment_length,
+                           int max_alignment_length)
 {
   // get read length
   uint32_t read_length = store.get_reads()[alignment.read_index].length;
@@ -533,6 +535,21 @@ bool passes_alignment_filter(const Alignment& alignment,
           }
         }
       }
+    }
+  }
+  
+  // check alignment length (based on read coordinates)
+  if (min_alignment_length > 0 || max_alignment_length > 0) {
+    uint32_t alignment_length = alignment.read_end - alignment.read_start;
+    
+    // check minimum length
+    if (min_alignment_length > 0 && alignment_length < static_cast<uint32_t>(min_alignment_length)) {
+      return false;
+    }
+    
+    // check maximum length (0 means no limit)
+    if (max_alignment_length > 0 && alignment_length > static_cast<uint32_t>(max_alignment_length)) {
+      return false;
     }
   }
   

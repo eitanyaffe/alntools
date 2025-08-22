@@ -25,7 +25,9 @@ QueryBin::QueryBin(
     ClipMode clip_mode,
     int clip_margin,
     double min_mutations_percent,
-    double max_mutations_percent)
+    double max_mutations_percent,
+    int min_alignment_length,
+    int max_alignment_length)
     : intervals(intervals)
     , store(store)
     , binsize(binsize)
@@ -36,6 +38,8 @@ QueryBin::QueryBin(
     , clip_margin(clip_margin)
     , min_mutations_percent(min_mutations_percent)
     , max_mutations_percent(max_mutations_percent)
+    , min_alignment_length(min_alignment_length)
+    , max_alignment_length(max_alignment_length)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
@@ -117,7 +121,7 @@ void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinD
 void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results)
 {
   // apply alignment filtering
-  if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent)) {
+  if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
     return;
   }
   

@@ -43,6 +43,8 @@ class QueryPileup {
   int clip_margin;
   double min_mutations_percent;
   double max_mutations_percent;
+  int min_alignment_length;
+  int max_alignment_length;
 
   // Use a map to store results, keyed by {contig_index, position (0-based)}
   std::map<std::pair<uint32_t, uint32_t>, PileupData> pileup_results;
@@ -60,7 +62,9 @@ class QueryPileup {
               ClipMode clip_mode = ClipMode::ALL,
               int clip_margin = 10,
               double min_mutations_percent = 0.0,
-              double max_mutations_percent = 10.0);
+              double max_mutations_percent = 10.0,
+              int min_alignment_length = 0,
+              int max_alignment_length = 0);
 
   // execute the query
   void execute();

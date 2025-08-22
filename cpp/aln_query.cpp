@@ -43,6 +43,8 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
   params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
   params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 10.0)", 10.0), false);
+  params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 0)", 0), false);
+  params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
   params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' mode (0 for auto)", 0), false);
 
   if (argc == 1) {
@@ -120,6 +122,8 @@ int query_main(const char* name, int argc, char** argv)
   int clip_margin = params.get_int("clip_margin");
   double min_mutations_percent = params.get_double("min_mutations_percent");
   double max_mutations_percent = params.get_double("max_mutations_percent");
+  int min_alignment_length = params.get_int("min_alignment_length");
+  int max_alignment_length = params.get_int("max_alignment_length");
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
@@ -144,6 +148,8 @@ int query_main(const char* name, int argc, char** argv)
   cout << "  clip_margin: " << clip_margin << endl;
   cout << "  min_mutations_percent: " << min_mutations_percent << endl;
   cout << "  max_mutations_percent: " << max_mutations_percent << endl;
+  cout << "  min_alignment_length: " << min_alignment_length << endl;
+  cout << "  max_alignment_length: " << max_alignment_length << endl;
 
   vector<Interval> intervals;
   read_intervals(ifn_intervals, intervals);
@@ -153,21 +159,21 @@ int query_main(const char* name, int argc, char** argv)
   store.load(ifn_aln);
 
   if (mode == "full") {
-    QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+    QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryFull.execute();
     queryFull.write_to_csv(ofn_prefix);
   } else if (mode == "pileup") {
-    QueryPileup queryPileup(intervals, store, pileup_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+    QueryPileup queryPileup(intervals, store, pileup_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryPileup.execute();
     queryPileup.write_to_csv(ofn_prefix);
   } else if (mode == "bin") {
     int num_threads = params.get_int("num_threads");
     if (use_gpu) {
-      QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, /*num_threads*/ 0, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+      QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, /*num_threads*/ 0, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
       queryBin.execute();
       queryBin.write_to_csv(ofn_prefix);
     } else {
-      QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent);
+      QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
       queryBin.execute();
       queryBin.write_to_csv(ofn_prefix);
     }

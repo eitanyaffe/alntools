@@ -15,7 +15,9 @@ QueryBinGPU::QueryBinGPU(
     ClipMode clip_mode,
     int clip_margin,
     double min_mutations_percent,
-    double max_mutations_percent)
+    double max_mutations_percent,
+    int min_alignment_length,
+    int max_alignment_length)
     : intervals(intervals)
     , store(store)
     , binsize(binsize)
@@ -25,6 +27,8 @@ QueryBinGPU::QueryBinGPU(
     , clip_margin(clip_margin)
     , min_mutations_percent(min_mutations_percent)
     , max_mutations_percent(max_mutations_percent)
+    , min_alignment_length(min_alignment_length)
+    , max_alignment_length(max_alignment_length)
 {
 #ifdef METAL_SUPPORT
     metal_impl = metal_create_implementation();
@@ -43,7 +47,8 @@ QueryBinGPU::QueryBinGPU(
     // always create CPU fallback
     cpu_fallback = std::make_unique<QueryBin>(
         intervals, store, binsize, seg_threshold, non_ref_threshold,
-        num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent
+        num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent,
+        min_alignment_length, max_alignment_length
     );
     
     if (!use_gpu) {

@@ -10,7 +10,7 @@
 
 using namespace std;
 
-QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, ClipMode clip_mode, int clip_margin, double min_mutations_percent, double max_mutations_percent)
+QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, ClipMode clip_mode, int clip_margin, double min_mutations_percent, double max_mutations_percent, int min_alignment_length, int max_alignment_length)
     : intervals(intervals)
     , store(store)
     , height_style(height_style)
@@ -19,6 +19,8 @@ QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& st
     , clip_margin(clip_margin)
     , min_mutations_percent(min_mutations_percent)
     , max_mutations_percent(max_mutations_percent)
+    , min_alignment_length(min_alignment_length)
+    , max_alignment_length(max_alignment_length)
 {
   // no validation needed as ClipMode is type-safe
 }
@@ -40,7 +42,7 @@ void QueryFull::generate_output_data()
       const auto& aln = alignment_ref.get();
       
       // apply alignment filtering
-      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent)) {
+      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
         continue;
       }
       
