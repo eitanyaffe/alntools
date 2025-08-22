@@ -144,6 +144,20 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
   - `by_mutations`: Arrange by mutation density.
 
+**Alignment Filtering Options (all modes):**
+* `-clip_mode <string>`: Clipping mode for filtering alignments:
+  - `all`: Include all alignments (default).
+  - `complete`: Only alignments covering the entire read.
+  - `allow_one_side_clip`: Allow clipping on one side only.
+  - `only_one_side_clipped`: Only alignments clipped on exactly one side.
+  - `only_two_side_clipped`: Only alignments clipped on both sides.
+  - `only_clipped`: Only alignments clipped on one or both sides.
+* `-clip_margin <int>`: Margin in bases for clipping detection (default: `10`).
+* `-min_mutations_percent <double>`: Minimum mutations percentage (default: `0.0`).
+* `-max_mutations_percent <double>`: Maximum mutations percentage (default: `10.0`).
+* `-min_alignment_length <int>`: Minimum alignment length in read coordinates (default: `0`).
+* `-max_alignment_length <int>`: Maximum alignment length in read coordinates (default: `0`, no limit).
+
 **Example of full query mode**
 
 ```bash
@@ -163,6 +177,18 @@ This produces three output files:
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
    -ofn_prefix output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9 -num_threads 4
+```
+
+**Example with alignment filtering**
+
+```bash
+# Filter alignments by length and mutation rate
+alntools query -ifn_aln output/test.aln \
+   -ifn_intervals examples/intervals_small.txt \
+   -ofn_prefix output/query_filtered -mode full \
+   -min_alignment_length 1000 -max_alignment_length 50000 \
+   -min_mutations_percent 0.1 -max_mutations_percent 5.0 \
+   -clip_mode complete
 ```
 
 This produces a single output file:
@@ -336,18 +362,24 @@ interval_file <- "examples/intervals_dense.txt"
 intervals <- read.delim(interval_file)
 
 # Bin query with threading support and optional GPU acceleration
-bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0, use_gpu = FALSE)
+bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0, 
+                            clip_mode_str = "all", clip_margin = 10, min_mutations_percent = 0.0, max_mutations_percent = 10.0,
+                            min_alignment_length = 0, max_alignment_length = 0, use_gpu = FALSE)
 
 # report_mode options: "all", "covered", "mutated"
 report_mode <- "all"
 
 # Pileup query
-pileup_results <- aln_query_pileup(aln, intervals, report_mode)
+pileup_results <- aln_query_pileup(aln, intervals, report_mode, clip_mode_str = "all", clip_margin = 10, 
+                                  min_mutations_percent = 0.0, max_mutations_percent = 10.0,
+                                  min_alignment_length = 0, max_alignment_length = 0)
 
 # height_style options: "by_coord_left", "by_coord_right", "by_mutations"
 height_style <- "by_coord_left"
 # Full query
-full_results <- aln_query_full(aln, intervals, height_style)
+full_results <- aln_query_full(aln, intervals, height_style, max_alignments = 0, clip_mode_str = "all", clip_margin = 10,
+                              min_mutations_percent = 0.0, max_mutations_percent = 10.0,
+                              min_alignment_length = 0, max_alignment_length = 0)
 # Returns a list with $alignments, $mutations, and $reads dataframes
 
 # Break position detection
@@ -383,9 +415,10 @@ aln <- aln_load(aln_file)
 intervals <- read.table(intervals_file, header = TRUE)
 
 # Run queries
-bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0)
-pileup_results <- aln_query_pileup(aln, intervals, "covered")
-full_results <- aln_query_full(aln, intervals, "by_mutations")
+bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0,
+                            min_alignment_length = 1000)  # Filter alignments < 1kb
+pileup_results <- aln_query_pileup(aln, intervals, "covered", max_alignment_length = 50000)  # Filter alignments > 50kb
+full_results <- aln_query_full(aln, intervals, "by_mutations", clip_mode_str = "complete")  # Only complete alignments
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
 
 # Save results
