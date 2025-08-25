@@ -255,6 +255,7 @@ DataFrame aln_query_bin(
   IntegerVector out_sequenced_bp;
   IntegerVector out_read_count;
   IntegerVector out_mutation_count;
+  NumericVector out_median_mutation_density;
   NumericVector out_seg_sites_density;
   NumericVector out_non_ref_sites_density;
   NumericVector out_seg_clip_density;
@@ -274,6 +275,7 @@ DataFrame aln_query_bin(
     out_sequenced_bp.push_back(row.sequenced_basepairs);
     out_read_count.push_back(row.read_count);
     out_mutation_count.push_back(row.mutation_count);
+    out_median_mutation_density.push_back(row.median_mutation_density);
     out_seg_sites_density.push_back(row.seg_sites_density);
     out_non_ref_sites_density.push_back(row.non_ref_sites_density);
     out_seg_clip_density.push_back(row.seg_clip_density);
@@ -294,6 +296,7 @@ DataFrame aln_query_bin(
       Named("sequenced_bp") = out_sequenced_bp,
       Named("read_count") = out_read_count,
       Named("mutation_count") = out_mutation_count,
+      Named("median_mutation_density") = out_median_mutation_density,
       Named("seg_sites_density") = out_seg_sites_density,
       Named("non_ref_sites_density") = out_non_ref_sites_density,
       Named("seg_clip_density") = out_seg_clip_density,

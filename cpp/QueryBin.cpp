@@ -3,6 +3,7 @@
 #include <cassert>
 #include <chrono>
 #include <fstream>
+#include <iomanip> // For std::setprecision
 #include <iostream>
 #include <map>
 #include <set>
@@ -298,6 +299,9 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
             } else {
               it->second.dist_1_plus++;  // above 1e-1 per bp
             }
+            
+            // collect mutation density for median calculation
+            it->second.mutation_densities.push_back(local_mutations_per_bp);
           }
         }
       }
@@ -485,8 +489,27 @@ void QueryBin::generate_output_rows()
     double seg_clip_density = static_cast<double>(segregating_clip_sites) / binsize;
     double non_ref_clip_density = static_cast<double>(non_ref_clip_sites) / binsize;
 
+    // calculate median mutation density
+    double median_mutation_density = 0.0;
+    if (!data.mutation_densities.empty()) {
+      std::vector<double> densities_copy = data.mutation_densities;
+      size_t n = densities_copy.size();
+      if (n % 2 == 0) {
+        // even number of values: average of middle two
+        std::nth_element(densities_copy.begin(), densities_copy.begin() + n/2 - 1, densities_copy.end());
+        double lower = densities_copy[n/2 - 1];
+        std::nth_element(densities_copy.begin(), densities_copy.begin() + n/2, densities_copy.end());
+        double upper = densities_copy[n/2];
+        median_mutation_density = (lower + upper) / 2.0;
+      } else {
+        // odd number of values: middle value
+        std::nth_element(densities_copy.begin(), densities_copy.begin() + n/2, densities_copy.end());
+        median_mutation_density = densities_copy[n/2];
+      }
+    }
+
     output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
-        data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), data.mutation_count, seg_sites_density, non_ref_sites_density,
+        data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), data.mutation_count, median_mutation_density, seg_sites_density, non_ref_sites_density,
         seg_clip_density, non_ref_clip_density,
         data.dist_none, data.dist_5, data.dist_4,
         data.dist_3, data.dist_2, data.dist_1_plus });
@@ -508,7 +531,7 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
 
   // Write header with columns
   ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
-      << "seg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
+      << "median_mutation_density\tseg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
       << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\n";
 
   for (const auto& row : output_rows) {
@@ -519,6 +542,7 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
         << row.sequenced_basepairs << "\t"
         << row.read_count << "\t"
         << row.mutation_count << "\t"
+        << std::fixed << std::setprecision(5) << row.median_mutation_density << "\t"
         << row.seg_sites_density << "\t"
         << row.non_ref_sites_density << "\t"
         << row.seg_clip_density << "\t"

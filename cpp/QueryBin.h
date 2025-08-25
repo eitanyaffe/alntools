@@ -25,6 +25,8 @@ struct BinData {
   int dist_3 = 0;            // 1e-3 to 1e-2 per bp (1000-10000 mutations per 100kb)
   int dist_2 = 0;            // 1e-2 to 1e-1 per bp (10000-100000 mutations per 100kb)
   int dist_1_plus = 0;       // above 1e-1 per bp (>100000 mutations per 100kb)
+  // mutation density values for median calculation
+  std::vector<double> mutation_densities; // collect local_mutations_per_bp for each alignment
 };
 
 // Data structure representing a single row in the bin output file
@@ -36,6 +38,7 @@ struct BinOutputRow {
   int sequenced_basepairs;
   int read_count; // number of unique reads
   int mutation_count;
+  double median_mutation_density; // median mutations per bp across alignments in bin
   double seg_sites_density; // segregating sites per bp
   double non_ref_sites_density; // non-reference sites per bp
   double seg_clip_density; // segregating clip sites per bp

@@ -1,5 +1,6 @@
 #include "QueryBin_gpu.h"
 #include <fstream>
+#include <iomanip> // For std::setprecision
 
 #ifdef METAL_SUPPORT
 #include "QueryBin_metal_bridge.h"
@@ -201,6 +202,41 @@ void QueryBinGPU::aggregate_data() {
                             auto it = bin_results.find({aln.contig_index, b_start});
                             if (it != bin_results.end()) {
                                 it->second.unique_reads.insert(aln.read_index);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // collect mutation densities for median calculation (cpu)
+            for (const Alignment* aln_ptr : filtered_alignments) {
+                const Alignment& aln = *aln_ptr;
+                uint32_t alignment_length = aln.contig_end - aln.contig_start;
+                double local_mutations_per_bp = (alignment_length > 0) ? 
+                    (static_cast<double>(aln.get_mutation_count()) / alignment_length) : 0.0;
+                
+                for (const auto& interval : intervals) {
+                    if (store.get_contig_index(interval.contig) != aln.contig_index) continue;
+                    if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) continue;
+                    uint32_t adjusted_start = (interval.start / static_cast<uint32_t>(binsize)) * static_cast<uint32_t>(binsize);
+                    if (interval.end == 0 || interval.start >= interval.end) continue;
+                    uint32_t last_bin_start = ((interval.end - 1) / static_cast<uint32_t>(binsize)) * static_cast<uint32_t>(binsize);
+                    
+                    // track which bins this alignment has already been processed for
+                    std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
+                    
+                    for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += static_cast<uint32_t>(binsize)) {
+                        uint32_t b_end = b_start + static_cast<uint32_t>(binsize);
+                        uint32_t effective_start = std::max({aln.contig_start, b_start, interval.start});
+                        uint32_t effective_end = std::min({aln.contig_end, b_end, interval.end});
+                        if (effective_end > effective_start) {
+                            std::pair<uint32_t, uint32_t> bin_key = {aln.contig_index, b_start};
+                            if (processed_bins_for_alignment.find(bin_key) == processed_bins_for_alignment.end()) {
+                                processed_bins_for_alignment.insert(bin_key);
+                                auto it = bin_results.find(bin_key);
+                                if (it != bin_results.end()) {
+                                    it->second.mutation_densities.push_back(local_mutations_per_bp);
+                                }
                             }
                         }
                     }
@@ -433,9 +469,28 @@ void QueryBinGPU::generate_output_rows() {
         double seg_clip_density = static_cast<double>(segregating_clip_sites) / binsize;
         double non_ref_clip_density = static_cast<double>(non_ref_clip_sites) / binsize;
 
+        // calculate median mutation density
+        double median_mutation_density = 0.0;
+        if (!data.mutation_densities.empty()) {
+            std::vector<double> densities_copy = data.mutation_densities;
+            size_t n = densities_copy.size();
+            if (n % 2 == 0) {
+                // even number of values: average of middle two
+                std::nth_element(densities_copy.begin(), densities_copy.begin() + n/2 - 1, densities_copy.end());
+                double lower = densities_copy[n/2 - 1];
+                std::nth_element(densities_copy.begin(), densities_copy.begin() + n/2, densities_copy.end());
+                double upper = densities_copy[n/2];
+                median_mutation_density = (lower + upper) / 2.0;
+            } else {
+                // odd number of values: middle value
+                std::nth_element(densities_copy.begin(), densities_copy.begin() + n/2, densities_copy.end());
+                median_mutation_density = densities_copy[n/2];
+            }
+        }
+
         output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
             data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), 
-            data.mutation_count, seg_sites_density, non_ref_sites_density,
+            data.mutation_count, median_mutation_density, seg_sites_density, non_ref_sites_density,
             seg_clip_density, non_ref_clip_density,
             data.dist_none, data.dist_5, data.dist_4,
             data.dist_3, data.dist_2, data.dist_1_plus });
@@ -459,7 +514,7 @@ void QueryBinGPU::write_to_csv(const std::string& ofn_prefix) {
 
     // write header
     ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
-        << "seg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
+        << "median_mutation_density\tseg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
         << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\n";
 
     for (const auto& row : output_rows) {
@@ -470,6 +525,7 @@ void QueryBinGPU::write_to_csv(const std::string& ofn_prefix) {
             << row.sequenced_basepairs << "\t"
             << row.read_count << "\t"
             << row.mutation_count << "\t"
+            << std::fixed << std::setprecision(5) << row.median_mutation_density << "\t"
             << row.seg_sites_density << "\t"
             << row.non_ref_sites_density << "\t"
             << row.seg_clip_density << "\t"
