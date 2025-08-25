@@ -45,6 +45,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 10.0)", 10.0), false);
   params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 0)", 0), false);
   params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
+  params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
   params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' mode (0 for auto)", 0), false);
 
   if (argc == 1) {
@@ -124,6 +125,7 @@ int query_main(const char* name, int argc, char** argv)
   double max_mutations_percent = params.get_double("max_mutations_percent");
   int min_alignment_length = params.get_int("min_alignment_length");
   int max_alignment_length = params.get_int("max_alignment_length");
+  int min_indel_length = params.get_int("min_indel_length");
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
@@ -150,6 +152,7 @@ int query_main(const char* name, int argc, char** argv)
   cout << "  max_mutations_percent: " << max_mutations_percent << endl;
   cout << "  min_alignment_length: " << min_alignment_length << endl;
   cout << "  max_alignment_length: " << max_alignment_length << endl;
+  cout << "  min_indel_length: " << min_indel_length << endl;
 
   vector<Interval> intervals;
   read_intervals(ifn_intervals, intervals);
@@ -157,6 +160,9 @@ int query_main(const char* name, int argc, char** argv)
 
   AlignmentStore store;
   store.load(ifn_aln);
+
+  // count short indels for filtering
+  store.count_short_indels(min_indel_length);
 
   if (mode == "full") {
     QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);

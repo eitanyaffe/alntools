@@ -157,6 +157,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 * `-max_mutations_percent <double>`: Maximum mutations percentage (default: `10.0`).
 * `-min_alignment_length <int>`: Minimum alignment length in read coordinates (default: `0`).
 * `-max_alignment_length <int>`: Maximum alignment length in read coordinates (default: `0`, no limit).
+* `-min_indel_length <int>`: Minimum indel length to include in mutation density calculations (default: `3`). Shorter indels are filtered out to reduce noise from sequencing artifacts.
 
 **Example of full query mode**
 
@@ -182,12 +183,13 @@ alntools query -ifn_aln output/test.aln \
 **Example with alignment filtering**
 
 ```bash
-# Filter alignments by length and mutation rate
+# Filter alignments by length and mutation rate, exclude short indels
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
    -ofn_prefix output/query_filtered -mode full \
    -min_alignment_length 1000 -max_alignment_length 50000 \
    -min_mutations_percent 0.1 -max_mutations_percent 5.0 \
+   -min_indel_length 5 \
    -clip_mode complete
 ```
 
@@ -364,7 +366,7 @@ intervals <- read.delim(interval_file)
 # Bin query with threading support and optional GPU acceleration
 bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0, 
                             clip_mode_str = "all", clip_margin = 10, min_mutations_percent = 0.0, max_mutations_percent = 10.0,
-                            min_alignment_length = 0, max_alignment_length = 0, use_gpu = FALSE)
+                            min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3, use_gpu = FALSE)
 
 # report_mode options: "all", "covered", "mutated"
 report_mode <- "all"
@@ -372,14 +374,14 @@ report_mode <- "all"
 # Pileup query
 pileup_results <- aln_query_pileup(aln, intervals, report_mode, clip_mode_str = "all", clip_margin = 10, 
                                   min_mutations_percent = 0.0, max_mutations_percent = 10.0,
-                                  min_alignment_length = 0, max_alignment_length = 0)
+                                  min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
 
 # height_style options: "by_coord_left", "by_coord_right", "by_mutations"
 height_style <- "by_coord_left"
 # Full query
 full_results <- aln_query_full(aln, intervals, height_style, max_alignments = 0, clip_mode_str = "all", clip_margin = 10,
                               min_mutations_percent = 0.0, max_mutations_percent = 10.0,
-                              min_alignment_length = 0, max_alignment_length = 0)
+                              min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
 # Returns a list with $alignments, $mutations, and $reads dataframes
 
 # Break position detection
@@ -416,9 +418,9 @@ intervals <- read.table(intervals_file, header = TRUE)
 
 # Run queries
 bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0,
-                            min_alignment_length = 1000)  # Filter alignments < 1kb
-pileup_results <- aln_query_pileup(aln, intervals, "covered", max_alignment_length = 50000)  # Filter alignments > 50kb
-full_results <- aln_query_full(aln, intervals, "by_mutations", clip_mode_str = "complete")  # Only complete alignments
+                            min_alignment_length = 1000, min_indel_length = 5)  # Filter alignments < 1kb, short indels < 5bp
+pileup_results <- aln_query_pileup(aln, intervals, "covered", max_alignment_length = 50000, min_indel_length = 3)  # Filter alignments > 50kb, short indels < 3bp
+full_results <- aln_query_full(aln, intervals, "by_mutations", clip_mode_str = "complete", min_indel_length = 3)  # Only complete alignments, filter short indels
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
 
 # Save results
