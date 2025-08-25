@@ -514,7 +514,7 @@ bool passes_alignment_filter(const Alignment& alignment,
   if (min_mutations_percent >= 0.0 || max_mutations_percent >= 0.0) {
     uint32_t alignment_length = alignment.contig_end - alignment.contig_start;
     if (alignment_length > 0) {
-      double actual_mutations_percent = (static_cast<double>(alignment.mutations.size()) / alignment_length) * 100.0;
+      double actual_mutations_percent = (static_cast<double>(alignment.get_mutation_count()) / alignment_length) * 100.0;
       
       // check minimum threshold
       if (min_mutations_percent >= 0.0 && actual_mutations_percent < min_mutations_percent) {
@@ -525,7 +525,7 @@ bool passes_alignment_filter(const Alignment& alignment,
       if (max_mutations_percent >= 0.0) {
         // special case: if max_mutations_percent is 0, only allow alignments with exactly 0 mutations
         if (max_mutations_percent == 0.0) {
-          if (alignment.mutations.size() > 0) {
+          if (alignment.get_mutation_count() > 0) {
             return false;
           }
         } else {

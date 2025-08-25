@@ -123,7 +123,7 @@ void QueryBinGPU::aggregate_data() {
             s.contig_index = aln_ptr->contig_index;
             s.contig_start = aln_ptr->contig_start;
             s.contig_end = aln_ptr->contig_end;
-            s.num_mutations = static_cast<uint32_t>(aln_ptr->mutations.size());
+            s.num_mutations = static_cast<uint32_t>(aln_ptr->get_mutation_count());
             actual_alignments.push_back(s);
         }
         

@@ -106,6 +106,8 @@ struct Alignment {
   bool is_reverse;
   // Indices into the global mutation store for the corresponding contig
   vector<uint32_t> mutations;
+  // count of short indels (not streamed to/from file)
+  int short_indel_count;
 
   Alignment(uint32_t read_idx = 0, uint32_t contig_idx = 0,
       uint32_t c_start = 0, uint32_t c_end = 0,
@@ -118,6 +120,7 @@ struct Alignment {
       , contig_start(c_start)
       , contig_end(c_end)
       , is_reverse(is_rev)
+      , short_indel_count(0)
   {
   }
 
@@ -131,6 +134,12 @@ struct Alignment {
   void clear_mutations()
   {
     mutations.clear();
+  }
+
+  // get effective mutation count (total mutations minus short indels)
+  int get_mutation_count() const
+  {
+    return static_cast<int>(mutations.size()) - short_indel_count;
   }
 };
 

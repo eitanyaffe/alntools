@@ -28,6 +28,7 @@ class AlignmentStore {
   unordered_map<size_t, vector<size_t>> alignment_index_by_contig_;
   uint32_t max_alignment_length_ = 0;
   bool loaded_ = false; // Flag to prevent additions after loading
+  int last_min_indel_length_ = -1; // cache for count_short_indels optimization
 
   public:
   // Add methods
@@ -96,4 +97,10 @@ class AlignmentStore {
 
   // find positions with excessive read start/end events
   std::vector<BreakPosition> find_break_positions(uint32_t window_size, double p_threshold, uint32_t min_reads = 1) const;
+
+  // count short indels in all alignments and update short_indel_count
+  void count_short_indels(int min_indel_length);
+
+  // check if a mutation is a short indel based on current cached min_indel_length
+  bool is_short_indel(uint32_t contig_idx, uint32_t mutation_idx) const;
 };

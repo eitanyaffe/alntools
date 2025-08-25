@@ -624,3 +624,41 @@ std::vector<AlignmentStore::BreakPosition> AlignmentStore::find_break_positions(
   
   return filtered_results;
 }
+
+void AlignmentStore::count_short_indels(int min_indel_length)
+{
+  // skip if already computed for this min_indel_length
+  if (last_min_indel_length_ == min_indel_length) {
+    return;
+  }
+
+  // traverse all alignments and count short indels
+  for (auto& alignment : alignments_) {
+    alignment.short_indel_count = 0;
+    
+    for (uint32_t mutation_index : alignment.mutations) {
+      const Mutation& mutation = get_mutation(alignment.contig_index, mutation_index);
+      
+      // check if mutation is a short indel
+      if ((mutation.type == MutationType::INSERTION || mutation.type == MutationType::DELETION) &&
+          static_cast<int>(mutation.nts.length()) < min_indel_length) {
+        alignment.short_indel_count++;
+      }
+    }
+  }
+
+  // cache the min_indel_length to avoid recomputation
+  last_min_indel_length_ = min_indel_length;
+}
+
+bool AlignmentStore::is_short_indel(uint32_t contig_idx, uint32_t mutation_idx) const
+{
+  if (last_min_indel_length_ == -1) {
+    // not computed yet, assume all indels are long
+    return false;
+  }
+
+  const Mutation& mutation = get_mutation(contig_idx, mutation_idx);
+  return (mutation.type == MutationType::INSERTION || mutation.type == MutationType::DELETION) &&
+         static_cast<int>(mutation.nts.length()) < last_min_indel_length_;
+}

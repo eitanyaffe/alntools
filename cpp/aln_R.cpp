@@ -136,7 +136,7 @@ DataFrame aln_alignments_from_read_ids(
       out_aln_contig_start.push_back(aln.contig_start);
       out_aln_contig_end.push_back(aln.contig_end);
       out_aln_is_reverse.push_back(aln.is_reverse);
-      out_aln_num_mutations.push_back(aln.mutations.size());
+      out_aln_num_mutations.push_back(aln.get_mutation_count());
     }
   }
 
@@ -202,6 +202,7 @@ DataFrame aln_query_bin(
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
     int max_alignment_length = 0,
+    int min_indel_length = 3,
     bool use_gpu = false)
 {
   // Validate the external pointer
@@ -210,7 +211,10 @@ DataFrame aln_query_bin(
   }
 
   // Get reference to the AlignmentStore object
-  const AlignmentStore& store = *store_ptr;
+  AlignmentStore& store = *store_ptr;
+
+  // count short indels before query
+  store.count_short_indels(min_indel_length);
 
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
@@ -318,7 +322,8 @@ DataFrame aln_query_pileup(
     double min_mutations_percent = 0.0,
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
-    int max_alignment_length = 0)
+    int max_alignment_length = 0,
+    int min_indel_length = 3)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -326,7 +331,10 @@ DataFrame aln_query_pileup(
   }
 
   // Get reference to the AlignmentStore object
-  const AlignmentStore& store = *store_ptr;
+  AlignmentStore& store = *store_ptr;
+
+  // count short indels before query
+  store.count_short_indels(min_indel_length);
 
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
@@ -387,7 +395,8 @@ List aln_query_full(
     double min_mutations_percent = 0.0,
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
-    int max_alignment_length = 0)
+    int max_alignment_length = 0,
+    int min_indel_length = 3)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -407,7 +416,10 @@ List aln_query_full(
   }
 
   // Get reference to the AlignmentStore object
-  const AlignmentStore& store = *store_ptr;
+  AlignmentStore& store = *store_ptr;
+
+  // count short indels before query
+  store.count_short_indels(min_indel_length);
 
   // Convert intervals
   std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);

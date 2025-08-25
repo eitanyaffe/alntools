@@ -128,7 +128,7 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   // calculate alignment length for mutation distance calculation
   uint32_t alignment_length = aln.contig_end - aln.contig_start;
   double local_mutations_per_bp = (alignment_length > 0) ? 
-    (static_cast<double>(aln.mutations.size()) / alignment_length) : 0.0;
+    (static_cast<double>(aln.get_mutation_count()) / alignment_length) : 0.0;
 
   // process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
   for (const auto& interval : intervals) {
@@ -171,6 +171,11 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
 
   // process mutations for this alignment only once
   for (uint32_t mutation_index : aln.mutations) {
+    // skip short indels
+    if (store.is_short_indel(aln.contig_index, mutation_index)) {
+      continue;
+    }
+
     // fetch the mutation object
     const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
     uint32_t mutation_contig_pos = mutation.position;
@@ -280,7 +285,7 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
           auto it = target_bin_results.find(bin_key);
           if (it != target_bin_results.end()) {
             // categorize alignment by mutation distance (per bp)
-            if (aln.mutations.size() == 0) {
+            if (aln.get_mutation_count() == 0) {
               it->second.dist_none++;
             } else if (local_mutations_per_bp < 1e-4) {
               it->second.dist_5++;  // 1e-5 to 1e-4 per bp
