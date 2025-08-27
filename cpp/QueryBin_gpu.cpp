@@ -170,6 +170,7 @@ void QueryBinGPU::aggregate_data() {
                 const Alignment& aln = *aln_ptr;
                 if (aln.mutations.empty()) continue;
                 for (uint32_t mut_idx : aln.mutations) {
+                    if (store.is_short_indel(aln.contig_index, mut_idx)) continue;
                     const Mutation& m = store.get_mutation(aln.contig_index, mut_idx);
                     uint32_t pos = m.position;
                     for (const auto& interval : intervals) {
@@ -247,6 +248,7 @@ void QueryBinGPU::aggregate_data() {
             for (const Alignment* aln_ptr : filtered_alignments) {
                 const Alignment& aln = *aln_ptr;
                 for (uint32_t mut_idx : aln.mutations) {
+                    if (store.is_short_indel(aln.contig_index, mut_idx)) continue;
                     const Mutation& m = store.get_mutation(aln.contig_index, mut_idx);
                     uint32_t pos = m.position;
                     for (const auto& interval : intervals) {
@@ -257,8 +259,8 @@ void QueryBinGPU::aggregate_data() {
                         if (it != bin_results.end()) {
                             std::string variant_key = std::to_string(pos) + "_" + std::to_string(static_cast<int>(m.type)) + "_" + m.nts;
                             it->second.variant_counts[variant_key]++;
+                            break;
                         }
-                        break;
                     }
                 }
             }
