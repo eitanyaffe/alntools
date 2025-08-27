@@ -216,7 +216,6 @@ DataFrame aln_query_bin(
   
   std::vector<BinOutputRow> results;
   
-  cout << "using CPU for bin query" << endl;
   QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
   queryBin.execute();
   results = queryBin.get_output_rows();
