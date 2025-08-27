@@ -42,7 +42,7 @@ void info_command(const string& aln_file)
 
 void info_params(const char* name, int argc, char** argv, Parameters& params)
 {
-  params.add_parser("ifn", new ParserFilename("input PAF file"), true);
+  params.add_parser("ifn", new ParserFilename("input ALN file"), true);
 
   if (argc == 1) {
     params.usage(name);
