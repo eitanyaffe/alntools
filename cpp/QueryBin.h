@@ -103,7 +103,7 @@ class QueryBin {
   // execute the query
   void execute();
   
-  // execute data aggregation (made public for GPU wrapper)
+  // execute data aggregation
   void aggregate_data();
 
   // write the output rows to a table

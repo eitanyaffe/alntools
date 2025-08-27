@@ -5,13 +5,6 @@
 #include <omp.h>
 #endif
 
-// GPU support includes
-#ifdef METAL_SUPPORT
-#include "QueryBin_gpu.h"
-// Include Metal implementation directly so symbols are present in this TU
-#include "QueryBin_metal.mm"
-#endif
-
 #include "QueryBin.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
@@ -185,7 +178,7 @@ XPtr<AlignmentStore> aln_load(std::string filepath)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// QueryBin functions - GPU enabled
+// QueryBin functions
 ////////////////////////////////////////////////////////////////////////////////
 
 // [[Rcpp::export]]
@@ -202,8 +195,7 @@ DataFrame aln_query_bin(
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
     int max_alignment_length = 0,
-    int min_indel_length = 3,
-    bool use_gpu = false)
+    int min_indel_length = 3)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -224,28 +216,10 @@ DataFrame aln_query_bin(
   
   std::vector<BinOutputRow> results;
   
-#ifdef METAL_SUPPORT
-  if (use_gpu) {
-    cout << "using GPU for bin query" << endl;
-    QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-    queryBin.execute();
-    results = queryBin.get_output_rows();
-  } else {
-    cout << "using CPU for bin query" << endl;
-    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-    queryBin.execute();
-    results = queryBin.get_output_rows();
-  }
-#else
-  if (use_gpu) {
-    cout << "GPU support not compiled, using CPU for bin query" << endl;
-  } else {
-    cout << "using CPU for bin query" << endl;
-  }
+  cout << "using CPU for bin query" << endl;
   QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
   queryBin.execute();
   results = queryBin.get_output_rows();
-#endif
 
   // Convert results to R DataFrame
   CharacterVector out_contig;

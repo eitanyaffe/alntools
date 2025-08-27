@@ -1,6 +1,5 @@
 #include "Params.h"
 #include "QueryBin.h"
-#include "QueryBin_gpu.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
 #include "alignment_store.h"
@@ -36,7 +35,6 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
   params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
   params.add_parser("non_ref_threshold", new ParserDouble("non-reference sites threshold for 'bin' mode", 0.9), false);
-  params.add_parser("use_gpu", new ParserBoolean("use gpu for 'bin' mode (T|F)", false), false);
   params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
   params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped)", "all"), false);
@@ -107,7 +105,6 @@ int query_main(const char* name, int argc, char** argv)
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
   double seg_threshold = params.get_double("seg_threshold");
   double non_ref_threshold = params.get_double("non_ref_threshold");
-  bool use_gpu = params.get_bool("use_gpu");
 
   // Get pileup mode string and convert to enum
   PileupReportMode pileup_mode = string_to_pileup_report_mode(params.get_string("pileup_mode"));
@@ -136,7 +133,6 @@ int query_main(const char* name, int argc, char** argv)
     cout << "  binsize: " << binsize << endl;
     cout << "  seg_threshold: " << seg_threshold << endl;
     cout << "  non_ref_threshold: " << non_ref_threshold << endl;
-    cout << "  use_gpu: " << (use_gpu ? "T" : "F") << endl;
   }
   if (mode == "pileup") {
     cout << "  pileup_mode: " << params.get_string("pileup_mode") << endl;
@@ -174,15 +170,9 @@ int query_main(const char* name, int argc, char** argv)
     queryPileup.write_to_csv(ofn_prefix);
   } else if (mode == "bin") {
     int num_threads = params.get_int("num_threads");
-    if (use_gpu) {
-      QueryBinGPU queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, /*num_threads*/ 0, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-      queryBin.execute();
-      queryBin.write_to_csv(ofn_prefix);
-    } else {
-      QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-      queryBin.execute();
-      queryBin.write_to_csv(ofn_prefix);
-    }
+    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+    queryBin.execute();
+    queryBin.write_to_csv(ofn_prefix);
   }
 
   return 0;
