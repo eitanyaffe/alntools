@@ -112,9 +112,83 @@ void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinD
       for (const auto& clip_entry : local_bin.clip_right_counts) {
         global_bin.clip_right_counts[clip_entry.first] += clip_entry.second;
       }
+      
+      // merge mutation_densities vector
+      global_bin.mutation_densities.insert(global_bin.mutation_densities.end(), 
+          local_bin.mutation_densities.begin(), local_bin.mutation_densities.end());
     } else {
       // create new bin entry
       bin_results[key] = local_bin;
+    }
+  }
+}
+
+void QueryBin::calc_position_coverage(std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results)
+{
+  // efficiently calculate coverage only for positions that need it
+  for (auto& entry : target_bin_results) {
+    uint32_t contig_index = entry.first.first;
+    uint32_t b_start = entry.first.second;
+    BinData& data = entry.second;
+    
+    // collect positions that need coverage calculation
+    std::vector<uint32_t> positions;
+    positions.reserve(data.variant_counts.size() + data.clip_left_counts.size() + data.clip_right_counts.size());
+    
+    // add variant positions
+    for (const auto& variant_entry : data.variant_counts) {
+      const std::string& key = variant_entry.first;
+      size_t underscore_pos = key.find('_');
+      if (underscore_pos == std::string::npos) continue;
+      uint32_t pos = static_cast<uint32_t>(std::stoul(key.substr(0, underscore_pos)));
+      positions.push_back(pos);
+    }
+    
+    // add clip positions
+    for (const auto& clip_entry : data.clip_left_counts) {
+      uint32_t pos = static_cast<uint32_t>(std::stoul(clip_entry.first));
+      positions.push_back(pos);
+    }
+    for (const auto& clip_entry : data.clip_right_counts) {
+      uint32_t pos = static_cast<uint32_t>(std::stoul(clip_entry.first));
+      positions.push_back(pos);
+    }
+    
+    if (positions.empty()) continue;
+    
+    // sort and remove duplicates
+    std::sort(positions.begin(), positions.end());
+    positions.erase(std::unique(positions.begin(), positions.end()), positions.end());
+    
+    // query alignments overlapping this bin interval
+    std::string contig_id = store.get_contig_id(contig_index);
+    Interval bin_interval(contig_id, b_start, b_start + static_cast<uint32_t>(binsize));
+    auto alignment_refs = store.get_alignments_in_interval(bin_interval);
+    
+    // reset coverage map for this bin
+    data.position_coverage.clear();
+    
+    // calculate coverage only for needed positions
+    for (const auto& alignment_ref : alignment_refs) {
+      const Alignment& aln = alignment_ref.get();
+      
+      // apply alignment filtering
+      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+        continue;
+      }
+      
+      if (aln.contig_index != contig_index) continue;
+      
+      uint32_t effective_start = std::max(aln.contig_start, b_start);
+      uint32_t effective_end = std::min(aln.contig_end, b_start + static_cast<uint32_t>(binsize));
+      
+      if (effective_end <= effective_start) continue;
+      
+      // positions are sorted; accumulate coverage only within overlap
+      auto position_iter = std::lower_bound(positions.begin(), positions.end(), effective_start);
+      for (; position_iter != positions.end() && *position_iter < effective_end; ++position_iter) {
+        data.position_coverage[std::to_string(*position_iter)]++;
+      }
     }
   }
 }
@@ -136,7 +210,7 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     if (aln.contig_index != store.get_contig_index(interval.contig)) {
       continue;
     }
-
+    
     // skip if alignment doesn't overlap this interval
     if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
       continue;
@@ -160,11 +234,6 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
         if (it != target_bin_results.end()) {
           it->second.sequenced_basepairs += overlap_length;
           it->second.unique_reads.insert(aln.read_index); // track unique reads
-          
-          // track coverage for segregating sites calculation
-          for (uint32_t pos = effective_start; pos < effective_end; pos++) {
-            it->second.position_coverage[std::to_string(pos)]++;
-          }
         }
       }
     }
@@ -371,6 +440,9 @@ void QueryBin::aggregate_data()
       process_single_alignment(*aln_ptr, local_bin_results);
     }
     
+    // calculate position coverage efficiently for this thread's results
+    calc_position_coverage(local_bin_results);
+    
     // merge local results into global bin_results
     #pragma omp critical
     {
@@ -382,6 +454,9 @@ void QueryBin::aggregate_data()
   for (const Alignment* aln_ptr : processed_alignments) {
     process_single_alignment(*aln_ptr, bin_results);
   }
+  
+  // calculate position coverage efficiently for sequential processing
+  calc_position_coverage(bin_results);
 #endif
 
   // End timing and report

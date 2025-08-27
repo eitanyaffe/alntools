@@ -79,6 +79,9 @@ class QueryBin {
   // merge thread-local BinData into global bin_results
   void merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinData>& local_data);
 
+  // efficiently calculate position coverage only for positions with variants/clips
+  void calc_position_coverage(std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results);
+
   // generate the output rows
   void generate_output_rows();
 
