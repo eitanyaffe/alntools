@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string>
 #include <vector>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 int construct_main(const char* name, int argc, char** argv);
 int info_main(const char* name, int argc, char** argv);
@@ -33,6 +36,12 @@ void usage(const char* name)
   fprintf(stderr, "  query: query ALN file\n");
   fprintf(stderr, "  coverage: generate read and contig alignment coverage statistics\n");
   fprintf(stderr, "  breaks: find positions with excessive read start/end events\n");
+  fprintf(stderr, "\n");
+#ifdef _OPENMP
+  fprintf(stderr, "thread support: enabled (OpenMP available, max threads: %d)\n", omp_get_max_threads());
+#else
+  fprintf(stderr, "thread support: disabled (compiled without OpenMP)\n");
+#endif
 }
 
 int main(int argc, char** argv)

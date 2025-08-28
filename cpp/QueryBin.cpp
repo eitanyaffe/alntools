@@ -2,6 +2,7 @@
 #include <algorithm> // For std::min/max
 #include <cassert>
 #include <chrono>
+#include <cmath> // For std::isfinite
 #include <fstream>
 #include <iomanip> // For std::setprecision
 #include <iostream>
@@ -207,6 +208,10 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
 
   // process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
   for (const auto& interval : intervals) {
+    // skip if contig doesn't exist
+    if (!store.has_contig_id(interval.contig)) {
+      continue;
+    }
     if (aln.contig_index != store.get_contig_index(interval.contig)) {
       continue;
     }
@@ -253,6 +258,10 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
 
     // check if this mutation falls within any of our intervals
     for (const auto& interval : intervals) {
+      // skip if contig doesn't exist
+      if (!store.has_contig_id(interval.contig)) {
+        continue;
+      }
       if (aln.contig_index != store.get_contig_index(interval.contig)) {
         continue;
       }
@@ -285,6 +294,10 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     uint32_t clip_bin_start = (clip_contig_pos / binsize) * binsize;
     
     for (const auto& interval : intervals) {
+      // skip if contig doesn't exist
+      if (!store.has_contig_id(interval.contig)) {
+        continue;
+      }
       if (aln.contig_index != store.get_contig_index(interval.contig)) {
         continue;
       }
@@ -306,6 +319,10 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     uint32_t clip_bin_start = (clip_contig_pos / binsize) * binsize;
     
     for (const auto& interval : intervals) {
+      // skip if contig doesn't exist
+      if (!store.has_contig_id(interval.contig)) {
+        continue;
+      }
       if (aln.contig_index != store.get_contig_index(interval.contig)) {
         continue;
       }
@@ -324,6 +341,10 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   // categorize this alignment by mutation rate for all bins it overlaps
   std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
   for (const auto& interval : intervals) {
+    // skip if contig doesn't exist
+    if (!store.has_contig_id(interval.contig)) {
+      continue;
+    }
     if (aln.contig_index != store.get_contig_index(interval.contig)) {
       continue;
     }
@@ -382,8 +403,19 @@ void QueryBin::aggregate_data()
 {
   bin_results.clear();
 
+  // count intervals with and without contigs
+  int intervals_with_contigs = 0;
+  int intervals_without_contigs = 0;
+
   // First pass: initialize all relevant bins across all intervals
   for (const auto& interval : intervals) {
+    // check if contig exists, skip if not found
+    if (!store.has_contig_id(interval.contig)) {
+      intervals_without_contigs++;
+      continue;
+    }
+    intervals_with_contigs++;
+    
     uint32_t contig_index = store.get_contig_index(interval.contig);
 
     // Calculate relevant bin range based on original interval
@@ -399,10 +431,19 @@ void QueryBin::aggregate_data()
     }
   }
 
+  // report interval summary
+  cout << "intervals summary: " << intervals_with_contigs << " with alignments, " 
+       << intervals_without_contigs << " without alignments" << endl;
+
   // Collect all unique alignments across all intervals
   std::set<const Alignment*> processed_alignments_set;
   
   for (const auto& interval : intervals) {
+    // skip if contig doesn't exist
+    if (!store.has_contig_id(interval.contig)) {
+      continue;
+    }
+    
     // Get alignments overlapping this interval
     std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
     
@@ -418,6 +459,10 @@ void QueryBin::aggregate_data()
   // Start timing
   auto start_time = std::chrono::high_resolution_clock::now();
 
+  // Calculate progress reporting thresholds (every 10%)
+  size_t total_alignments = processed_alignments.size();
+  size_t progress_step = std::max(static_cast<size_t>(1), total_alignments / 10);
+  
   // Second pass: process each alignment only once (parallelized)
 #ifdef _OPENMP
   #pragma omp parallel
@@ -438,6 +483,12 @@ void QueryBin::aggregate_data()
     for (size_t i = 0; i < processed_alignments.size(); ++i) {
       const Alignment* aln_ptr = processed_alignments[i];
       process_single_alignment(*aln_ptr, local_bin_results);
+      
+      // Progress reporting (only from thread 0 to avoid duplicates)
+      if (omp_get_thread_num() == 0 && (i + 1) % progress_step == 0) {
+        double progress = 100.0 * (i + 1) / total_alignments;
+        cout << "progress: " << std::fixed << std::setprecision(0) << progress << "% (" << (i + 1) << "/" << total_alignments << " alignments)" << endl;
+      }
     }
     
     // calculate position coverage efficiently for this thread's results
@@ -451,8 +502,15 @@ void QueryBin::aggregate_data()
   }
 #else
   cout << "processing " << processed_alignments.size() << " alignments sequentially" << endl;
-  for (const Alignment* aln_ptr : processed_alignments) {
+  for (size_t i = 0; i < processed_alignments.size(); ++i) {
+    const Alignment* aln_ptr = processed_alignments[i];
     process_single_alignment(*aln_ptr, bin_results);
+    
+    // Progress reporting every 10%
+    if ((i + 1) % progress_step == 0) {
+      double progress = 100.0 * (i + 1) / total_alignments;
+      cout << "progress: " << std::fixed << std::setprecision(0) << progress << "% (" << (i + 1) << "/" << total_alignments << " alignments)" << endl;
+    }
   }
   
   // calculate position coverage efficiently for sequential processing
@@ -469,6 +527,7 @@ void QueryBin::generate_output_rows()
 {
   output_rows.clear();
 
+  // first, generate output for existing bins that have data
   for (const auto& entry : bin_results) {
     const auto& key = entry.first;
     const auto& data = entry.second;
@@ -588,6 +647,29 @@ void QueryBin::generate_output_rows()
         seg_clip_density, non_ref_clip_density,
         data.dist_none, data.dist_5, data.dist_4,
         data.dist_3, data.dist_2, data.dist_1_plus });
+  }
+  
+  // now generate zero-filled output for missing contigs
+  for (const auto& interval : intervals) {
+    if (!store.has_contig_id(interval.contig)) {
+      // calculate bin range for missing contig
+      uint32_t adjusted_start = (interval.start / binsize) * binsize;
+      if (interval.end == 0 || interval.start >= interval.end)
+        continue;
+      uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+      
+      // create zero-filled bins for this missing contig
+      for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
+        uint32_t b_end = b_start + binsize;
+        int bin_length = binsize;
+        
+        output_rows.push_back({ interval.contig, b_start, b_end, bin_length,
+            0, 0, 0, 0.0, 0.0, 0.0,
+            0.0, 0.0,
+            0, 0, 0,
+            0, 0, 0 });
+      }
+    }
   }
 }
 
