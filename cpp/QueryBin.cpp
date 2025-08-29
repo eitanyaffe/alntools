@@ -491,15 +491,15 @@ void QueryBin::aggregate_data()
       }
     }
     
-    // calculate position coverage efficiently for this thread's results
-    calc_position_coverage(local_bin_results);
-    
-    // merge local results into global bin_results
+    // merge local results into global bin_results (without coverage calculation)
     #pragma omp critical
     {
       merge_bin_data(local_bin_results);
     }
   }
+  
+  // calculate position coverage once after all threads are merged
+  calc_position_coverage(bin_results);
 #else
   cout << "processing " << processed_alignments.size() << " alignments sequentially" << endl;
   for (size_t i = 0; i < processed_alignments.size(); ++i) {
@@ -553,14 +553,15 @@ void QueryBin::generate_output_rows()
         auto cov_it = data.position_coverage.find(std::to_string(position));
         if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
           double frequency = static_cast<double>(variant_entry.second) / cov_it->second;
-          
+
+
           // check if segregating
           double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
           double max_freq = (seg_threshold == 0.0) ? 1.0 : (1.0 - seg_threshold);
           if (frequency > min_freq && frequency < max_freq) {
             segregating_sites++;
           }
-          
+     
           // check if non-reference (high frequency)
           if (frequency >= non_ref_threshold) {
             non_ref_sites++;
