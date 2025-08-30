@@ -70,8 +70,11 @@ class QueryBin {
   std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
   // Vector to store the formatted output rows before writing
   std::vector<BinOutputRow> output_rows;
+  // Map from contig_index to intervals for efficient lookup
+  std::map<uint32_t, std::vector<const Interval*>> contig_to_intervals_map;
 
-
+  // build contig to intervals mapping for efficient lookup
+  void build_contig_to_intervals_map();
 
   // process a single alignment into bin results (thread-safe)
   void process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results);

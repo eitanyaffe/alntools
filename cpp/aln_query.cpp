@@ -152,7 +152,7 @@ int query_main(const char* name, int argc, char** argv)
 
   vector<Interval> intervals;
   read_intervals(ifn_intervals, intervals);
-  cout << "read " << intervals.size() << " intervals from " << ifn_intervals << endl;
+  cout << "found " << intervals.size() << " intervals in " << ifn_intervals << endl;
 
   AlignmentStore store;
   store.load(ifn_aln);
@@ -160,6 +160,8 @@ int query_main(const char* name, int argc, char** argv)
   // count short indels for filtering
   store.count_short_indels(min_indel_length);
 
+  cout << "executing mode: " << mode << endl;
+  
   if (mode == "full") {
     QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryFull.execute();

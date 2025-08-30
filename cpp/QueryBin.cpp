@@ -70,6 +70,23 @@ QueryBin::QueryBin(
 #endif
 }
 
+void QueryBin::build_contig_to_intervals_map()
+{
+  contig_to_intervals_map.clear();
+  
+  for (const auto& interval : intervals) {
+    // skip intervals for contigs that don't exist in the store
+    if (!store.has_contig_id(interval.contig)) {
+      continue;
+    }
+    
+    uint32_t contig_index = store.get_contig_index(interval.contig);
+    contig_to_intervals_map[contig_index].push_back(&interval);
+  }
+  
+  cout << "built contig to intervals map for " << contig_to_intervals_map.size() << " contigs" << endl;
+}
+
 void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinData>& local_data)
 {
   for (const auto& entry : local_data) {
@@ -206,31 +223,32 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   double local_mutations_per_bp = (alignment_length > 0) ? 
     (static_cast<double>(aln.get_mutation_count()) / alignment_length) : 0.0;
 
-  // process sequenced basepairs and mutation rate categories for this alignment across all relevant intervals
-  for (const auto& interval : intervals) {
-    // skip if contig doesn't exist
-    if (!store.has_contig_id(interval.contig)) {
-      continue;
-    }
-    if (aln.contig_index != store.get_contig_index(interval.contig)) {
-      continue;
-    }
-    
+  // get intervals for this alignment's contig only
+  auto contig_intervals_it = contig_to_intervals_map.find(aln.contig_index);
+  if (contig_intervals_it == contig_to_intervals_map.end()) {
+    // no intervals for this contig, nothing to process
+    return;
+  }
+  
+  const std::vector<const Interval*>& relevant_intervals = contig_intervals_it->second;
+
+  // process sequenced basepairs and mutation rate categories for this alignment across relevant intervals
+  for (const Interval* interval : relevant_intervals) {
     // skip if alignment doesn't overlap this interval
-    if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
+    if (aln.contig_end <= interval->start || aln.contig_start >= interval->end) {
       continue;
     }
 
-    uint32_t adjusted_start = (interval.start / binsize) * binsize;
-    uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+    uint32_t adjusted_start = (interval->start / binsize) * binsize;
+    uint32_t last_bin_start = ((interval->end - 1) / binsize) * binsize;
 
     // check overlap with each bin in this interval
     for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
       uint32_t b_end = b_start + binsize;
 
       // calculate overlap considering alignment, bin, AND original interval boundaries
-      uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
-      uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
+      uint32_t effective_start = std::max({ aln.contig_start, b_start, interval->start });
+      uint32_t effective_end = std::min({ aln.contig_end, b_end, interval->end });
 
       int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
 
@@ -256,18 +274,10 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     uint32_t mutation_contig_pos = mutation.position;
     uint32_t mutation_bin_start = (mutation_contig_pos / binsize) * binsize;
 
-    // check if this mutation falls within any of our intervals
-    for (const auto& interval : intervals) {
-      // skip if contig doesn't exist
-      if (!store.has_contig_id(interval.contig)) {
-        continue;
-      }
-      if (aln.contig_index != store.get_contig_index(interval.contig)) {
-        continue;
-      }
-
+    // check if this mutation falls within any of our relevant intervals
+    for (const Interval* interval : relevant_intervals) {
       // check if mutation is within this interval
-      if (mutation_contig_pos >= interval.start && mutation_contig_pos < interval.end) {
+      if (mutation_contig_pos >= interval->start && mutation_contig_pos < interval->end) {
         auto it = target_bin_results.find({ aln.contig_index, mutation_bin_start });
         if (it != target_bin_results.end()) {
           it->second.mutation_count++;
@@ -293,17 +303,9 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     uint32_t clip_contig_pos = aln.contig_start;
     uint32_t clip_bin_start = (clip_contig_pos / binsize) * binsize;
     
-    for (const auto& interval : intervals) {
-      // skip if contig doesn't exist
-      if (!store.has_contig_id(interval.contig)) {
-        continue;
-      }
-      if (aln.contig_index != store.get_contig_index(interval.contig)) {
-        continue;
-      }
-      
+    for (const Interval* interval : relevant_intervals) {
       // check if clip position is within this interval
-      if (clip_contig_pos >= interval.start && clip_contig_pos < interval.end) {
+      if (clip_contig_pos >= interval->start && clip_contig_pos < interval->end) {
         auto it = target_bin_results.find({ aln.contig_index, clip_bin_start });
         if (it != target_bin_results.end()) {
           it->second.clip_left_counts[std::to_string(clip_contig_pos)]++;
@@ -318,17 +320,9 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     uint32_t clip_contig_pos = aln.contig_end;
     uint32_t clip_bin_start = (clip_contig_pos / binsize) * binsize;
     
-    for (const auto& interval : intervals) {
-      // skip if contig doesn't exist
-      if (!store.has_contig_id(interval.contig)) {
-        continue;
-      }
-      if (aln.contig_index != store.get_contig_index(interval.contig)) {
-        continue;
-      }
-      
+    for (const Interval* interval : relevant_intervals) {
       // check if clip position is within this interval
-      if (clip_contig_pos >= interval.start && clip_contig_pos < interval.end) {
+      if (clip_contig_pos >= interval->start && clip_contig_pos < interval->end) {
         auto it = target_bin_results.find({ aln.contig_index, clip_bin_start });
         if (it != target_bin_results.end()) {
           it->second.clip_right_counts[std::to_string(clip_contig_pos)]++;
@@ -340,30 +334,22 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
 
   // categorize this alignment by mutation rate for all bins it overlaps
   std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
-  for (const auto& interval : intervals) {
-    // skip if contig doesn't exist
-    if (!store.has_contig_id(interval.contig)) {
-      continue;
-    }
-    if (aln.contig_index != store.get_contig_index(interval.contig)) {
-      continue;
-    }
-
+  for (const Interval* interval : relevant_intervals) {
     // skip if alignment doesn't overlap this interval
-    if (aln.contig_end <= interval.start || aln.contig_start >= interval.end) {
+    if (aln.contig_end <= interval->start || aln.contig_start >= interval->end) {
       continue;
     }
 
-    uint32_t adjusted_start = (interval.start / binsize) * binsize;
-    uint32_t last_bin_start = ((interval.end - 1) / binsize) * binsize;
+    uint32_t adjusted_start = (interval->start / binsize) * binsize;
+    uint32_t last_bin_start = ((interval->end - 1) / binsize) * binsize;
 
     // check overlap with each bin in this interval
     for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
       uint32_t b_end = b_start + binsize;
 
       // calculate overlap considering alignment, bin, AND original interval boundaries
-      uint32_t effective_start = std::max({ aln.contig_start, b_start, interval.start });
-      uint32_t effective_end = std::min({ aln.contig_end, b_end, interval.end });
+      uint32_t effective_start = std::max({ aln.contig_start, b_start, interval->start });
+      uint32_t effective_end = std::min({ aln.contig_end, b_end, interval->end });
 
       int overlap_length = (effective_end > effective_start) ? (effective_end - effective_start) : 0;
 
@@ -402,12 +388,16 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
 void QueryBin::aggregate_data()
 {
   bin_results.clear();
+  
+  // build the contig to intervals mapping first
+  build_contig_to_intervals_map();
 
   // count intervals with and without contigs
   int intervals_with_contigs = 0;
   int intervals_without_contigs = 0;
 
   // First pass: initialize all relevant bins across all intervals
+  cout << "first pass: initializing all relevant bins across all intervals" << endl;
   for (const auto& interval : intervals) {
     // check if contig exists, skip if not found
     if (!store.has_contig_id(interval.contig)) {
@@ -461,7 +451,7 @@ void QueryBin::aggregate_data()
 
   // Calculate progress reporting thresholds (every 10%)
   size_t total_alignments = processed_alignments.size();
-  size_t progress_step = std::max(static_cast<size_t>(1), total_alignments / 10);
+  size_t progress_step = std::max(static_cast<size_t>(1), total_alignments / 10 / num_threads);
   
   // Second pass: process each alignment only once (parallelized)
 #ifdef _OPENMP
@@ -479,15 +469,19 @@ void QueryBin::aggregate_data()
       local_bin_results[entry.first] = BinData();
     }
     
+    size_t thread0_counter = 0;
     #pragma omp for
     for (size_t i = 0; i < processed_alignments.size(); ++i) {
       const Alignment* aln_ptr = processed_alignments[i];
       process_single_alignment(*aln_ptr, local_bin_results);
       
-      // Progress reporting (only from thread 0 to avoid duplicates)
-      if (omp_get_thread_num() == 0 && (i + 1) % progress_step == 0) {
-        double progress = 100.0 * (i + 1) / total_alignments;
-        cout << "progress: " << std::fixed << std::setprecision(0) << progress << "% (" << (i + 1) << "/" << total_alignments << " alignments)" << endl;
+      // estimated progress reporting (only from thread 0)
+      if (omp_get_thread_num() == 0) {
+        ++thread0_counter;
+        if (thread0_counter % progress_step == 0) {
+          double estimated_progress = 100.0 * thread0_counter * omp_get_num_threads() / total_alignments;
+          cout << "progress: " << std::fixed << std::setprecision(0) << estimated_progress << "%" << endl;
+        }
       }
     }
     
@@ -499,6 +493,7 @@ void QueryBin::aggregate_data()
   }
   
   // calculate position coverage once after all threads are merged
+  cout << "calculating position coverage" << endl;
   calc_position_coverage(bin_results);
 #else
   cout << "processing " << processed_alignments.size() << " alignments sequentially" << endl;
@@ -514,6 +509,7 @@ void QueryBin::aggregate_data()
   }
   
   // calculate position coverage efficiently for sequential processing
+  cout << "calculating position coverage" << endl;
   calc_position_coverage(bin_results);
 #endif
 
