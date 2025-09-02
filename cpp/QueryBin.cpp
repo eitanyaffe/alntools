@@ -479,8 +479,8 @@ void QueryBin::aggregate_data()
       if (omp_get_thread_num() == 0) {
         ++thread0_counter;
         if (thread0_counter % progress_step == 0) {
-          double estimated_progress = 100.0 * thread0_counter * omp_get_num_threads() / total_alignments;
-          cout << "progress: " << std::fixed << std::setprecision(0) << estimated_progress << "%" << endl;
+          double estimated_progress = static_cast<double>(thread0_counter * omp_get_num_threads()) / total_alignments;
+          cout << "progress: " << std::fixed << std::setprecision(1) << estimated_progress << " done" << endl;
         }
       }
     }
@@ -549,7 +549,6 @@ void QueryBin::generate_output_rows()
         auto cov_it = data.position_coverage.find(std::to_string(position));
         if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
           double frequency = static_cast<double>(variant_entry.second) / cov_it->second;
-
 
           // check if segregating
           double min_freq = (seg_threshold == 0.0) ? 0.0 : seg_threshold;
