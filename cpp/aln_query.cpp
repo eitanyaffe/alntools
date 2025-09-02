@@ -47,6 +47,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
   params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' and 'consensus' modes (0 for auto)", 0), false);
   params.add_parser("consensus_threshold", new ParserDouble("consensus threshold for 'consensus' mode (default 0.9)", 0.9), false);
+  params.add_parser("min_consensus_coverage", new ParserInteger("minimum coverage for 'consensus' mode (default 5)", 5), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -86,8 +87,9 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
     // validate clip_mode parameter
     string clip_mode_str = params.get_string("clip_mode");
     if (clip_mode_str != "all" && clip_mode_str != "complete" && clip_mode_str != "allow_one_side_clip" && 
-        clip_mode_str != "only_one_side_clipped" && clip_mode_str != "only_two_side_clipped" && clip_mode_str != "only_clipped") {
-      cerr << "error: invalid clip_mode specified: " << clip_mode_str << ". Must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', 'only_two_side_clipped', or 'only_clipped'." << endl;
+        clip_mode_str != "only_one_side_clipped" && clip_mode_str != "only_two_side_clipped" && 
+        clip_mode_str != "only_clipped" && clip_mode_str != "local_align") {
+      cerr << "error: invalid clip_mode specified: " << clip_mode_str << ". Must be 'all', 'complete', 'allow_one_side_clip', 'only_one_side_clipped', 'only_two_side_clipped', 'only_clipped', or 'local_align'." << endl;
       exit(1);
     }
   }
@@ -108,6 +110,7 @@ int query_main(const char* name, int argc, char** argv)
   double seg_threshold = params.get_double("seg_threshold");
   double non_ref_threshold = params.get_double("non_ref_threshold");
   double consensus_threshold = params.get_double("consensus_threshold");
+  int min_consensus_coverage = params.get_int("min_consensus_coverage");
 
   // Get pileup mode string and convert to enum
   PileupReportMode pileup_mode = string_to_pileup_report_mode(params.get_string("pileup_mode"));
@@ -139,6 +142,7 @@ int query_main(const char* name, int argc, char** argv)
   }
   if (mode == "consensus") {
     cout << "  consensus_threshold: " << consensus_threshold << endl;
+    cout << "  min_consensus_coverage: " << min_consensus_coverage << endl;
   }
   if (mode == "pileup") {
     cout << "  pileup_mode: " << params.get_string("pileup_mode") << endl;
@@ -183,7 +187,7 @@ int query_main(const char* name, int argc, char** argv)
     queryBin.write_to_csv(ofn_prefix);
   } else if (mode == "consensus") {
     int num_threads = params.get_int("num_threads");
-    QueryConsensus queryConsensus(intervals, store, consensus_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+    QueryConsensus queryConsensus(intervals, store, consensus_threshold, min_consensus_coverage, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryConsensus.execute();
     queryConsensus.write_to_csv(ofn_prefix);
   }

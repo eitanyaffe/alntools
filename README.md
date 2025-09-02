@@ -135,6 +135,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 * `-seg_threshold <double>`: For bin mode, threshold for segregating sites detection (default: `0.2`). Variants with frequency between this value and (1 - this value) are considered segregating.
 * `-non_ref_threshold <double>`: For bin mode, threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
 * `-consensus_threshold <double>`: For consensus mode, frequency threshold for reporting variants (default: `0.9`). Only variants with frequency ≥ this value are reported.
+* `-min_consensus_coverage <int>`: For consensus mode, minimum coverage required for reporting variants (default: `5`). Only variants with coverage ≥ this value are considered.
 * `-height_style <string>`: For full mode, how to calculate read height:
   - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
@@ -148,6 +149,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `only_one_side_clipped`: Only alignments clipped on exactly one side.
   - `only_two_side_clipped`: Only alignments clipped on both sides.
   - `only_clipped`: Only alignments clipped on one or both sides.
+  - `local_align`: Only locally aligned reads (alignments that are part of reads that aligned on both sides to the current contig).
 * `-clip_margin <int>`: Margin in bases for clipping detection (default: `10`).
 * `-min_mutations_percent <double>`: Minimum mutations percentage (default: `0.0`).
 * `-max_mutations_percent <double>`: Maximum mutations percentage (default: `10.0`).
@@ -212,14 +214,14 @@ alntools query -ifn_aln output/test.aln \
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
    -ofn_prefix output/query -mode consensus \
-   -consensus_threshold 0.9 -num_threads 4
+   -consensus_threshold 0.9 -min_consensus_coverage 5 -num_threads 4
 ```
 
 This produces a single output file:
 - `output/query_consensus.tsv`: High-frequency variant calls including:
   - Basic variant information: `contig`, `position`, `variant_type`, `variant_desc`
   - Support statistics: `count` (supporting reads), `coverage` (total reads), `frequency` (count/coverage)
-  - Only variants with frequency ≥ consensus_threshold are reported
+  - Only variants with frequency ≥ consensus_threshold AND coverage ≥ min_consensus_coverage are reported
   - Variant types: `SUB` (substitutions like A:G), `INS` (insertions like +ATG), `DEL` (deletions like -CC)
 
 ### 4. coverage
@@ -358,8 +360,8 @@ pileup_results <- aln_query_pileup(aln, intervals, report_mode, clip_mode_str = 
                                   min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
 
 # Consensus query
-consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0.9, num_threads = 0, clip_mode_str = "all", 
-                                        clip_margin = 10, min_mutations_percent = 0.0, max_mutations_percent = 10.0,
+consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0.9, min_consensus_coverage = 5, num_threads = 0, 
+                                        clip_mode_str = "all", clip_margin = 10, min_mutations_percent = 0.0, max_mutations_percent = 10.0,
                                         min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
 
 # height_style options: "by_coord_left", "by_coord_right", "by_mutations"
@@ -406,7 +408,7 @@ intervals <- read.table(intervals_file, header = TRUE)
 bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0,
                             min_alignment_length = 1000, min_indel_length = 5)  # Filter alignments < 1kb, short indels < 5bp
 pileup_results <- aln_query_pileup(aln, intervals, "covered", max_alignment_length = 50000, min_indel_length = 3)  # Filter alignments > 50kb, short indels < 3bp
-consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0.8, num_threads = 4, min_indel_length = 3)  # High-frequency variants ≥80%
+consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0.8, min_consensus_coverage = 10, num_threads = 4, min_indel_length = 3)  # High-frequency variants ≥80% with ≥10x coverage
 full_results <- aln_query_full(aln, intervals, "by_mutations", clip_mode_str = "complete", min_indel_length = 3)  # Only complete alignments, filter short indels
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
 

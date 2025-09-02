@@ -294,6 +294,7 @@ DataFrame aln_query_consensus(
     XPtr<AlignmentStore> store_ptr,
     DataFrame intervals_df,
     double consensus_threshold = 0.9,
+    int min_consensus_coverage = 5,
     int num_threads = 0,
     std::string clip_mode_str = "all",
     int clip_margin = 10,
@@ -322,7 +323,7 @@ DataFrame aln_query_consensus(
   
   std::vector<ConsensusOutputRow> results;
   
-  QueryConsensus queryConsensus(intervals, store, consensus_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+  QueryConsensus queryConsensus(intervals, store, consensus_threshold, min_consensus_coverage, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
   queryConsensus.execute();
   results = queryConsensus.get_output_rows();
 

@@ -662,3 +662,85 @@ bool AlignmentStore::is_short_indel(uint32_t contig_idx, uint32_t mutation_idx) 
   return (mutation.type == MutationType::INSERTION || mutation.type == MutationType::DELETION) &&
          static_cast<int>(mutation.nts.length()) < last_min_indel_length_;
 }
+
+void AlignmentStore::init_read_alignment_index()
+{
+  if (read_alignment_index_built_) {
+    return; // already built
+  }
+
+  cout << "building read-to-alignments index for " << alignments_.size() << " alignments" << endl;
+  
+  // clear any existing data
+  read_to_alignment_indices_.clear();
+  
+  // build map of read_index to vector of alignment indices
+  for (size_t i = 0; i < alignments_.size(); ++i) {
+    const Alignment& aln = alignments_[i];
+    read_to_alignment_indices_[aln.read_index].push_back(i);
+  }
+  
+  // sort alignment indices by read_start for each read
+  for (auto& pair : read_to_alignment_indices_) {
+    vector<size_t>& alignment_indices = pair.second;
+    std::sort(alignment_indices.begin(), alignment_indices.end(),
+              [this](size_t idx1, size_t idx2) {
+                return alignments_[idx1].read_start < alignments_[idx2].read_start;
+              });
+  }
+  
+  read_alignment_index_built_ = true;
+  cout << "read-to-alignments index built for " << read_to_alignment_indices_.size() << " reads" << endl;
+}
+
+bool AlignmentStore::is_alignment_local(const Alignment& alignment, int clip_margin) const
+{
+  if (!read_alignment_index_built_) {
+    cerr << "error: read alignment index not built. call init_read_alignment_index() first" << endl;
+    exit(EXIT_FAILURE);
+  }
+  
+  uint32_t read_index = alignment.read_index;
+  uint32_t focal_contig_index = alignment.contig_index;
+  
+  // find all alignments for this read
+  auto it = read_to_alignment_indices_.find(read_index);
+  if (it == read_to_alignment_indices_.end() || it->second.empty()) {
+    return false; // no alignments found for this read
+  }
+  
+  const vector<size_t>& alignment_indices = it->second;
+  const Read& read = reads_[read_index];
+  
+  // look for focal-contig alignments at start and end of read
+  bool has_focal_at_start = false;
+  bool has_focal_at_end = false;
+  
+  // loop over all alignments for this read
+  for (size_t aln_idx : alignment_indices) {
+    const Alignment& aln = alignments_[aln_idx];
+    
+    // only consider alignments on the focal contig (ignore other contigs)
+    if (aln.contig_index != focal_contig_index) {
+      continue;
+    }
+    
+    // check if this focal-contig alignment starts near beginning of read
+    if (aln.read_start <= static_cast<uint32_t>(clip_margin)) {
+      has_focal_at_start = true;
+    }
+    
+    // check if this focal-contig alignment ends near end of read
+    if (aln.read_end >= (read.length - static_cast<uint32_t>(clip_margin))) {
+      has_focal_at_end = true;
+    }
+    
+    // early exit if both conditions are met
+    if (has_focal_at_start && has_focal_at_end) {
+      return true;
+    }
+  }
+  
+  // return true only if we found focal-contig alignments at both start and end
+  return has_focal_at_start && has_focal_at_end;
+}

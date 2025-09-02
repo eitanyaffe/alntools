@@ -389,6 +389,12 @@ void QueryBin::aggregate_data()
 {
   bin_results.clear();
   
+  // build read-to-alignments index for LOCAL_ALIGN filtering
+  if (clip_mode == ClipMode::LOCAL_ALIGN) {
+    // need to cast away const to call init_read_alignment_index
+    const_cast<AlignmentStore&>(store).init_read_alignment_index();
+  }
+  
   // build the contig to intervals mapping first
   build_contig_to_intervals_map();
 

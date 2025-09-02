@@ -38,6 +38,12 @@ void QueryPileup::aggregate_data()
 {
   pileup_results.clear(); // Ensure map is empty before starting
 
+  // build read-to-alignments index for LOCAL_ALIGN filtering
+  if (clip_mode == ClipMode::LOCAL_ALIGN) {
+    // need to cast away const to call init_read_alignment_index
+    const_cast<AlignmentStore&>(store).init_read_alignment_index();
+  }
+
   // Pre-populate pileup_results map for all positions defined by input intervals.
   int total_positions = 0;
   for (const auto& interval : intervals) {

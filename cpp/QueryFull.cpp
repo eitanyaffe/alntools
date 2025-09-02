@@ -184,6 +184,12 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
 
 void QueryFull::execute()
 {
+  // build read-to-alignments index for LOCAL_ALIGN filtering
+  if (clip_mode == ClipMode::LOCAL_ALIGN) {
+    // need to cast away const to call init_read_alignment_index
+    const_cast<AlignmentStore&>(store).init_read_alignment_index();
+  }
+  
   generate_output_data();
 }
 

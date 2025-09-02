@@ -460,6 +460,8 @@ ClipMode string_to_clip_mode(const std::string& mode)
     return ClipMode::ONLY_TWO_SIDE_CLIPPED;
   } else if (mode == "only_clipped") {
     return ClipMode::ONLY_CLIPPED;
+  } else if (mode == "local_align") {
+    return ClipMode::LOCAL_ALIGN;
   } else {
     cerr << "warning: invalid clip_mode '" << mode << "', defaulting to 'all'" << endl;
     return ClipMode::ALL;
@@ -505,6 +507,11 @@ bool passes_alignment_filter(const Alignment& alignment,
   } else if (clip_mode == ClipMode::ONLY_CLIPPED) {
     // show alignments clipped on one or both sides
     if (starts_at_beginning && ends_at_end) {
+      return false;
+    }
+  } else if (clip_mode == ClipMode::LOCAL_ALIGN) {
+    // show only locally aligned reads (first/last alignments on same contig)
+    if (!store.is_alignment_local(alignment, clip_margin)) {
       return false;
     }
   }

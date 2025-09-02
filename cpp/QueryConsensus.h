@@ -34,6 +34,7 @@ class QueryConsensus {
   const std::vector<Interval>& intervals;
   const AlignmentStore& store;
   double consensus_threshold;
+  int min_consensus_coverage;
   int num_threads;
   ClipMode clip_mode;
   int clip_margin;
@@ -69,6 +70,7 @@ class QueryConsensus {
       const std::vector<Interval>& intervals,
       const AlignmentStore& store,
       double consensus_threshold = 0.9,
+      int min_consensus_coverage = 5,
       int num_threads = 0,
       ClipMode clip_mode = ClipMode::ALL,
       int clip_margin = 10,

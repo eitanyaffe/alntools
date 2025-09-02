@@ -26,9 +26,12 @@ class AlignmentStore {
   // Transient map for mutation deduplication during initial build
   std::map<string, uint32_t> mutation_key_to_index_;
   unordered_map<size_t, vector<size_t>> alignment_index_by_contig_;
+  // read index to vector of alignment indices (sorted by read_start)
+  unordered_map<uint32_t, vector<size_t>> read_to_alignment_indices_;
   uint32_t max_alignment_length_ = 0;
   bool loaded_ = false; // Flag to prevent additions after loading
   int last_min_indel_length_ = -1; // cache for count_short_indels optimization
+  bool read_alignment_index_built_ = false; // flag to track if read index is built
 
   public:
   // Add methods
@@ -103,4 +106,10 @@ class AlignmentStore {
 
   // check if a mutation is a short indel based on current cached min_indel_length
   bool is_short_indel(uint32_t contig_idx, uint32_t mutation_idx) const;
+
+  // build read-to-alignments index map (sorted by read_start)
+  void init_read_alignment_index();
+
+  // check if alignment is locally aligned (first/last alignments on read are on same contig)
+  bool is_alignment_local(const Alignment& alignment, int clip_margin = 10) const;
 };

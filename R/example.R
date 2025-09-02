@@ -108,14 +108,14 @@ query_full <- function() {
 
 query_consensus <- function() {
   cat("querying consensus example\n")
-  consensus_results <- aln_query_consensus(aln, intervals, 0.8)
+  consensus_results <- aln_query_consensus(aln, intervals, 0.8, 3)
   ofn <- paste0(ofn_prefix, "_consensus.tsv")
   cat(paste0("saving output to ", ofn, "\n"))
   write.table(consensus_results, file = ofn, sep = "\t", row.names = F, quote = F)
   
   # Also test with a lower threshold to show some variants
-  cat("querying consensus with lower threshold (0.5)\n")
-  consensus_results_low <- aln_query_consensus(aln, intervals, 0.5)
+  cat("querying consensus with lower threshold (0.5) and min coverage 2\n")
+  consensus_results_low <- aln_query_consensus(aln, intervals, 0.5, 2)
   ofn_low <- paste0(ofn_prefix, "_consensus_low.tsv")
   cat(paste0("saving low threshold output to ", ofn_low, "\n"))
   write.table(consensus_results_low, file = ofn_low, sep = "\t", row.names = F, quote = F)

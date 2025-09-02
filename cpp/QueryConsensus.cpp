@@ -22,6 +22,7 @@ QueryConsensus::QueryConsensus(
     const std::vector<Interval>& intervals,
     const AlignmentStore& store,
     double consensus_threshold,
+    int min_consensus_coverage,
     int num_threads,
     ClipMode clip_mode,
     int clip_margin,
@@ -32,6 +33,7 @@ QueryConsensus::QueryConsensus(
     : intervals(intervals)
     , store(store)
     , consensus_threshold(consensus_threshold)
+    , min_consensus_coverage(min_consensus_coverage)
     , num_threads(num_threads)
     , clip_mode(clip_mode)
     , clip_margin(clip_margin)
@@ -44,6 +46,12 @@ QueryConsensus::QueryConsensus(
   if (consensus_threshold <= 0.0 || consensus_threshold >= 1.0 || !std::isfinite(consensus_threshold)) {
     cerr << "warning: invalid consensus_threshold (" << consensus_threshold << "), setting to default 0.9" << endl;
     this->consensus_threshold = 0.9;
+  }
+  
+  // validate and correct min_consensus_coverage
+  if (min_consensus_coverage < 1) {
+    cerr << "warning: invalid min_consensus_coverage (" << min_consensus_coverage << "), setting to default 5" << endl;
+    this->min_consensus_coverage = 5;
   }
   
   // set number of threads
@@ -196,6 +204,12 @@ void QueryConsensus::aggregate_data()
 {
   variant_results.clear();
   
+  // build read-to-alignments index for LOCAL_ALIGN filtering
+  if (clip_mode == ClipMode::LOCAL_ALIGN) {
+    // need to cast away const to call init_read_alignment_index
+    const_cast<AlignmentStore&>(store).init_read_alignment_index();
+  }
+  
   // build the contig to intervals mapping first
   build_contig_to_intervals_map();
 
@@ -308,10 +322,12 @@ void QueryConsensus::generate_output_rows()
 {
   output_rows.clear();
 
-  cout << "filtering variants with consensus threshold " << consensus_threshold << endl;
+  cout << "filtering variants with consensus threshold " << consensus_threshold 
+       << " and min coverage " << min_consensus_coverage << endl;
   
   int total_variants = 0;
   int consensus_variants = 0;
+  int low_coverage_variants = 0;
   
   for (const auto& entry : variant_results) {
     const auto& key = entry.first;
@@ -325,6 +341,12 @@ void QueryConsensus::generate_output_rows()
     
     // calculate frequency
     double frequency = (data.coverage > 0) ? static_cast<double>(data.count) / data.coverage : 0.0;
+    
+    // filter by coverage first
+    if (data.coverage < min_consensus_coverage) {
+      low_coverage_variants++;
+      continue;
+    }
     
     // filter by consensus threshold
     if (frequency >= consensus_threshold) {
@@ -367,7 +389,8 @@ void QueryConsensus::generate_output_rows()
     }
   }
   
-  cout << "found " << consensus_variants << " consensus variants out of " << total_variants << " total variants" << endl;
+  cout << "found " << consensus_variants << " consensus variants out of " << total_variants 
+       << " total variants (" << low_coverage_variants << " filtered by low coverage)" << endl;
 }
 
 // function to write the generated rows to a file

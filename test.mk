@@ -18,6 +18,7 @@ TEST_BIN_SIZE = 1000
 
 # consensus threshold for query_consensus
 TEST_CONSENSUS_THRESHOLD = 0.8
+TEST_MIN_CONSENSUS_COVERAGE = 3
 
 .PHONY: test test_basic test_full test_query_full test_query_bin \
 test_query_pileup test_query_consensus test_coverage test_query_all test_R_all test_R_commands test_R_plot \
@@ -107,6 +108,7 @@ test_query_consensus: $(TARGET)
 		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
 		-mode consensus \
 		-consensus_threshold $(TEST_CONSENSUS_THRESHOLD) \
+		-min_consensus_coverage $(TEST_MIN_CONSENSUS_COVERAGE) \
 		-num_threads 2
 	@echo "QUERY CONSENSUS completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
