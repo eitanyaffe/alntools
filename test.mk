@@ -16,8 +16,11 @@ TEST_INTERVALS_LARGE = examples/intervals_large.txt
 # bin size for query_bin
 TEST_BIN_SIZE = 1000
 
+# consensus threshold for query_consensus
+TEST_CONSENSUS_THRESHOLD = 0.8
+
 .PHONY: test test_basic test_full test_query_full test_query_bin \
-test_query_pileup test_coverage test_query_all test_R_all test_R_commands test_R_plot \
+test_query_pileup test_query_consensus test_coverage test_query_all test_R_all test_R_commands test_R_plot \
 test_create_dense_paf clean-test test-r-load
 
 ########################################################################################
@@ -95,6 +98,19 @@ test_query_pileup: $(TARGET)
 	@echo "QUERY PILEUP completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+test_query_consensus: $(TARGET)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running QUERY CONSENSUS"
+	$(TARGET) query \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
+		-ifn_intervals $(TEST_INTERVALS_SMALL) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
+		-mode consensus \
+		-consensus_threshold $(TEST_CONSENSUS_THRESHOLD) \
+		-num_threads 2
+	@echo "QUERY CONSENSUS completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
 test_coverage: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running COVERAGE TEST"
@@ -104,7 +120,7 @@ test_coverage: $(TARGET)
 	@echo "COVERAGE TEST completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-test_query_all: test_query_full test_query_bin test_query_pileup test_coverage
+test_query_all: test_query_full test_query_bin test_query_pileup test_query_consensus test_coverage
 
 ########################################################################################
 # Test R interface

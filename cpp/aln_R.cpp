@@ -6,6 +6,7 @@
 #endif
 
 #include "QueryBin.h"
+#include "QueryConsensus.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
 #include "alignment_store.h"
@@ -280,6 +281,78 @@ DataFrame aln_query_bin(
       Named("dist_3") = out_dist_3,
       Named("dist_2") = out_dist_2,
       Named("dist_1_plus") = out_dist_1_plus,
+      Named("stringsAsFactors") = false // Good practice
+  );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// QueryConsensus functions
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+DataFrame aln_query_consensus(
+    XPtr<AlignmentStore> store_ptr,
+    DataFrame intervals_df,
+    double consensus_threshold = 0.9,
+    int num_threads = 0,
+    std::string clip_mode_str = "all",
+    int clip_margin = 10,
+    double min_mutations_percent = 0.0,
+    double max_mutations_percent = 10.0,
+    int min_alignment_length = 0,
+    int max_alignment_length = 0,
+    int min_indel_length = 3)
+{
+  // Validate the external pointer
+  if (!store_ptr) {
+    stop("Invalid AlignmentStore pointer provided.");
+  }
+
+  // Get reference to the AlignmentStore object
+  AlignmentStore& store = *store_ptr;
+
+  // count short indels before query
+  store.count_short_indels(min_indel_length);
+
+  // Convert intervals
+  std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
+
+  // Convert clip_mode_str to ClipMode enum
+  ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
+  
+  std::vector<ConsensusOutputRow> results;
+  
+  QueryConsensus queryConsensus(intervals, store, consensus_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+  queryConsensus.execute();
+  results = queryConsensus.get_output_rows();
+
+  // Convert results to R DataFrame
+  CharacterVector out_contig;
+  IntegerVector out_position;
+  CharacterVector out_variant_type;
+  CharacterVector out_variant_desc;
+  IntegerVector out_count;
+  IntegerVector out_coverage;
+  NumericVector out_frequency;
+
+  for (const auto& row : results) {
+    out_contig.push_back(row.contig);
+    out_position.push_back(row.position);
+    out_variant_type.push_back(row.variant_type);
+    out_variant_desc.push_back(row.variant_desc);
+    out_count.push_back(row.count);
+    out_coverage.push_back(row.coverage);
+    out_frequency.push_back(row.frequency);
+  }
+
+  return DataFrame::create(
+      Named("contig") = out_contig,
+      Named("position") = out_position,
+      Named("variant_type") = out_variant_type,
+      Named("variant_desc") = out_variant_desc,
+      Named("count") = out_count,
+      Named("coverage") = out_coverage,
+      Named("frequency") = out_frequency,
       Named("stringsAsFactors") = false // Good practice
   );
 }

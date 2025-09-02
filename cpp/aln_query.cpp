@@ -1,5 +1,6 @@
 #include "Params.h"
 #include "QueryBin.h"
+#include "QueryConsensus.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
 #include "alignment_store.h"
@@ -30,7 +31,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
   params.add_parser("ifn_intervals", new ParserFilename("input table with query contig intervals"), true);
   params.add_parser("ofn_prefix", new ParserFilename("output tab-delimited table prefix"), true);
-  params.add_parser("mode", new ParserString("query mode (full, pileup, bin)", "full"), true);
+  params.add_parser("mode", new ParserString("query mode (full, pileup, bin, consensus)", "full"), true);
   params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
   params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
@@ -44,7 +45,8 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 0)", 0), false);
   params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
   params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
-  params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' mode (0 for auto)", 0), false);
+  params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' and 'consensus' modes (0 for auto)", 0), false);
+  params.add_parser("consensus_threshold", new ParserDouble("consensus threshold for 'consensus' mode (default 0.9)", 0.9), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -58,8 +60,8 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
 
   // Validate mode
   string mode = params.get_string("mode");
-  if (mode != "full" && mode != "pileup" && mode != "bin") {
-    cerr << "error: invalid mode specified: " << mode << ". Must be 'full', 'pileup', or 'bin'." << endl;
+  if (mode != "full" && mode != "pileup" && mode != "bin" && mode != "consensus") {
+    cerr << "error: invalid mode specified: " << mode << ". Must be 'full', 'pileup', 'bin', or 'consensus'." << endl;
     exit(1);
   }
 
@@ -105,6 +107,7 @@ int query_main(const char* name, int argc, char** argv)
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
   double seg_threshold = params.get_double("seg_threshold");
   double non_ref_threshold = params.get_double("non_ref_threshold");
+  double consensus_threshold = params.get_double("consensus_threshold");
 
   // Get pileup mode string and convert to enum
   PileupReportMode pileup_mode = string_to_pileup_report_mode(params.get_string("pileup_mode"));
@@ -133,6 +136,9 @@ int query_main(const char* name, int argc, char** argv)
     cout << "  binsize: " << binsize << endl;
     cout << "  seg_threshold: " << seg_threshold << endl;
     cout << "  non_ref_threshold: " << non_ref_threshold << endl;
+  }
+  if (mode == "consensus") {
+    cout << "  consensus_threshold: " << consensus_threshold << endl;
   }
   if (mode == "pileup") {
     cout << "  pileup_mode: " << params.get_string("pileup_mode") << endl;
@@ -175,6 +181,11 @@ int query_main(const char* name, int argc, char** argv)
     QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
     queryBin.execute();
     queryBin.write_to_csv(ofn_prefix);
+  } else if (mode == "consensus") {
+    int num_threads = params.get_int("num_threads");
+    QueryConsensus queryConsensus(intervals, store, consensus_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+    queryConsensus.execute();
+    queryConsensus.write_to_csv(ofn_prefix);
   }
 
   return 0;

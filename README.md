@@ -3,10 +3,11 @@
 `alntools` is a specialized toolkit for efficiently working with read alignments. It creates a compact binary representation of alignments (PAF format) and provides powerful querying capabilities to analyze specific genomic intervals. Key features include:
 
 - **Fast binary storage** of read alignments from PAF format with mutation encoding
-- **Three query modes** for flexible analysis:
+- **Four query modes** for flexible analysis:
   - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
   - **Bin mode**: Generates binned coverage statistics with segregating sites analysis and mutation rate categorization
+  - **Consensus mode**: Identifies high-frequency variants above a consensus threshold for variant calling
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **R interface** for seamless integration with analysis workflows in R
@@ -112,7 +113,7 @@ alntools info -ifn output/test.aln
 Query the ALN file using different modes for specific contig intervals.
 
 ```bash
-alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <output_prefix> -mode <full|pileup|bin> [options]
+alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <output_prefix> -mode <full|pileup|bin|consensus> [options]
 ```
 
 **Mandatory Arguments:**
@@ -123,6 +124,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `full`: Return detailed alignment and mutation data.
   - `pileup`: Return aggregated mutation data for positions.
   - `bin`: Return binned summaries of alignments.
+  - `consensus`: Return high-frequency variants above a consensus threshold.
 
 **Optional Arguments (depending on mode):**
 * `-pileup_mode <string>`: For pileup mode, options are:
@@ -132,6 +134,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 * `-binsize <int>`: For bin mode, size of bins in bp (default: `100`).
 * `-seg_threshold <double>`: For bin mode, threshold for segregating sites detection (default: `0.2`). Variants with frequency between this value and (1 - this value) are considered segregating.
 * `-non_ref_threshold <double>`: For bin mode, threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
+* `-consensus_threshold <double>`: For consensus mode, frequency threshold for reporting variants (default: `0.9`). Only variants with frequency ≥ this value are reported.
 * `-height_style <string>`: For full mode, how to calculate read height:
   - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
@@ -151,6 +154,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 * `-min_alignment_length <int>`: Minimum alignment length in read coordinates (default: `0`).
 * `-max_alignment_length <int>`: Maximum alignment length in read coordinates (default: `0`, no limit).
 * `-min_indel_length <int>`: Minimum indel length to include in mutation density calculations (default: `3`). Shorter indels are filtered out to reduce noise from sequencing artifacts.
+* `-num_threads <int>`: For bin and consensus modes, number of threads to use (default: `0`, auto-detect).
 
 **Example of full query mode**
 
@@ -201,6 +205,22 @@ alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
    -ofn_prefix output/query -mode pileup -pileup_mode mutated
 ```
+
+**Example of consensus query mode**
+
+```bash
+alntools query -ifn_aln output/test.aln \
+   -ifn_intervals examples/intervals_small.txt \
+   -ofn_prefix output/query -mode consensus \
+   -consensus_threshold 0.9 -num_threads 4
+```
+
+This produces a single output file:
+- `output/query_consensus.tsv`: High-frequency variant calls including:
+  - Basic variant information: `contig`, `position`, `variant_type`, `variant_desc`
+  - Support statistics: `count` (supporting reads), `coverage` (total reads), `frequency` (count/coverage)
+  - Only variants with frequency ≥ consensus_threshold are reported
+  - Variant types: `SUB` (substitutions like A:G), `INS` (insertions like +ATG), `DEL` (deletions like -CC)
 
 ### 4. coverage
 
@@ -337,6 +357,11 @@ pileup_results <- aln_query_pileup(aln, intervals, report_mode, clip_mode_str = 
                                   min_mutations_percent = 0.0, max_mutations_percent = 10.0,
                                   min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
 
+# Consensus query
+consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0.9, num_threads = 0, clip_mode_str = "all", 
+                                        clip_margin = 10, min_mutations_percent = 0.0, max_mutations_percent = 10.0,
+                                        min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
+
 # height_style options: "by_coord_left", "by_coord_right", "by_mutations"
 height_style <- "by_coord_left"
 # Full query
@@ -381,6 +406,7 @@ intervals <- read.table(intervals_file, header = TRUE)
 bin_results <- aln_query_bin(aln, intervals, binsize, seg_threshold = 0.2, non_ref_threshold = 0.9, num_threads = 0,
                             min_alignment_length = 1000, min_indel_length = 5)  # Filter alignments < 1kb, short indels < 5bp
 pileup_results <- aln_query_pileup(aln, intervals, "covered", max_alignment_length = 50000, min_indel_length = 3)  # Filter alignments > 50kb, short indels < 3bp
+consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0.8, num_threads = 4, min_indel_length = 3)  # High-frequency variants ≥80%
 full_results <- aln_query_full(aln, intervals, "by_mutations", clip_mode_str = "complete", min_indel_length = 3)  # Only complete alignments, filter short indels
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
 
@@ -388,6 +414,8 @@ breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, m
 write.table(bin_results, file = paste0(output_prefix, "_bins.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 write.table(pileup_results, file = paste0(output_prefix, "_pileup.tsv"), 
+            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(consensus_results, file = paste0(output_prefix, "_consensus.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 write.table(full_results$alignments, file = paste0(output_prefix, "_alignments.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
@@ -408,10 +436,11 @@ The repository includes tests that demonstrate functionality and verify correctn
 make test
 
 # Run specific test groups
-make test_basic     # Basic functionality
-make test_query_all # All query modes
-make test_coverage  # Coverage analysis
-make test_R_all     # R interface tests
+make test_basic           # Basic functionality
+make test_query_all       # All query modes (full, pileup, bin, consensus)
+make test_query_consensus # Consensus mode specifically
+make test_coverage        # Coverage analysis
+make test_R_commands      # R interface tests
 ```
 
 For more details on test scenarios, see `test.mk`.
