@@ -384,7 +384,7 @@ void QueryConsensus::generate_output_rows()
         variant_desc = nts;
       }
 
-      output_rows.push_back({ contig_id, position, variant_type, variant_desc,
+      output_rows.push_back({ contig_id, position + 1, variant_type, variant_desc,
           data.count, data.coverage, frequency });
     }
   }

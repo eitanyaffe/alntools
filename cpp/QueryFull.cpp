@@ -85,7 +85,7 @@ void QueryFull::generate_output_data()
             read_id,
             contig_id,
             mutation.type,
-            static_cast<int>(mutation.position),
+            static_cast<int>(mutation.position + 1),
             mutation.to_string(),
             0 });
       }
