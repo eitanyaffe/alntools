@@ -3,9 +3,13 @@
 #include "QueryConsensus.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
+#include "QueryVariants.h"
 #include "alignment_store.h"
 #include "utils.h"
+#include <fstream>
 #include <iostream>
+#include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -28,10 +32,10 @@ HeightStyle string_to_height_style(const std::string& style_str)
 
 void query_params(const char* name, int argc, char** argv, Parameters& params)
 {
-  params.add_parser("ifn_aln", new ParserFilename("input ALN file"), true);
+  params.add_parser("ifn_aln", new ParserFilename("input ALN file"), false);
   params.add_parser("ifn_intervals", new ParserFilename("input table with query contig intervals"), true);
   params.add_parser("ofn_prefix", new ParserFilename("output tab-delimited table prefix"), true);
-  params.add_parser("mode", new ParserString("query mode (full, pileup, bin, consensus)", "full"), true);
+  params.add_parser("mode", new ParserString("query mode (full, pileup, bin, consensus, variants)", "full"), true);
   params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
   params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
@@ -48,6 +52,10 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' and 'consensus' modes (0 for auto)", 0), false);
   params.add_parser("consensus_threshold", new ParserDouble("consensus threshold for 'consensus' mode (default 0.9)", 0.9), false);
   params.add_parser("min_consensus_coverage", new ParserInteger("minimum coverage for 'consensus' mode (default 5)", 5), false);
+  params.add_parser("ifn_libraries", new ParserFilename("input table with library definitions for 'variants' mode"), false);
+  params.add_parser("min_variants_variant_support", new ParserInteger("minimum variant support across all libraries for 'variants' mode (default 3)", 3), false);
+  params.add_parser("min_variants_library_support", new ParserInteger("minimum number of libraries with variant for 'variants' mode (default 1)", 1), false);
+  params.add_parser("min_variants_coverage_support", new ParserInteger("minimum total coverage for 'variants' mode (default 10)", 10), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -61,9 +69,25 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
 
   // Validate mode
   string mode = params.get_string("mode");
-  if (mode != "full" && mode != "pileup" && mode != "bin" && mode != "consensus") {
-    cerr << "error: invalid mode specified: " << mode << ". Must be 'full', 'pileup', 'bin', or 'consensus'." << endl;
+  if (mode != "full" && mode != "pileup" && mode != "bin" && mode != "consensus" && mode != "variants") {
+    cerr << "error: invalid mode specified: " << mode << ". Must be 'full', 'pileup', 'bin', 'consensus', or 'variants'." << endl;
     exit(1);
+  }
+  
+  // Validate mode-specific parameters
+  if (mode == "variants") {
+    string ifn_libraries = params.get_string("ifn_libraries");
+    if (ifn_libraries.empty()) {
+      cerr << "error: ifn_libraries parameter is required for 'variants' mode." << endl;
+      exit(1);
+    }
+  } else {
+    // For non-variants modes, ifn_aln is required
+    string ifn_aln = params.get_string("ifn_aln");
+    if (ifn_aln.empty()) {
+      cerr << "error: ifn_aln parameter is required for modes other than 'variants'." << endl;
+      exit(1);
+    }
   }
 
   // If mode is 'bin', binsize must be positive
@@ -164,32 +188,86 @@ int query_main(const char* name, int argc, char** argv)
   read_intervals(ifn_intervals, intervals);
   cout << "found " << intervals.size() << " intervals in " << ifn_intervals << endl;
 
-  AlignmentStore store;
-  store.load(ifn_aln);
-
-  // count short indels for filtering
-  store.count_short_indels(min_indel_length);
-
   cout << "executing mode: " << mode << endl;
   
-  if (mode == "full") {
-    QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-    queryFull.execute();
-    queryFull.write_to_csv(ofn_prefix);
-  } else if (mode == "pileup") {
-    QueryPileup queryPileup(intervals, store, pileup_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-    queryPileup.execute();
-    queryPileup.write_to_csv(ofn_prefix);
-  } else if (mode == "bin") {
-    int num_threads = params.get_int("num_threads");
-    QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-    queryBin.execute();
-    queryBin.write_to_csv(ofn_prefix);
-  } else if (mode == "consensus") {
-    int num_threads = params.get_int("num_threads");
-    QueryConsensus queryConsensus(intervals, store, consensus_threshold, min_consensus_coverage, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
-    queryConsensus.execute();
-    queryConsensus.write_to_csv(ofn_prefix);
+  if (mode == "variants") {
+    // for variants mode, load multiple ALN files based on libraries table
+    string ifn_libraries = params.get_string("ifn_libraries");
+    int min_variants_variant_support = params.get_int("min_variants_variant_support");
+    int min_variants_library_support = params.get_int("min_variants_library_support");
+    int min_variants_coverage_support = params.get_int("min_variants_coverage_support");
+    
+    // read libraries table
+    map<string, string> library_files;
+    ifstream lib_file(ifn_libraries);
+    if (!lib_file.is_open()) {
+      cerr << "error: cannot open libraries file " << ifn_libraries << endl;
+      exit(1);
+    }
+    
+    string line;
+    bool first_line = true;
+    while (getline(lib_file, line)) {
+      if (first_line) {
+        first_line = false;
+        continue; // skip header
+      }
+      if (line.empty()) continue;
+      
+      istringstream iss(line);
+      string lib_id, aln_file;
+      if (getline(iss, lib_id, '\t') && getline(iss, aln_file, '\t')) {
+        library_files[lib_id] = aln_file;
+      }
+    }
+    lib_file.close();
+    
+    cout << "found " << library_files.size() << " libraries in " << ifn_libraries << endl;
+    
+    // load all ALN stores
+    map<string, AlignmentStore> stores;
+    for (const auto& entry : library_files) {
+      const string& lib_id = entry.first;
+      const string& aln_file = entry.second;
+      
+      cout << "loading library " << lib_id << " from " << aln_file << endl;
+      stores[lib_id].load(aln_file);
+      stores[lib_id].count_short_indels(min_indel_length);
+    }
+    
+    QueryVariants queryVariants(intervals, stores, min_variants_variant_support, min_variants_library_support, 
+                     min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
+                     max_mutations_percent, min_alignment_length, max_alignment_length);
+    queryVariants.execute();
+    queryVariants.write_to_csv(ofn_prefix);
+    
+  } else {
+    // for other modes, load single ALN file
+    AlignmentStore store;
+    store.load(ifn_aln);
+
+    // count short indels for filtering
+    store.count_short_indels(min_indel_length);
+    
+    if (mode == "full") {
+      QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+      queryFull.execute();
+      queryFull.write_to_csv(ofn_prefix);
+    } else if (mode == "pileup") {
+      QueryPileup queryPileup(intervals, store, pileup_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+      queryPileup.execute();
+      queryPileup.write_to_csv(ofn_prefix);
+    } else if (mode == "bin") {
+      int num_threads = params.get_int("num_threads");
+      QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+      queryBin.execute();
+      queryBin.write_to_csv(ofn_prefix);
+    } else if (mode == "consensus") {
+      int num_threads = params.get_int("num_threads");
+      QueryConsensus queryConsensus(intervals, store, consensus_threshold, min_consensus_coverage, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+      queryConsensus.execute();
+      queryConsensus.write_to_csv(ofn_prefix);
+    }
   }
 
   return 0;

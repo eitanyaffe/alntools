@@ -9,6 +9,7 @@
 #include "QueryConsensus.h"
 #include "QueryFull.h"
 #include "QueryPileup.h"
+#include "QueryVariants.h"
 #include "alignment_store.h"
 #include "paf_reader.h"
 #include <Rcpp.h>
@@ -804,5 +805,181 @@ DataFrame aln_find_breaks(
     stop("failed to find break positions: %s", e.what());
   } catch (...) {
     stop("an unknown C++ error occurred during break position detection");
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// QueryVariants functions
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+List aln_query_variants(
+    List store_list,
+    DataFrame intervals_df,
+    int min_variants_variant_support = 3,
+    int min_variants_library_support = 1,
+    int min_variants_coverage_support = 10,
+    std::string clip_mode_str = "all",
+    int clip_margin = 10,
+    double min_mutations_percent = 0.0,
+    double max_mutations_percent = 10.0,
+    int min_alignment_length = 0,
+    int max_alignment_length = 0,
+    int min_indel_length = 3)
+{
+  try {
+    // validate store_list
+    if (store_list.size() == 0) {
+      stop("store_list must contain at least one AlignmentStore");
+    }
+    
+    // extract library names
+    CharacterVector lib_names = store_list.names();
+    if (lib_names.size() != store_list.size()) {
+      stop("all elements in store_list must be named");
+    }
+    
+    // convert to C++ stores map
+    std::map<std::string, AlignmentStore> stores;
+    for (int i = 0; i < store_list.size(); ++i) {
+      std::string lib_id = as<std::string>(lib_names[i]);
+      XPtr<AlignmentStore> store_ptr = store_list[i];
+      
+      if (!store_ptr) {
+        stop("invalid AlignmentStore pointer for library: %s", lib_id.c_str());
+      }
+      
+      // copy the store (since QueryVariants expects ownership)
+      stores[lib_id] = *store_ptr;
+      
+      // count short indels for this store
+      stores[lib_id].count_short_indels(min_indel_length);
+    }
+    
+    // convert intervals
+    std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
+    
+    // convert clip_mode_str to ClipMode enum
+    ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
+    
+    // execute QueryVariants
+    QueryVariants queryVariants(intervals, stores, min_variants_variant_support, min_variants_library_support, 
+                     min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
+                     max_mutations_percent, min_alignment_length, max_alignment_length);
+    queryVariants.execute();
+    
+    // get results
+    const std::vector<VariantOutputRow>& variant_rows = queryVariants.get_variant_rows();
+    const std::vector<std::string>& library_ids = queryVariants.get_library_ids();
+    const std::map<std::string, SetVariantData>& variant_data = queryVariants.get_variant_data();
+    
+    // convert variants table to R DataFrame
+    CharacterVector out_variant_id;
+    CharacterVector out_contig;
+    IntegerVector out_coord;
+    CharacterVector out_type;
+    CharacterVector out_sequence;
+    CharacterVector out_desc;
+    IntegerVector out_library_count;
+    IntegerVector out_total_support;
+    IntegerVector out_total_coverage;
+    NumericVector out_frequency;
+    
+    for (const auto& row : variant_rows) {
+      out_variant_id.push_back(row.variant_id);
+      out_contig.push_back(row.contig);
+      out_coord.push_back(row.coord);
+      out_type.push_back(row.type);
+      out_sequence.push_back(row.sequence);
+      out_desc.push_back(row.desc);
+      out_library_count.push_back(row.library_count);
+      out_total_support.push_back(row.total_support);
+      out_total_coverage.push_back(row.total_coverage);
+      out_frequency.push_back(row.frequency);
+    }
+    
+    DataFrame variants_df = DataFrame::create(
+        Named("variant_id") = out_variant_id,
+        Named("contig") = out_contig,
+        Named("coord") = out_coord,
+        Named("type") = out_type,
+        Named("sequence") = out_sequence,
+        Named("desc") = out_desc,
+        Named("library_count") = out_library_count,
+        Named("total_support") = out_total_support,
+        Named("total_coverage") = out_total_coverage,
+        Named("frequency") = out_frequency,
+        Named("stringsAsFactors") = false);
+    
+    // create support matrix
+    IntegerMatrix support_matrix(variant_rows.size(), library_ids.size());
+    CharacterVector support_rownames;
+    CharacterVector support_colnames;
+    
+    for (size_t i = 0; i < variant_rows.size(); ++i) {
+      const VariantOutputRow& row = variant_rows[i];
+      support_rownames.push_back(row.variant_id);
+      
+      // find the original variant data
+      std::string variant_key = row.contig + ":" + std::to_string(row.coord) + ":" + row.type + ":" + row.sequence;
+      auto variant_it = variant_data.find(variant_key);
+      
+      for (size_t j = 0; j < library_ids.size(); ++j) {
+        if (i == 0) {
+          support_colnames.push_back(library_ids[j]);
+        }
+        
+        int support = 0;
+        if (variant_it != variant_data.end()) {
+          const SetVariantData& variant = variant_it->second;
+          auto support_it = variant.lib_support.find(library_ids[j]);
+          if (support_it != variant.lib_support.end()) {
+            support = support_it->second;
+          }
+        }
+        support_matrix(i, j) = support;
+      }
+    }
+    
+    rownames(support_matrix) = support_rownames;
+    colnames(support_matrix) = support_colnames;
+    
+    // create coverage matrix
+    IntegerMatrix coverage_matrix(variant_rows.size(), library_ids.size());
+    
+    for (size_t i = 0; i < variant_rows.size(); ++i) {
+      const VariantOutputRow& row = variant_rows[i];
+      
+      // find the original variant data
+      std::string variant_key = row.contig + ":" + std::to_string(row.coord) + ":" + row.type + ":" + row.sequence;
+      auto variant_it = variant_data.find(variant_key);
+      
+      for (size_t j = 0; j < library_ids.size(); ++j) {
+        int coverage = 0;
+        if (variant_it != variant_data.end()) {
+          const SetVariantData& variant = variant_it->second;
+          auto coverage_it = variant.lib_coverage.find(library_ids[j]);
+          if (coverage_it != variant.lib_coverage.end()) {
+            coverage = coverage_it->second;
+          }
+        }
+        coverage_matrix(i, j) = coverage;
+      }
+    }
+    
+    rownames(coverage_matrix) = support_rownames;
+    colnames(coverage_matrix) = support_colnames;
+    
+    // return as named list
+    return List::create(
+        Named("variants") = variants_df,
+        Named("support") = support_matrix,
+        Named("coverage") = coverage_matrix,
+        Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()));
+        
+  } catch (const std::runtime_error& e) {
+    stop("failed to execute QueryVariants: %s", e.what());
+  } catch (...) {
+    stop("an unknown C++ error occurred during QueryVariants execution");
   }
 }

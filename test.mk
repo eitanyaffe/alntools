@@ -21,7 +21,7 @@ TEST_CONSENSUS_THRESHOLD = 0.8
 TEST_MIN_CONSENSUS_COVERAGE = 3
 
 .PHONY: test test_basic test_full test_query_full test_query_bin \
-test_query_pileup test_query_consensus test_coverage test_query_all test_R_all test_R_commands test_R_plot \
+test_query_pileup test_query_consensus test_query_variants test_coverage test_query_all test_R_all test_R_commands test_R_plot \
 test_create_dense_paf clean-test test-r-load
 
 ########################################################################################
@@ -113,6 +113,24 @@ test_query_consensus: $(TARGET)
 	@echo "QUERY CONSENSUS completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+test_query_variants: $(TARGET)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running QUERY VARIANTS"
+	# create libraries table for testing
+	@echo "id	fn" > $(TEST_OUTPUT_DIR)/libraries.tsv
+	@echo "lib1	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.tsv
+	@echo "lib2	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.tsv
+	$(TARGET) query \
+		-mode variants \
+		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries.tsv \
+		-ifn_intervals $(TEST_INTERVALS_SMALL) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/query_variants \
+		-min_variants_variant_support 1 \
+		-min_variants_library_support 1 \
+		-min_variants_coverage_support 1
+	@echo "QUERY VARIANTS completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
 test_coverage: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running COVERAGE TEST"
@@ -122,7 +140,7 @@ test_coverage: $(TARGET)
 	@echo "COVERAGE TEST completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-test_query_all: test_query_full test_query_bin test_query_pileup test_query_consensus test_coverage
+test_query_all: test_query_full test_query_bin test_query_pileup test_query_consensus test_query_variants test_coverage
 
 ########################################################################################
 # Test R interface

@@ -3,11 +3,12 @@
 `alntools` is a specialized toolkit for efficiently working with read alignments. It creates a compact binary representation of alignments (PAF format) and provides powerful querying capabilities to analyze specific genomic intervals. Key features include:
 
 - **Fast binary storage** of read alignments from PAF format with mutation encoding
-- **Four query modes** for flexible analysis:
+- **Five query modes** for flexible analysis:
   - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
   - **Bin mode**: Generates binned coverage statistics with segregating sites analysis and mutation rate categorization
   - **Consensus mode**: Identifies high-frequency variants above a consensus threshold for variant calling
+  - **Variants mode**: Multi-library variant calling across multiple ALN files with comprehensive variant filtering
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **R interface** for seamless integration with analysis workflows in R
@@ -113,7 +114,7 @@ alntools info -ifn output/test.aln
 Query the ALN file using different modes for specific contig intervals.
 
 ```bash
-alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <output_prefix> -mode <full|pileup|bin|consensus> [options]
+alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <output_prefix> -mode <full|pileup|bin|consensus|variants> [options]
 ```
 
 **Mandatory Arguments:**
@@ -125,6 +126,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `pileup`: Return aggregated mutation data for positions.
   - `bin`: Return binned summaries of alignments.
   - `consensus`: Return high-frequency variants above a consensus threshold.
+  - `variants`: Multi-library variant calling across multiple ALN files.
 
 **Optional Arguments (depending on mode):**
 * `-pileup_mode <string>`: For pileup mode, options are:
@@ -136,6 +138,10 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 * `-non_ref_threshold <double>`: For bin mode, threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
 * `-consensus_threshold <double>`: For consensus mode, frequency threshold for reporting variants (default: `0.9`). Only variants with frequency ≥ this value are reported.
 * `-min_consensus_coverage <int>`: For consensus mode, minimum coverage required for reporting variants (default: `5`). Only variants with coverage ≥ this value are considered.
+* `-ifn_libraries <fn>`: For variants mode, input tab-delimited file with library definitions (format: `id fn`). **Required for variants mode**.
+* `-min_variants_variant_support <int>`: For variants mode, minimum variant support across all libraries (default: `3`). Total reads supporting the variant across all libraries.
+* `-min_variants_library_support <int>`: For variants mode, minimum number of libraries with the variant (default: `1`). Number of libraries that must contain the variant.
+* `-min_variants_coverage_support <int>`: For variants mode, minimum total coverage across all libraries (default: `10`). Total coverage at the variant position across all libraries.
 * `-height_style <string>`: For full mode, how to calculate read height:
   - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
@@ -223,6 +229,50 @@ This produces a single output file:
   - Support statistics: `count` (supporting reads), `coverage` (total reads), `frequency` (count/coverage)
   - Only variants with frequency ≥ consensus_threshold AND coverage ≥ min_consensus_coverage are reported
   - Variant types: `SUB` (substitutions like A:G), `INS` (insertions like +ATG), `DEL` (deletions like -CC)
+
+**Example of variants query mode (multi-library variant calling)**
+
+First, create a libraries table file:
+```bash
+# Create libraries.tsv
+echo -e "id\tfn" > libraries.tsv
+echo -e "lib1\toutput/sample1.aln" >> libraries.tsv
+echo -e "lib2\toutput/sample2.aln" >> libraries.tsv
+echo -e "lib3\toutput/sample3.aln" >> libraries.tsv
+```
+
+Then run the variants query:
+```bash
+alntools query -mode variants \
+   -ifn_libraries libraries.tsv \
+   -ifn_intervals examples/intervals_small.txt \
+   -ofn_prefix output/query_variants \
+   -min_variants_variant_support 5 \
+   -min_variants_library_support 2 \
+   -min_variants_coverage_support 20
+```
+
+This produces three output files:
+- `output/query_variants_variants.tsv`: Main variant table with columns:
+  - `variant_id`: Sequential variant IDs (v1, v2, v3...)
+  - `contig`: Contig name
+  - `coord`: 1-based coordinate
+  - `type`: Variant type (`sub`, `ins`, `del`, `left_clip`, `right_clip`)
+  - `sequence`: Variant sequence (nucleotides for mutations, empty for clips)
+  - `desc`: Human-readable description (`A:T`, `+ATG`, `-CC`, `CLIP`)
+  - `library_count`: Number of libraries containing this variant
+  - `total_support`: Total supporting reads across all libraries
+  - `total_coverage`: Total coverage across all libraries
+  - `frequency`: Total support / total coverage ratio
+- `output/query_variants_support.tsv`: Read support matrix with variant IDs as rows and library IDs as columns
+- `output/query_variants_coverage.tsv`: Coverage matrix with variant IDs as rows and library IDs as columns
+
+**Variants Mode Features:**
+- **Multi-library analysis**: Compare variants across multiple samples simultaneously
+- **Comprehensive filtering**: Three-level filtering by read support, library presence, and coverage
+- **Five variant types**: Substitutions, insertions, deletions, and left/right clips
+- **Sorted output**: Variants sorted by contig, coordinate, then coverage (descending)
+- **Matrix output**: Support and coverage matrices for easy downstream analysis
 
 ### 4. coverage
 
@@ -376,6 +426,19 @@ full_results <- aln_query_full(aln, intervals, height_style, max_alignments = 0,
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 1)
 # Returns a dataframe with columns: contig, position, orientation, t, e, enrichment, pval, qval
 # Sorted by contig, then position
+
+# Multi-library variant calling (QueryVariants)
+# Create a named list of alignment stores
+store_list <- list("lib1" = aln1, "lib2" = aln2, "lib3" = aln3)
+variants_results <- aln_query_variants(store_list, intervals, min_variants_variant_support = 5, min_variants_library_support = 2, 
+                            min_variants_coverage_support = 20, clip_mode_str = "all", clip_margin = 10,
+                            min_mutations_percent = 0.0, max_mutations_percent = 10.0,
+                            min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
+# Returns a list with:
+# $variants: dataframe with variant_id, contig, coord, type, sequence, desc, library_count, total_support, total_coverage, frequency
+# $support: matrix with variant IDs as rows and library IDs as columns (read support)
+# $coverage: matrix with variant IDs as rows and library IDs as columns (coverage)
+# $library_ids: vector of library IDs
 ```
 
 ### Example R Script
@@ -439,8 +502,9 @@ make test
 
 # Run specific test groups
 make test_basic           # Basic functionality
-make test_query_all       # All query modes (full, pileup, bin, consensus)
+make test_query_all       # All query modes (full, pileup, bin, consensus, variants)
 make test_query_consensus # Consensus mode specifically
+make test_query_variants  # Variants mode specifically
 make test_coverage        # Coverage analysis
 make test_R_commands      # R interface tests
 ```
