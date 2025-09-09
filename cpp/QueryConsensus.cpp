@@ -30,17 +30,11 @@ QueryConsensus::QueryConsensus(
     double max_mutations_percent,
     int min_alignment_length,
     int max_alignment_length)
-    : intervals(intervals)
+    : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , consensus_threshold(consensus_threshold)
     , min_consensus_coverage(min_consensus_coverage)
     , num_threads(num_threads)
-    , clip_mode(clip_mode)
-    , clip_margin(clip_margin)
-    , min_mutations_percent(min_mutations_percent)
-    , max_mutations_percent(max_mutations_percent)
-    , min_alignment_length(min_alignment_length)
-    , max_alignment_length(max_alignment_length)
 {
   // validate and correct consensus_threshold
   if (consensus_threshold <= 0.0 || consensus_threshold >= 1.0 || !std::isfinite(consensus_threshold)) {
@@ -129,7 +123,7 @@ void QueryConsensus::calc_variant_coverage()
       const Alignment& aln = alignment_ref.get();
       
       // apply alignment filtering
-      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+      if (!passes_filter(aln, store)) {
         continue;
       }
       
@@ -155,7 +149,7 @@ void QueryConsensus::calc_variant_coverage()
 void QueryConsensus::process_single_alignment(const Alignment& aln, std::map<std::tuple<uint32_t, uint32_t, std::string>, VariantData>& target_variant_results)
 {
   // apply alignment filtering
-  if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+  if (!passes_filter(aln, store)) {
     return;
   }
   
@@ -206,7 +200,6 @@ void QueryConsensus::aggregate_data()
   
   // build read-to-alignments index for LOCAL_ALIGN filtering
   if (clip_mode == ClipMode::LOCAL_ALIGN) {
-    // need to cast away const to call init_read_alignment_index
     const_cast<AlignmentStore&>(store).init_read_alignment_index();
   }
   

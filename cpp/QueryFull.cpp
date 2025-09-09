@@ -11,18 +11,15 @@
 using namespace std;
 
 QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, ClipMode clip_mode, int clip_margin, double min_mutations_percent, double max_mutations_percent, int min_alignment_length, int max_alignment_length)
-    : intervals(intervals)
+    : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , height_style(height_style)
     , max_alignments(max_alignments)
-    , clip_mode(clip_mode)
-    , clip_margin(clip_margin)
-    , min_mutations_percent(min_mutations_percent)
-    , max_mutations_percent(max_mutations_percent)
-    , min_alignment_length(min_alignment_length)
-    , max_alignment_length(max_alignment_length)
 {
-  // no validation needed as ClipMode is type-safe
+  // warn about performance with many intervals
+  if (intervals.size() > 100) {
+    cerr << "warning: QueryFull with " << intervals.size() << " intervals may be slow. Consider using fewer intervals or QueryBin for large-scale analysis." << endl;
+  }
 }
 
 void QueryFull::generate_output_data()
@@ -42,7 +39,7 @@ void QueryFull::generate_output_data()
       const auto& aln = alignment_ref.get();
       
       // apply alignment filtering
-      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+      if (!passes_filter(aln, store)) {
         continue;
       }
       

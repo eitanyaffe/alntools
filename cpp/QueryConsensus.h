@@ -1,8 +1,7 @@
 #ifndef QUERYCONSENSUS_H
 #define QUERYCONSENSUS_H
 
-#include "alignment_store.h" // Includes aln_types.h indirectly
-#include "utils.h"
+#include "QueryBase.h"
 #include <map>
 #include <set>
 #include <string>
@@ -29,26 +28,17 @@ struct ConsensusOutputRow {
   double frequency;
 };
 
-class QueryConsensus {
+class QueryConsensus : public QueryBase {
   private:
-  const std::vector<Interval>& intervals;
   const AlignmentStore& store;
   double consensus_threshold;
   int min_consensus_coverage;
   int num_threads;
-  ClipMode clip_mode;
-  int clip_margin;
-  double min_mutations_percent;
-  double max_mutations_percent;
-  int min_alignment_length;
-  int max_alignment_length;
 
   // Use a map to store results, keyed by {contig_index, position, variant_key}
   std::map<std::tuple<uint32_t, uint32_t, std::string>, VariantData> variant_results;
   // Vector to store the formatted output rows before writing
   std::vector<ConsensusOutputRow> output_rows;
-  // Map from contig_index to intervals for efficient lookup
-  std::map<uint32_t, std::vector<const Interval*>> contig_to_intervals_map;
 
   // build contig to intervals mapping for efficient lookup
   void build_contig_to_intervals_map();

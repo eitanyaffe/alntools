@@ -1,9 +1,7 @@
 #ifndef QUERYFULL_H
 #define QUERYFULL_H
 
-#include "alignment_store.h"
-#include "aln_types.h"
-#include "utils.h"
+#include "QueryBase.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -53,18 +51,11 @@ struct FullOutputReads {
   bool read_reversed;
 };
 
-class QueryFull {
+class QueryFull : public QueryBase {
   private:
-  std::vector<Interval> intervals;
   const AlignmentStore& store;
   HeightStyle height_style;
   int max_alignments;
-  ClipMode clip_mode;
-  int clip_margin;
-  double min_mutations_percent;
-  double max_mutations_percent;
-  int min_alignment_length;
-  int max_alignment_length;
 
   std::vector<FullOutputAlignments> output_alignments;
   std::vector<FullOutputMutations> output_mutations;

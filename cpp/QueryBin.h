@@ -1,8 +1,7 @@
 #ifndef QUERYBIN_H
 #define QUERYBIN_H
 
-#include "alignment_store.h" // Includes aln_types.h indirectly
-#include "utils.h"
+#include "QueryBase.h"
 #include <map>
 #include <set>
 #include <string>
@@ -51,27 +50,18 @@ struct BinOutputRow {
   int dist_1_plus;       // above 1e-1 per bp
 };
 
-class QueryBin {
+class QueryBin : public QueryBase {
   private:
-  const std::vector<Interval>& intervals;
   const AlignmentStore& store;
   int binsize;
   double seg_threshold;
   double non_ref_threshold;
   int num_threads;
-  ClipMode clip_mode;
-  int clip_margin;
-  double min_mutations_percent;
-  double max_mutations_percent;
-  int min_alignment_length;
-  int max_alignment_length;
 
   // Use a map to store results, keyed by {contig_index, bin_start}
   std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
   // Vector to store the formatted output rows before writing
   std::vector<BinOutputRow> output_rows;
-  // Map from contig_index to intervals for efficient lookup
-  std::map<uint32_t, std::vector<const Interval*>> contig_to_intervals_map;
 
   // build contig to intervals mapping for efficient lookup
   void build_contig_to_intervals_map();

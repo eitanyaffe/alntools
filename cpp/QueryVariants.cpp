@@ -66,6 +66,23 @@ QueryVariants::QueryVariants(
   std::sort(library_ids.begin(), library_ids.end());
 }
 
+void QueryVariants::build_contig_to_intervals_map(const AlignmentStore& store)
+{
+  contig_to_intervals_map.clear();
+  
+  for (const auto& interval : intervals) {
+    // skip intervals for contigs that don't exist in the store
+    if (!store.has_contig_id(interval.contig)) {
+      continue;
+    }
+    
+    uint32_t contig_index = store.get_contig_index(interval.contig);
+    contig_to_intervals_map[contig_index].push_back(&interval);
+  }
+  
+  cout << "built contig to intervals map for " << contig_to_intervals_map.size() << " contigs" << endl;
+}
+
 void QueryVariants::execute()
 {
   cout << "executing QueryVariants with " << stores.size() << " libraries and " 
@@ -82,6 +99,9 @@ void QueryVariants::execute()
     if (clip_mode == ClipMode::LOCAL_ALIGN) {
       const_cast<AlignmentStore&>(store).init_read_alignment_index();
     }
+    
+    // build the contig to intervals mapping for this store
+    build_contig_to_intervals_map(store);
     
     // process each interval
     for (const Interval& interval : intervals) {
@@ -142,11 +162,19 @@ void QueryVariants::process_mutations(const Alignment& aln, const AlignmentStore
     const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
     uint32_t mutation_pos = mutation.position;
     
-    // check if mutation falls within any of our intervals
+    // get intervals for this alignment's contig only
+    auto contig_intervals_it = contig_to_intervals_map.find(aln.contig_index);
+    if (contig_intervals_it == contig_to_intervals_map.end()) {
+      // no intervals for this contig, skip this mutation
+      continue;
+    }
+    
+    const std::vector<const Interval*>& relevant_intervals = contig_intervals_it->second;
+    
+    // check if mutation falls within any of the relevant intervals
     bool in_interval = false;
-    for (const Interval& interval : intervals) {
-      if (interval.contig == store.get_contig_id(aln.contig_index) &&
-          mutation_pos >= interval.start && mutation_pos < interval.end) {
+    for (const Interval* interval : relevant_intervals) {
+      if (mutation_pos >= interval->start && mutation_pos < interval->end) {
         in_interval = true;
         break;
       }
@@ -189,11 +217,19 @@ void QueryVariants::process_single_clip(uint32_t clip_pos, const std::string& cl
                                   const AlignmentStore& store, const Alignment& aln, 
                                   const std::string& lib_id)
 {
-  // check if clip position is within any interval
+  // get intervals for this alignment's contig only
+  auto contig_intervals_it = contig_to_intervals_map.find(aln.contig_index);
+  if (contig_intervals_it == contig_to_intervals_map.end()) {
+    // no intervals for this contig, nothing to process
+    return;
+  }
+  
+  const std::vector<const Interval*>& relevant_intervals = contig_intervals_it->second;
+  
+  // check if clip position is within any of the relevant intervals
   bool in_interval = false;
-  for (const Interval& interval : intervals) {
-    if (interval.contig == store.get_contig_id(aln.contig_index) &&
-        clip_pos >= interval.start && clip_pos < interval.end) {
+  for (const Interval* interval : relevant_intervals) {
+    if (clip_pos >= interval->start && clip_pos < interval->end) {
       in_interval = true;
       break;
     }

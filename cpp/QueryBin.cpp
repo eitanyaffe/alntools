@@ -30,18 +30,12 @@ QueryBin::QueryBin(
     double max_mutations_percent,
     int min_alignment_length,
     int max_alignment_length)
-    : intervals(intervals)
+    : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , binsize(binsize)
     , seg_threshold(seg_threshold)
     , non_ref_threshold(non_ref_threshold)
     , num_threads(num_threads)
-    , clip_mode(clip_mode)
-    , clip_margin(clip_margin)
-    , min_mutations_percent(min_mutations_percent)
-    , max_mutations_percent(max_mutations_percent)
-    , min_alignment_length(min_alignment_length)
-    , max_alignment_length(max_alignment_length)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
@@ -191,7 +185,7 @@ void QueryBin::calc_position_coverage(std::map<std::pair<uint32_t, uint32_t>, Bi
       const Alignment& aln = alignment_ref.get();
       
       // apply alignment filtering
-      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+      if (!passes_filter(aln, store)) {
         continue;
       }
       
@@ -214,7 +208,7 @@ void QueryBin::calc_position_coverage(std::map<std::pair<uint32_t, uint32_t>, Bi
 void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair<uint32_t, uint32_t>, BinData>& target_bin_results)
 {
   // apply alignment filtering
-  if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+  if (!passes_filter(aln, store)) {
     return;
   }
   
@@ -391,7 +385,6 @@ void QueryBin::aggregate_data()
   
   // build read-to-alignments index for LOCAL_ALIGN filtering
   if (clip_mode == ClipMode::LOCAL_ALIGN) {
-    // need to cast away const to call init_read_alignment_index
     const_cast<AlignmentStore&>(store).init_read_alignment_index();
   }
   

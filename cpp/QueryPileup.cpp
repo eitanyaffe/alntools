@@ -20,17 +20,14 @@ QueryPileup::QueryPileup(
     double max_mutations_percent,
     int min_alignment_length,
     int max_alignment_length)
-    : intervals(intervals)
+    : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , report_mode(report_mode)
-    , clip_mode(clip_mode)
-    , clip_margin(clip_margin)
-    , min_mutations_percent(min_mutations_percent)
-    , max_mutations_percent(max_mutations_percent)
-    , min_alignment_length(min_alignment_length)
-    , max_alignment_length(max_alignment_length)
 {
-  // Constructor implementation (basic initialization done via initializer list)
+  // warn about performance with many intervals
+  if (intervals.size() > 100) {
+    cerr << "warning: QueryPileup with " << intervals.size() << " intervals may be slow. Consider using fewer intervals or QueryBin for large-scale analysis." << endl;
+  }
 }
 
 // Private helper function to aggregate data into pileup_results
@@ -40,7 +37,6 @@ void QueryPileup::aggregate_data()
 
   // build read-to-alignments index for LOCAL_ALIGN filtering
   if (clip_mode == ClipMode::LOCAL_ALIGN) {
-    // need to cast away const to call init_read_alignment_index
     const_cast<AlignmentStore&>(store).init_read_alignment_index();
   }
 
@@ -65,7 +61,7 @@ void QueryPileup::aggregate_data()
       const auto& aln = alignment_ref.get();
       
       // apply alignment filtering
-      if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)) {
+      if (!passes_filter(aln, store)) {
         continue;
       }
       

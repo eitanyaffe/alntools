@@ -65,6 +65,9 @@ class QueryVariants {
   std::vector<VariantOutputRow> variant_rows;
   std::vector<std::string> library_ids; // ordered list of library IDs
   
+  // efficiency optimization - map from contig_index to intervals for efficient lookup
+  std::map<uint32_t, std::vector<const Interval*>> contig_to_intervals_map;
+  
   // process a single alignment from a library
   void process_alignment(const Alignment& aln, const AlignmentStore& store, 
                         const std::string& lib_id);
@@ -84,6 +87,9 @@ class QueryVariants {
   
   // calculate coverage for all variant positions
   void calculate_coverage();
+  
+  // build contig to intervals mapping for efficient lookup
+  void build_contig_to_intervals_map(const AlignmentStore& store);
   
   // apply QueryVariants-specific filters and generate output rows
   void apply_filters_and_generate_rows();
