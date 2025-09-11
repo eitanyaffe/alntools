@@ -274,6 +274,36 @@ This produces three output files:
 - **Sorted output**: Variants sorted by contig, coordinate, then coverage (descending)
 - **Matrix output**: Support and coverage matrices for easy downstream analysis
 
+## Gene Annotation
+
+All query modes support optional gene annotation to classify variants as genic or intergenic and provide functional impact analysis with proper codon-context amino acid translation.
+
+**Gene Annotation Options:**
+* `-ifn_gene_table <fn>`: Tab-delimited gene table with columns: `gene`, `contig`, `start`, `end`, `strand`, `desc`
+* `-ifn_codon_table <fn>`: Codon table file or name (e.g., `table11` for standard genetic code)
+* `-ifn_reference_fasta <fn>`: Reference FASTA file for proper codon analysis (required for accurate amino acid translation)
+* `-use_genes <T|F>`: Enable gene annotation (requires gene table, codon table, and reference FASTA)
+
+**Example:**
+```bash
+alntools query -mode variants \
+   -ifn_libraries libraries.tsv \
+   -ifn_intervals intervals.txt \
+   -ofn_prefix output/annotated_variants \
+   -ifn_gene_table genes.txt \
+   -ifn_codon_table table11 \
+   -ifn_reference_fasta reference.fa \
+   -use_genes T
+```
+
+**Output Files (when gene annotation is enabled):**
+- Main output files include an additional `is_genic` column (true/false)
+- `{prefix}_genic.tsv`: Detailed annotation for variants within genes
+  - Columns: `row_id`, `gene_id`, `gene_desc`, `aa_coord`, `variant_codon`, `ref_codon`, `variant_type`, `mutation_desc`
+  - Example mutation descriptions: `S:F` (Serine→Phenylalanine), `syn` (synonymous), `non-syn` (non-synonymous)
+- `{prefix}_intergenic.tsv`: Information for variants between genes
+  - Columns: `row_id`, `gene_left`, `gene_right`, `orientation_left`, `orientation_right`, `distance_left`, `distance_right`
+
 ### 4. coverage
 
 Generates comprehensive alignment coverage statistics for the entire ALN file, including detailed analysis of aligned and non-aligned regions.
@@ -506,6 +536,7 @@ make test_query_all       # All query modes (full, pileup, bin, consensus, varia
 make test_query_consensus # Consensus mode specifically
 make test_query_variants  # Variants mode specifically
 make test_coverage        # Coverage analysis
+make test_genes           # Gene annotation functionality
 make test_R_commands      # R interface tests
 ```
 

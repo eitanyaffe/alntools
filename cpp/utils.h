@@ -87,6 +87,15 @@ bool passes_alignment_filter(const Alignment& alignment,
                            int min_alignment_length = 0,
                            int max_alignment_length = 0);
 
+// initialize read alignment index if LOCAL_ALIGN mode is used
+void init_local_align_if_needed(AlignmentStore& store, ClipMode clip_mode);
+
+// check if mutation should be skipped due to short indel filtering
+bool should_skip_short_indel(const AlignmentStore& store, uint32_t contig_index, uint32_t mutation_index);
+
+// safely open file for writing with error handling
+void safe_open_file_for_writing(const std::string& filename, std::ofstream& file);
+
 // statistical functions
 double binomial_right_tail(uint32_t n, double p, uint32_t k);
 

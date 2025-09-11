@@ -563,3 +563,24 @@ bool passes_alignment_filter(const Alignment& alignment,
   return true;
 }
 
+void init_local_align_if_needed(AlignmentStore& store, ClipMode clip_mode)
+{
+  if (clip_mode == ClipMode::LOCAL_ALIGN) {
+    store.init_read_alignment_index();
+  }
+}
+
+bool should_skip_short_indel(const AlignmentStore& store, uint32_t contig_index, uint32_t mutation_index)
+{
+  return store.is_short_indel(contig_index, mutation_index);
+}
+
+void safe_open_file_for_writing(const std::string& filename, std::ofstream& file)
+{
+  file.open(filename);
+  if (!file.is_open()) {
+    cerr << "error: cannot open file " << filename << " for writing" << endl;
+    exit(1);
+  }
+}
+

@@ -46,18 +46,15 @@ QueryVariants::QueryVariants(
     double min_mutations_percent,
     double max_mutations_percent,
     int min_alignment_length,
-    int max_alignment_length)
-    : intervals(intervals)
+    int max_alignment_length,
+    Genes* genes)
+    : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, 
+                min_alignment_length, max_alignment_length)
     , stores(stores)
     , min_variants_variant_support(min_variants_variant_support)
     , min_variants_library_support(min_variants_library_support)
     , min_variants_coverage_support(min_variants_coverage_support)
-    , clip_mode(clip_mode)
-    , clip_margin(clip_margin)
-    , min_mutations_percent(min_mutations_percent)
-    , max_mutations_percent(max_mutations_percent)
-    , min_alignment_length(min_alignment_length)
-    , max_alignment_length(max_alignment_length)
+    , genes(genes)
 {
   // extract ordered library IDs
   for (const auto& entry : stores) {
@@ -96,9 +93,7 @@ void QueryVariants::execute()
     cout << "processing library: " << lib_id << endl;
     
     // build read-to-alignments index for LOCAL_ALIGN filtering if needed
-    if (clip_mode == ClipMode::LOCAL_ALIGN) {
-      const_cast<AlignmentStore&>(store).init_read_alignment_index();
-    }
+    init_local_align_if_needed(const_cast<AlignmentStore&>(store), clip_mode);
     
     // build the contig to intervals mapping for this store
     build_contig_to_intervals_map(store);
@@ -154,7 +149,7 @@ void QueryVariants::process_mutations(const Alignment& aln, const AlignmentStore
   // process each mutation in this alignment
   for (uint32_t mutation_index : aln.mutations) {
     // skip short indels
-    if (store.is_short_indel(aln.contig_index, mutation_index)) {
+    if (should_skip_short_indel(store, aln.contig_index, mutation_index)) {
       continue;
     }
     
@@ -385,6 +380,14 @@ void QueryVariants::apply_filters_and_generate_rows()
     row.total_support = variant->total_support;
     row.total_coverage = variant->total_coverage;
     row.frequency = variant->get_frequency();
+    row.is_genic = false;
+
+    // add gene annotation if genes object is available
+    if (genes != nullptr) {
+      // annotate_position now returns whether the variant is genic
+      row.is_genic = annotate_position(row.variant_id, variant->contig, variant->position, 
+                                      variant->type, variant->sequence);
+    }
     
     variant_rows.push_back(row);
   }
@@ -395,6 +398,12 @@ void QueryVariants::write_to_csv(const std::string& ofn_prefix)
   write_variants_file(ofn_prefix);
   write_support_file(ofn_prefix);
   write_coverage_file(ofn_prefix);
+  
+  // write gene annotation files if genes were used
+  if (genes != nullptr) {
+    write_genic_file(ofn_prefix);
+    write_intergenic_file(ofn_prefix);
+  }
 }
 
 void QueryVariants::write_variants_file(const std::string& ofn_prefix)
@@ -402,14 +411,11 @@ void QueryVariants::write_variants_file(const std::string& ofn_prefix)
   string filename = ofn_prefix + "_variants.tsv";
   cout << "writing variants data to " << filename << endl;
   
-  ofstream file(filename);
-  if (!file.is_open()) {
-    cerr << "error: cannot open file " << filename << " for writing" << endl;
-    return;
-  }
+  ofstream file;
+  safe_open_file_for_writing(filename, file);
   
   // write header
-  file << "variant_id\tcontig\tcoord\ttype\tsequence\tdesc\tlibrary_count\ttotal_support\ttotal_coverage\tfrequency" << endl;
+  file << "variant_id\tcontig\tcoord\ttype\tsequence\tdesc\tlibrary_count\ttotal_support\ttotal_coverage\tfrequency\tis_genic" << endl;
   
   // write data rows
   for (const auto& row : variant_rows) {
@@ -422,7 +428,8 @@ void QueryVariants::write_variants_file(const std::string& ofn_prefix)
          << row.library_count << "\t"
          << row.total_support << "\t"
          << row.total_coverage << "\t"
-         << fixed << setprecision(6) << row.frequency << endl;
+         << fixed << setprecision(6) << row.frequency << "\t"
+         << (row.is_genic ? "true" : "false") << endl;
   }
   
   file.close();
@@ -433,11 +440,8 @@ void QueryVariants::write_support_file(const std::string& ofn_prefix)
   string filename = ofn_prefix + "_support.tsv";
   cout << "writing support data to " << filename << endl;
   
-  ofstream file(filename);
-  if (!file.is_open()) {
-    cerr << "error: cannot open file " << filename << " for writing" << endl;
-    return;
-  }
+  ofstream file;
+  safe_open_file_for_writing(filename, file);
   
   // write header
   file << "variant_id";
@@ -479,11 +483,8 @@ void QueryVariants::write_coverage_file(const std::string& ofn_prefix)
   string filename = ofn_prefix + "_coverage.tsv";
   cout << "writing coverage data to " << filename << endl;
   
-  ofstream file(filename);
-  if (!file.is_open()) {
-    cerr << "error: cannot open file " << filename << " for writing" << endl;
-    return;
-  }
+  ofstream file;
+  safe_open_file_for_writing(filename, file);
   
   // write header
   file << "variant_id";
@@ -515,6 +516,103 @@ void QueryVariants::write_coverage_file(const std::string& ofn_prefix)
       }
     }
     file << endl;
+  }
+  
+  file.close();
+}
+
+
+bool QueryVariants::annotate_position(const std::string& variant_id, const std::string& contig, uint32_t position,
+                                     const std::string& mutation_type, const std::string& mutation_sequence)
+{
+  if (genes == nullptr) {
+    return false; // no annotation needed, not genic
+  }
+  
+  GeneAnnotation annotation = genes->annotate_variant(contig, position, mutation_type, mutation_sequence);
+  
+  if (annotation.loc == "genic") {
+    GenicRow genic_row;
+    genic_row.row_id = variant_id;
+    genic_row.gene_id = annotation.gene_id;
+    genic_row.gene_desc = annotation.gene_desc;
+    genic_row.aa_coord = annotation.aa_coord;
+    genic_row.variant_codon = annotation.variant_codon;
+    genic_row.ref_codon = annotation.ref_codon;
+    genic_row.variant_type = annotation.variant_type;
+    genic_row.mutation_desc = annotation.mutation_desc;
+    genic_rows.push_back(genic_row);
+    return true; // variant is genic
+  } else {
+    IntergenicRow intergenic_row;
+    intergenic_row.row_id = variant_id;
+    intergenic_row.gene_left = annotation.gene_left;
+    intergenic_row.gene_right = annotation.gene_right;
+    intergenic_row.orientation_left = annotation.orientation_left;
+    intergenic_row.orientation_right = annotation.orientation_right;
+    intergenic_row.distance_left = annotation.distance_left;
+    intergenic_row.distance_right = annotation.distance_right;
+    intergenic_rows.push_back(intergenic_row);
+    return false; // variant is intergenic
+  }
+}
+
+void QueryVariants::write_genic_file(const std::string& ofn_prefix, const std::string& suffix)
+{
+  if (genic_rows.empty()) {
+    cout << "no genic entries to write" << endl;
+    return;
+  }
+  
+  string filename = ofn_prefix + "_genic" + suffix + ".tsv";
+  cout << "writing genic data to " << filename << endl;
+  
+  ofstream file;
+  safe_open_file_for_writing(filename, file);
+  
+  // write header
+  file << "row_id\tgene_id\tgene_desc\taa_coord\tvariant_codon\tref_codon\tvariant_type\tmutation_desc" << endl;
+  
+  // write data rows
+  for (const auto& row : genic_rows) {
+    file << row.row_id << "\t"
+         << row.gene_id << "\t"
+         << row.gene_desc << "\t"
+         << row.aa_coord << "\t"
+         << row.variant_codon << "\t"
+         << row.ref_codon << "\t"
+         << row.variant_type << "\t"
+         << row.mutation_desc << endl;
+  }
+  
+  file.close();
+}
+
+void QueryVariants::write_intergenic_file(const std::string& ofn_prefix, const std::string& suffix)
+{
+  if (intergenic_rows.empty()) {
+    cout << "no intergenic entries to write" << endl;
+    return;
+  }
+  
+  string filename = ofn_prefix + "_intergenic" + suffix + ".tsv";
+  cout << "writing intergenic data to " << filename << endl;
+  
+  ofstream file;
+  safe_open_file_for_writing(filename, file);
+  
+  // write header
+  file << "row_id\tgene_left\tgene_right\torientation_left\torientation_right\tdistance_left\tdistance_right" << endl;
+  
+  // write data rows
+  for (const auto& row : intergenic_rows) {
+    file << row.row_id << "\t"
+         << row.gene_left << "\t"
+         << row.gene_right << "\t"
+         << row.orientation_left << "\t"
+         << row.orientation_right << "\t"
+         << row.distance_left << "\t"
+         << row.distance_right << endl;
   }
   
   file.close();

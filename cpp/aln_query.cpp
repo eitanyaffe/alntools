@@ -56,6 +56,10 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("min_variants_variant_support", new ParserInteger("minimum variant support across all libraries for 'variants' mode (default 3)", 3), false);
   params.add_parser("min_variants_library_support", new ParserInteger("minimum number of libraries with variant for 'variants' mode (default 1)", 1), false);
   params.add_parser("min_variants_coverage_support", new ParserInteger("minimum total coverage for 'variants' mode (default 10)", 10), false);
+  params.add_parser("ifn_gene_table", new ParserFilename("input gene table file (tab-delimited with gene, contig, start, end, strand columns)"), false);
+  params.add_parser("ifn_codon_table", new ParserFilename("input codon table file or name (e.g., table11)"), false);
+  params.add_parser("ifn_reference_fasta", new ParserFilename("input reference FASTA file for codon analysis (required when use_genes=true)"), false);
+  params.add_parser("use_genes", new ParserBoolean("use gene annotation (requires gene table, codon table, and reference FASTA)", false), false);
 
   if (argc == 1) {
     params.usage(name);
@@ -117,6 +121,21 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
       exit(1);
     }
   }
+  
+  // validate gene annotation parameters
+  bool use_genes = params.get_bool("use_genes");
+  if (use_genes && mode == "variants") {
+    string ifn_gene_table = params.get_string("ifn_gene_table");
+    string ifn_codon_table = params.get_string("ifn_codon_table");
+    string ifn_reference_fasta = params.get_string("ifn_reference_fasta");
+    
+    if (ifn_gene_table.empty() || ifn_codon_table.empty() || ifn_reference_fasta.empty()) {
+      cerr << "error: use_genes=true requires all three parameters: ifn_gene_table, ifn_codon_table, and ifn_reference_fasta" << endl;
+      exit(1);
+    }
+  } else if (use_genes && mode != "variants") {
+    cerr << "warning: gene annotation is only supported for variants mode, ignoring use_genes=true" << endl;
+  }
 
   params.print(cout);
 }
@@ -153,6 +172,12 @@ int query_main(const char* name, int argc, char** argv)
   int min_alignment_length = params.get_int("min_alignment_length");
   int max_alignment_length = params.get_int("max_alignment_length");
   int min_indel_length = params.get_int("min_indel_length");
+  
+  // get gene annotation parameters
+  string ifn_gene_table = params.get_string("ifn_gene_table");
+  string ifn_codon_table = params.get_string("ifn_codon_table");
+  string ifn_reference_fasta = params.get_string("ifn_reference_fasta");
+  bool use_genes = params.get_bool("use_genes");
 
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
@@ -183,6 +208,14 @@ int query_main(const char* name, int argc, char** argv)
   cout << "  min_alignment_length: " << min_alignment_length << endl;
   cout << "  max_alignment_length: " << max_alignment_length << endl;
   cout << "  min_indel_length: " << min_indel_length << endl;
+  cout << "  use_genes: " << (use_genes ? "true" : "false") << endl;
+  if (use_genes) {
+    cout << "  ifn_gene_table: " << ifn_gene_table << endl;
+    cout << "  ifn_codon_table: " << ifn_codon_table << endl;
+    if (!ifn_reference_fasta.empty()) {
+      cout << "  ifn_reference_fasta: " << ifn_reference_fasta << endl;
+    }
+  }
 
   vector<Interval> intervals;
   read_intervals(ifn_intervals, intervals);
@@ -235,9 +268,34 @@ int query_main(const char* name, int argc, char** argv)
       stores[lib_id].count_short_indels(min_indel_length);
     }
     
+    // create genes object if gene annotation is requested
+    Genes genes;
+    Genes* genes_ptr = nullptr;
+    if (use_genes) {
+      cout << "loading gene annotation with reference sequences..." << endl;
+      
+      if (!genes.load_gene_table(ifn_gene_table)) {
+        cerr << "error: failed to load gene table from " << ifn_gene_table << endl;
+        exit(1);
+      }
+      
+      if (!genes.load_codon_table(ifn_codon_table)) {
+        cerr << "error: failed to load codon table from " << ifn_codon_table << endl;
+        exit(1);
+      }
+      
+      if (!genes.load_reference_sequences(ifn_reference_fasta)) {
+        cerr << "error: failed to load reference sequences from " << ifn_reference_fasta << endl;
+        exit(1);
+      }
+      
+      cout << "successfully loaded genes (" << genes.get_gene_count() << " total) with reference sequences" << endl;
+      genes_ptr = &genes;
+    }
+    
     QueryVariants queryVariants(intervals, stores, min_variants_variant_support, min_variants_library_support, 
                      min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
-                     max_mutations_percent, min_alignment_length, max_alignment_length);
+                     max_mutations_percent, min_alignment_length, max_alignment_length, genes_ptr);
     queryVariants.execute();
     queryVariants.write_to_csv(ofn_prefix);
     

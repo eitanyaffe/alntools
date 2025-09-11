@@ -1,11 +1,35 @@
 #ifndef QUERYVARIANTS_H
 #define QUERYVARIANTS_H
 
+#include "QueryBase.h"
 #include "alignment_store.h" // Includes aln_types.h indirectly
+#include "Genes.h"
 #include "utils.h"
 #include <map>
 #include <string>
 #include <vector>
+
+// Gene annotation structures specific to QueryVariants
+struct GenicRow {
+  std::string row_id;  // variant_id, position_id, etc.
+  std::string gene_id;
+  std::string gene_desc;
+  uint32_t aa_coord; // amino acid position
+  std::string variant_codon;
+  std::string ref_codon;
+  std::string variant_type; // "syn", "non-syn", "ins", "del", "clip"
+  std::string mutation_desc; // amino acid change description, e.g., "S:F"
+};
+
+struct IntergenicRow {
+  std::string row_id;  // variant_id, position_id, etc.
+  std::string gene_left;
+  std::string gene_right;
+  std::string orientation_left;
+  std::string orientation_right;
+  uint32_t distance_left;
+  uint32_t distance_right;
+};
 
 // Structure to represent a variant across multiple libraries
 struct SetVariantData {
@@ -40,11 +64,11 @@ struct VariantOutputRow {
   int total_support;
   int total_coverage;
   double frequency;
+  bool is_genic; // true if within a gene, false if intergenic, undefined if genes not used
 };
 
-class QueryVariants {
+class QueryVariants : public QueryBase {
   private:
-  const std::vector<Interval>& intervals;
   std::map<std::string, AlignmentStore> stores; // library_id -> store
   
   // QueryVariants-specific parameters
@@ -52,17 +76,14 @@ class QueryVariants {
   int min_variants_library_support;
   int min_variants_coverage_support;
   
-  // Alignment filtering parameters (same as other queries)
-  ClipMode clip_mode;
-  int clip_margin;
-  double min_mutations_percent;
-  double max_mutations_percent;
-  int min_alignment_length;
-  int max_alignment_length;
-  
   // Results storage
   std::map<std::string, SetVariantData> variant_data; // variant_key -> data
   std::vector<VariantOutputRow> variant_rows;
+  
+  // Gene annotation support
+  Genes* genes;
+  std::vector<GenicRow> genic_rows;
+  std::vector<IntergenicRow> intergenic_rows;
   std::vector<std::string> library_ids; // ordered list of library IDs
   
   // efficiency optimization - map from contig_index to intervals for efficient lookup
@@ -98,6 +119,12 @@ class QueryVariants {
   void write_variants_file(const std::string& ofn_prefix);
   void write_support_file(const std::string& ofn_prefix);
   void write_coverage_file(const std::string& ofn_prefix);
+  
+  // gene annotation methods
+  bool annotate_position(const std::string& variant_id, const std::string& contig, uint32_t position,
+                        const std::string& mutation_type, const std::string& mutation_sequence);
+  void write_genic_file(const std::string& ofn_prefix, const std::string& suffix = "");
+  void write_intergenic_file(const std::string& ofn_prefix, const std::string& suffix = "");
 
   public:
   QueryVariants(const std::vector<Interval>& intervals,
@@ -110,7 +137,8 @@ class QueryVariants {
            double min_mutations_percent = 0.0,
            double max_mutations_percent = 10.0,
            int min_alignment_length = 0,
-           int max_alignment_length = 0);
+           int max_alignment_length = 0,
+           Genes* genes = nullptr);
 
   // execute the query
   void execute();
@@ -129,6 +157,15 @@ class QueryVariants {
   
   const std::map<std::string, SetVariantData>& get_variant_data() const {
     return variant_data;
+  }
+  
+  // get access to gene annotation data (for R interface)
+  const std::vector<GenicRow>& get_genic_rows() const {
+    return genic_rows;
+  }
+  
+  const std::vector<IntergenicRow>& get_intergenic_rows() const {
+    return intergenic_rows;
   }
 };
 

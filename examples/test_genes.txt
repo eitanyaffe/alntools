@@ -1,0 +1,4 @@
+gene	contig	start	end	strand	desc
+gene1	contig1	50	200	+	Test gene 1 - early region
+gene2	contig1	400	600	-	Test gene 2 - middle region  
+gene3	contig1	800	950	+	Test gene 3 - late region

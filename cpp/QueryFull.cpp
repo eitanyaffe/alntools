@@ -69,22 +69,26 @@ void QueryFull::generate_output_data()
 
       for (uint32_t mutation_index : aln.mutations) { // Iterate indices
         // skip short indels
-        if (store.is_short_indel(aln.contig_index, mutation_index)) {
+        if (should_skip_short_indel(store, aln.contig_index, mutation_index)) {
           continue;
         }
 
         // Fetch mutation object
         const Mutation& mutation = store.get_mutation(aln.contig_index, mutation_index);
 
-        // Position is absolute contig coordinate
+        // Position is absolute contig coordinate (1-based for output)
+        uint32_t position_1based = mutation.position + 1;
+        
+
         // initialize height to 0, will be set later by alignment height
         output_mutations.push_back({ current_alignment_index,
             read_id,
             contig_id,
             mutation.type,
-            static_cast<int>(mutation.position + 1),
+            static_cast<int>(position_1based),
             mutation.to_string(),
             0 });
+            
       }
       current_alignment_index++;
     }
@@ -182,10 +186,7 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
 void QueryFull::execute()
 {
   // build read-to-alignments index for LOCAL_ALIGN filtering
-  if (clip_mode == ClipMode::LOCAL_ALIGN) {
-    // need to cast away const to call init_read_alignment_index
-    const_cast<AlignmentStore&>(store).init_read_alignment_index();
-  }
+  init_local_align_if_needed(const_cast<AlignmentStore&>(store), clip_mode);
   
   generate_output_data();
 }
@@ -308,7 +309,6 @@ void QueryFull::calculate_heights_by_coord(bool sort_by_start)
     reads_by_contig[read.contig_id].push_back(&read);
     max_coord = std::max(max_coord, read.span_end);
   }
-  cout << "Max coord: " << max_coord << endl;
 
   // process each contig separately
   cout << "number of contigs: " << reads_by_contig.size() << endl;
@@ -509,3 +509,4 @@ HeightStyle QueryFull::get_height_style() const
 {
   return height_style;
 }
+

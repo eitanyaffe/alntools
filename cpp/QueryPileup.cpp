@@ -36,9 +36,7 @@ void QueryPileup::aggregate_data()
   pileup_results.clear(); // Ensure map is empty before starting
 
   // build read-to-alignments index for LOCAL_ALIGN filtering
-  if (clip_mode == ClipMode::LOCAL_ALIGN) {
-    const_cast<AlignmentStore&>(store).init_read_alignment_index();
-  }
+  init_local_align_if_needed(const_cast<AlignmentStore&>(store), clip_mode);
 
   // Pre-populate pileup_results map for all positions defined by input intervals.
   int total_positions = 0;
@@ -78,7 +76,7 @@ void QueryPileup::aggregate_data()
       // Calculate mutation counts for relevant positions.
       for (uint32_t mutation_index : aln.mutations) { // Iterate indices
         // skip short indels
-        if (store.is_short_indel(aln.contig_index, mutation_index)) {
+        if (should_skip_short_indel(store, aln.contig_index, mutation_index)) {
           continue;
         }
 
@@ -143,18 +141,41 @@ void QueryPileup::generate_output_rows()
 
     int cumulative_count_for_pos = 0;
 
+
     // Loop through sorted variants, calculate cumsum, create output rows.
     for (const auto& variant_pair : variants) {
       const string& mut_str = variant_pair.first;
       int count = variant_pair.second;
       cumulative_count_for_pos += count;
-      output_rows.push_back({ contig_id, position_1based, mut_str, count, data.coverage, cumulative_count_for_pos });
+      
+      PileupOutputRow row;
+      row.contig = contig_id;
+      row.position = position_1based;
+      row.variant = mut_str;
+      row.count = count;
+      row.coverage = data.coverage;
+      row.cumsum = cumulative_count_for_pos;
+      output_rows.push_back(row);
+      
+      // Add gene annotation details if genes are used
+      // Gene annotation not supported in QueryPileup
     }
 
     // Create REF row if ref_count > 0 (or if coverage is 0 but mode is ALL).
     if (ref_count > 0 || (data.coverage == 0 && report_mode == PileupReportMode::ALL)) {
       cumulative_count_for_pos += ref_count;
-      output_rows.push_back({ contig_id, position_1based, "REF", ref_count, data.coverage, cumulative_count_for_pos });
+      
+      PileupOutputRow ref_row;
+      ref_row.contig = contig_id;
+      ref_row.position = position_1based;
+      ref_row.variant = "REF";
+      ref_row.count = ref_count;
+      ref_row.coverage = data.coverage;
+      ref_row.cumsum = cumulative_count_for_pos;
+      output_rows.push_back(ref_row);
+      
+      // Add gene annotation details for REF if genes are used
+      // Gene annotation not supported in QueryPileup
     }
 
     assert(cumulative_count_for_pos == data.coverage && "Cumulative count must equal coverage at end of position");

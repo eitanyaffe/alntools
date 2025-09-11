@@ -19,7 +19,7 @@ protected:
 
   // shared efficiency optimization - each derived class builds this with their own store(s)
   std::map<uint32_t, std::vector<const Interval*>> contig_to_intervals_map;
-
+  
   // store-agnostic utility methods
   bool passes_filter(const Alignment& aln, const AlignmentStore& store) const;
 

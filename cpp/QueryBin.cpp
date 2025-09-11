@@ -259,7 +259,7 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   // process mutations for this alignment only once
   for (uint32_t mutation_index : aln.mutations) {
     // skip short indels
-    if (store.is_short_indel(aln.contig_index, mutation_index)) {
+    if (should_skip_short_indel(store, aln.contig_index, mutation_index)) {
       continue;
     }
 
@@ -384,9 +384,7 @@ void QueryBin::aggregate_data()
   bin_results.clear();
   
   // build read-to-alignments index for LOCAL_ALIGN filtering
-  if (clip_mode == ClipMode::LOCAL_ALIGN) {
-    const_cast<AlignmentStore&>(store).init_read_alignment_index();
-  }
+  init_local_align_if_needed(const_cast<AlignmentStore&>(store), clip_mode);
   
   // build the contig to intervals mapping first
   build_contig_to_intervals_map();

@@ -22,7 +22,7 @@ TEST_MIN_CONSENSUS_COVERAGE = 3
 
 .PHONY: test test_basic test_full test_query_full test_query_bin \
 test_query_pileup test_query_consensus test_query_variants test_coverage test_query_all test_R_all test_R_commands test_R_plot \
-test_create_dense_paf clean-test test-r-load
+test_create_dense_paf test_genes clean-test test-r-load
 
 ########################################################################################
 # creating aln files
@@ -184,6 +184,67 @@ test_R: test_R_commands test_R_plot
 
 test: test_basic test_full test_query_full test_query_all
 	@echo "all tests completed successfully"
+
+########################################################################################
+# Gene annotation tests  
+########################################################################################
+
+# Test gene annotation with dense PAF data
+test_genes: $(TARGET)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running GENE ANNOTATION TEST"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# First construct ALN file with dense data
+	rm -rf $(TEST_OUTPUT_DIR) && mkdir -p $(TEST_OUTPUT_DIR)
+	$(TARGET) construct \
+		-ifn_paf $(TEST_DENSE_PAF) \
+		-ofn $(TEST_OUTPUT_DIR)/test_dense.aln
+	@echo "ALN file created, now testing gene annotation..."
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# Test variants with gene annotation
+	@echo "id	fn" > $(TEST_OUTPUT_DIR)/libraries_genes.tsv
+	@echo "lib1	$(TEST_OUTPUT_DIR)/test_dense.aln" >> $(TEST_OUTPUT_DIR)/libraries_genes.tsv
+	$(TARGET) query \
+		-mode variants \
+		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries_genes.tsv \
+		-ifn_intervals $(TEST_DENSE_INTERVALS) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/variants_genes \
+		-ifn_gene_table examples/test_genes.txt \
+		-ifn_codon_table table11 \
+		-use_genes T \
+		-min_variants_variant_support 1 \
+		-min_variants_library_support 1 \
+		-min_variants_coverage_support 1
+	@echo "Variants with gene annotation completed"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# Test pileup with gene annotation
+	$(TARGET) query \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test_dense.aln \
+		-ifn_intervals $(TEST_DENSE_INTERVALS) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/pileup_genes \
+		-mode pileup \
+		-ifn_gene_table examples/test_genes.txt \
+		-ifn_codon_table table11 \
+		-use_genes T \
+		-pileup_mode mutated
+	@echo "Pileup with gene annotation completed"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# Test full with gene annotation  
+	$(TARGET) query \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test_dense.aln \
+		-ifn_intervals $(TEST_DENSE_INTERVALS) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/full_genes \
+		-mode full \
+		-ifn_gene_table examples/test_genes.txt \
+		-ifn_codon_table table11 \
+		-use_genes T
+	@echo "Full query with gene annotation completed"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "Checking output files..."
+	@ls -la $(TEST_OUTPUT_DIR)/*genes*
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "GENE ANNOTATION TEST completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 # Clean test outputs
 test_clean:

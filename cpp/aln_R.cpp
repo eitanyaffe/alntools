@@ -22,6 +22,152 @@
 using namespace std;
 using namespace Rcpp;
 
+// Helper functions to extract R data to C++ containers
+bool extract_genes_from_dataframe(const DataFrame& gene_df, std::vector<Gene>& gene_vector) {
+    // check required columns
+    if (!gene_df.containsElementNamed("gene") || !gene_df.containsElementNamed("contig") ||
+        !gene_df.containsElementNamed("start") || !gene_df.containsElementNamed("end") ||
+        !gene_df.containsElementNamed("strand")) {
+        Rcpp::Rcerr << "error: gene DataFrame must contain columns: gene, contig, start, end, strand" << std::endl;
+        return false;
+    }
+    
+    // extract columns
+    CharacterVector gene_ids = gene_df["gene"];
+    CharacterVector contigs = gene_df["contig"];
+    IntegerVector starts = gene_df["start"];
+    IntegerVector ends = gene_df["end"];
+    CharacterVector strands = gene_df["strand"];
+    
+    // optional description column
+    CharacterVector descriptions;
+    bool has_desc = gene_df.containsElementNamed("desc");
+    if (has_desc) {
+        descriptions = gene_df["desc"];
+    }
+    
+    int nrows = gene_df.nrows();
+    gene_vector.clear();
+    gene_vector.reserve(nrows);
+    
+    for (int i = 0; i < nrows; i++) {
+        std::string gene_id = as<std::string>(gene_ids[i]);
+        std::string contig = as<std::string>(contigs[i]);
+        uint32_t start = static_cast<uint32_t>(starts[i]);
+        uint32_t end = static_cast<uint32_t>(ends[i]);
+        std::string strand_str = as<std::string>(strands[i]);
+        
+        char strand = '+';
+        if (!strand_str.empty()) {
+            strand = strand_str[0];
+        }
+        
+        std::string desc = "";
+        if (has_desc && i < descriptions.size()) {
+            desc = as<std::string>(descriptions[i]);
+        }
+        
+        // create gene object and add to vector
+        gene_vector.emplace_back(gene_id, contig, start, end, strand, desc);
+    }
+    
+    return true;
+}
+
+bool extract_sequences_from_list(const List& seq_list, std::unordered_map<std::string, std::string>& sequences_map) {
+    // check if list has names
+    CharacterVector names = seq_list.names();
+    if (names.size() == 0) {
+        Rcpp::Rcerr << "error: reference sequences List must be named (names = contig IDs)" << std::endl;
+        return false;
+    }
+    
+    int n_sequences = seq_list.size();
+    sequences_map.clear();
+    
+    for (int i = 0; i < n_sequences; i++) {
+        std::string contig_id = as<std::string>(names[i]);
+        
+        // sequences can be either character vectors or lists (from seqinr)
+        SEXP seq_element = seq_list[i];
+        std::string sequence;
+        
+        if (TYPEOF(seq_element) == STRSXP) {
+            // character vector - join all elements
+            CharacterVector seq_vec = as<CharacterVector>(seq_element);
+            for (int j = 0; j < seq_vec.size(); j++) {
+                sequence += as<std::string>(seq_vec[j]);
+            }
+        } else if (TYPEOF(seq_element) == VECSXP) {
+            // list (seqinr format) - extract sequence
+            List seq_obj = as<List>(seq_element);
+            if (seq_obj.containsElementNamed("seq")) {
+                CharacterVector seq_vec = seq_obj["seq"];
+                for (int j = 0; j < seq_vec.size(); j++) {
+                    sequence += as<std::string>(seq_vec[j]);
+                }
+            } else {
+                // assume the list itself contains the sequence
+                for (int j = 0; j < seq_obj.size(); j++) {
+                    sequence += as<std::string>(seq_obj[j]);
+                }
+            }
+        } else {
+            Rcpp::Rcerr << "warning: unsupported sequence format for contig " << contig_id << ", skipping" << std::endl;
+            continue;
+        }
+        
+        // convert to uppercase
+        std::transform(sequence.begin(), sequence.end(), sequence.begin(), ::toupper);
+        
+        sequences_map[contig_id] = sequence;
+    }
+    
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Gene management functions
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+SEXP aln_genes(DataFrame gene_table, List reference_sequences, std::string codon_table_path) {
+    // extract gene table from DataFrame to C++ vector
+    std::vector<Gene> gene_vector;
+    if (!extract_genes_from_dataframe(gene_table, gene_vector)) {
+        stop("failed to extract gene table from DataFrame");
+    }
+    
+    // extract reference sequences from List to C++ map
+    std::unordered_map<std::string, std::string> sequences_map;
+    if (!extract_sequences_from_list(reference_sequences, sequences_map)) {
+        stop("failed to extract reference sequences from List");
+    }
+    
+    // create genes object
+    Genes* genes = new Genes();
+    
+    // load data into genes object
+    if (!genes->load_gene_table_from_vector(gene_vector)) {
+        delete genes;
+        stop("failed to load gene table into Genes object");
+    }
+    
+    if (!genes->load_codon_table(codon_table_path)) {
+        delete genes;
+        stop("failed to load codon table from %s", codon_table_path.c_str());
+    }
+    
+    if (!genes->load_reference_sequences_from_map(sequences_map)) {
+        delete genes;
+        stop("failed to load reference sequences into Genes object");
+    }
+    
+    // return as external pointer
+    XPtr<Genes> genes_ptr(genes);
+    return genes_ptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Helper functions
 ////////////////////////////////////////////////////////////////////////////////
@@ -825,9 +971,16 @@ List aln_query_variants(
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
     int max_alignment_length = 0,
-    int min_indel_length = 3)
+    int min_indel_length = 3,
+    SEXP genes = R_NilValue)
 {
-  try {
+    // extract genes pointer if provided
+    Genes* genes_ptr = nullptr;
+    if (!Rf_isNull(genes)) {
+        XPtr<Genes> genes_xptr(genes);
+        genes_ptr = genes_xptr.get();
+    }
+    
     // validate store_list
     if (store_list.size() == 0) {
       stop("store_list must contain at least one AlignmentStore");
@@ -865,7 +1018,7 @@ List aln_query_variants(
     // execute QueryVariants
     QueryVariants queryVariants(intervals, stores, min_variants_variant_support, min_variants_library_support, 
                      min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
-                     max_mutations_percent, min_alignment_length, max_alignment_length);
+                     max_mutations_percent, min_alignment_length, max_alignment_length, genes_ptr);
     queryVariants.execute();
     
     // get results
@@ -970,16 +1123,87 @@ List aln_query_variants(
     rownames(coverage_matrix) = support_rownames;
     colnames(coverage_matrix) = support_colnames;
     
+    // create gene annotation dataframes if genes were used
+    DataFrame genic_df = DataFrame::create();
+    DataFrame intergenic_df = DataFrame::create();
+    
+    if (genes_ptr != nullptr) {
+      // get gene annotation data
+      const std::vector<GenicRow>& genic_rows = queryVariants.get_genic_rows();
+      const std::vector<IntergenicRow>& intergenic_rows = queryVariants.get_intergenic_rows();
+      
+      // create genic dataframe
+      if (!genic_rows.empty()) {
+        CharacterVector genic_row_id;
+        CharacterVector genic_gene_id;
+        CharacterVector genic_gene_desc;
+        IntegerVector genic_aa_coord;
+        CharacterVector genic_variant_codon;
+        CharacterVector genic_ref_codon;
+        CharacterVector genic_variant_type;
+        CharacterVector genic_mutation_desc;
+        
+        for (const auto& row : genic_rows) {
+          genic_row_id.push_back(row.row_id);
+          genic_gene_id.push_back(row.gene_id);
+          genic_gene_desc.push_back(row.gene_desc);
+          genic_aa_coord.push_back(row.aa_coord);
+          genic_variant_codon.push_back(row.variant_codon);
+          genic_ref_codon.push_back(row.ref_codon);
+          genic_variant_type.push_back(row.variant_type);
+          genic_mutation_desc.push_back(row.mutation_desc);
+        }
+        
+        genic_df = DataFrame::create(
+            Named("row_id") = genic_row_id,
+            Named("gene_id") = genic_gene_id,
+            Named("gene_desc") = genic_gene_desc,
+            Named("aa_coord") = genic_aa_coord,
+            Named("variant_codon") = genic_variant_codon,
+            Named("ref_codon") = genic_ref_codon,
+            Named("variant_type") = genic_variant_type,
+            Named("mutation_desc") = genic_mutation_desc,
+            Named("stringsAsFactors") = false);
+      }
+      
+      // create intergenic dataframe
+      if (!intergenic_rows.empty()) {
+        CharacterVector intergenic_row_id;
+        CharacterVector intergenic_gene_left;
+        CharacterVector intergenic_gene_right;
+        CharacterVector intergenic_orientation_left;
+        CharacterVector intergenic_orientation_right;
+        IntegerVector intergenic_distance_left;
+        IntegerVector intergenic_distance_right;
+        
+        for (const auto& row : intergenic_rows) {
+          intergenic_row_id.push_back(row.row_id);
+          intergenic_gene_left.push_back(row.gene_left);
+          intergenic_gene_right.push_back(row.gene_right);
+          intergenic_orientation_left.push_back(row.orientation_left);
+          intergenic_orientation_right.push_back(row.orientation_right);
+          intergenic_distance_left.push_back(row.distance_left);
+          intergenic_distance_right.push_back(row.distance_right);
+        }
+        
+        intergenic_df = DataFrame::create(
+            Named("row_id") = intergenic_row_id,
+            Named("gene_left") = intergenic_gene_left,
+            Named("gene_right") = intergenic_gene_right,
+            Named("orientation_left") = intergenic_orientation_left,
+            Named("orientation_right") = intergenic_orientation_right,
+            Named("distance_left") = intergenic_distance_left,
+            Named("distance_right") = intergenic_distance_right,
+            Named("stringsAsFactors") = false);
+      }
+    }
+    
     // return as named list
     return List::create(
         Named("variants") = variants_df,
         Named("support") = support_matrix,
         Named("coverage") = coverage_matrix,
-        Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()));
-        
-  } catch (const std::runtime_error& e) {
-    stop("failed to execute QueryVariants: %s", e.what());
-  } catch (...) {
-    stop("an unknown C++ error occurred during QueryVariants execution");
-  }
+        Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()),
+        Named("genic") = genic_df,
+        Named("intergenic") = intergenic_df);
 }
