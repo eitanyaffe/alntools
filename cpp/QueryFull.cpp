@@ -369,8 +369,8 @@ void QueryFull::calculate_heights_by_coord(bool sort_by_start)
 
 void QueryFull::calculate_heights_by_mutations()
 {
-  // calculate mutation density for each read
-  std::vector<std::pair<int, float>> read_densities;
+  // calculate mutation density and multiple alignment status for each read
+  std::vector<std::tuple<int, bool, float>> read_data;
   cout << "calculating heights by mutations" << endl;
   cout << "number of reads: " << output_reads.size() << endl;
   for (int i = 0; i < static_cast<int>(output_reads.size()); i++) {
@@ -380,23 +380,29 @@ void QueryFull::calculate_heights_by_mutations()
       aligned_length = 1; // avoid division by zero
 
     float density = static_cast<float>(read.num_mutations) / aligned_length;
-    read_densities.push_back({ i, density });
+    bool has_multiple_alignments = read.num_alignments > 1;
+    read_data.push_back(std::make_tuple(i, has_multiple_alignments, density));
   }
 
-  // sort by mutation density (highest first)
-  cout << "sorting read densities" << endl;
-  std::sort(read_densities.begin(), read_densities.end(),
-      [](const std::pair<int, float>& a, const std::pair<int, float>& b) {
-        return a.second > b.second;
+  // sort by has_multiple_alignments (single alignments first), then by mutation density (highest first)
+  cout << "sorting reads by multiple alignments and mutation density" << endl;
+  std::sort(read_data.begin(), read_data.end(),
+      [](const std::tuple<int, bool, float>& a, const std::tuple<int, bool, float>& b) {
+        // primary sort: has_multiple_alignments (false first, true last)
+        if (std::get<1>(a) != std::get<1>(b)) {
+          return std::get<1>(a) < std::get<1>(b);
+        }
+        // secondary sort: mutation density (highest first)
+        return std::get<2>(a) > std::get<2>(b);
       });
 
   // group reads by contig_id for overlap prevention
   std::map<std::string, std::vector<std::vector<std::pair<int, int>>>> contig_heights;
 
-  // assign heights in order of decreasing density while preventing overlaps
-  cout << "assigning heights, number of read densities: " << read_densities.size() << endl;
-  for (const auto& read_density : read_densities) {
-    int read_idx = read_density.first;
+  // assign heights in sorted order while preventing overlaps
+  cout << "assigning heights, number of reads: " << read_data.size() << endl;
+  for (const auto& read_entry : read_data) {
+    int read_idx = std::get<0>(read_entry);
     FullOutputReads& read = output_reads[read_idx];
 
     // get or create the heights vector for this contig
