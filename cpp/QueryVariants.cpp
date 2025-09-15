@@ -130,9 +130,7 @@ void QueryVariants::process_alignment(const Alignment& aln, const AlignmentStore
                                 const std::string& lib_id)
 {
   // apply alignment filtering first
-  if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, 
-                              min_mutations_percent, max_mutations_percent, 
-                              min_alignment_length, max_alignment_length)) {
+  if (!passes_filter(aln, store)) {
     return;
   }
   
@@ -294,9 +292,7 @@ void QueryVariants::calculate_coverage()
         const Alignment& aln = alignment_ref.get();
         
         // apply alignment filtering
-        if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, 
-                                    min_mutations_percent, max_mutations_percent, 
-                                    min_alignment_length, max_alignment_length)) {
+        if (!passes_filter(aln, store)) {
           continue;
         }
         
