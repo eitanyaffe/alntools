@@ -231,31 +231,7 @@ int query_main(const char* name, int argc, char** argv)
     int min_variants_coverage_support = params.get_int("min_variants_coverage_support");
     
     // read libraries table
-    map<string, string> library_files;
-    ifstream lib_file(ifn_libraries);
-    if (!lib_file.is_open()) {
-      cerr << "error: cannot open libraries file " << ifn_libraries << endl;
-      exit(1);
-    }
-    
-    string line;
-    bool first_line = true;
-    while (getline(lib_file, line)) {
-      if (first_line) {
-        first_line = false;
-        continue; // skip header
-      }
-      if (line.empty()) continue;
-      
-      istringstream iss(line);
-      string lib_id, aln_file;
-      if (getline(iss, lib_id, '\t') && getline(iss, aln_file, '\t')) {
-        library_files[lib_id] = aln_file;
-      }
-    }
-    lib_file.close();
-    
-    cout << "found " << library_files.size() << " libraries in " << ifn_libraries << endl;
+    map<string, string> library_files = read_library_table(ifn_libraries);
     
     // load all ALN stores
     map<string, AlignmentStore> stores;

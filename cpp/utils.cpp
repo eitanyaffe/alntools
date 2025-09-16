@@ -584,3 +584,34 @@ void safe_open_file_for_writing(const std::string& filename, std::ofstream& file
   }
 }
 
+std::map<std::string, std::string> read_library_table(const std::string& filename)
+{
+    std::map<std::string, std::string> library_files;
+    
+    std::ifstream lib_file(filename);
+    if (!lib_file.is_open()) {
+        std::cerr << "error: cannot open libraries file " << filename << std::endl;
+        std::exit(1);
+    }
+    
+    std::string line;
+    bool first_line = true;
+    while (std::getline(lib_file, line)) {
+        if (first_line) {
+            first_line = false;
+            continue; // skip header
+        }
+        if (line.empty()) continue;
+        
+        std::istringstream iss(line);
+        std::string lib_id, aln_file;
+        if (std::getline(iss, lib_id, '\t') && std::getline(iss, aln_file, '\t')) {
+            library_files[lib_id] = aln_file;
+        }
+    }
+    lib_file.close();
+    
+    std::cout << "found " << library_files.size() << " libraries in " << filename << std::endl;
+    return library_files;
+}
+

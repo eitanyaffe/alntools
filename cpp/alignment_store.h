@@ -112,4 +112,8 @@ class AlignmentStore {
 
   // check if alignment is locally aligned (first/last alignments on read are on same contig)
   bool is_alignment_local(const Alignment& alignment, int clip_margin = 10) const;
+
+  // accessor methods for read-to-alignment index
+  bool is_read_alignment_index_built() const { return read_alignment_index_built_; }
+  const std::unordered_map<uint32_t, std::vector<size_t>>& get_read_to_alignment_indices() const { return read_to_alignment_indices_; }
 };

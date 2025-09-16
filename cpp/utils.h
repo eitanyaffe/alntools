@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -98,6 +99,9 @@ void safe_open_file_for_writing(const std::string& filename, std::ofstream& file
 
 // statistical functions
 double binomial_right_tail(uint32_t n, double p, uint32_t k);
+
+// library table reading
+std::map<std::string, std::string> read_library_table(const std::string& filename);
 
 template<typename T, typename GetPval, typename GetQval>
 void apply_bh_correction(std::vector<T>& results, 

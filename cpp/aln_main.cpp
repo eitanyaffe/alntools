@@ -21,6 +21,7 @@ int verify_main(const char* name, int argc, char** argv);
 int query_main(const char* name, int argc, char** argv);
 int coverage_main(const char* name, int argc, char** argv);
 int breaks_main(const char* name, int argc, char** argv);
+int rearrange_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
@@ -36,6 +37,7 @@ void usage(const char* name)
   fprintf(stderr, "  query: query ALN file\n");
   fprintf(stderr, "  coverage: generate read and contig alignment coverage statistics\n");
   fprintf(stderr, "  breaks: find positions with excessive read start/end events\n");
+  fprintf(stderr, "  rearrange: detect genome rearrangements from read alignments\n");
   fprintf(stderr, "\n");
 #ifdef _OPENMP
   fprintf(stderr, "thread support: enabled (OpenMP available, max threads: %d)\n", omp_get_max_threads());
@@ -68,6 +70,8 @@ int main(int argc, char** argv)
     rc = coverage_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "breaks") {
     rc = breaks_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "rearrange") {
+    rc = rearrange_main(name.c_str(), argc - 1, argv + 1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);

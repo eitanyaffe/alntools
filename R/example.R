@@ -134,6 +134,47 @@ query_by_read_ids <- function(read_ids) {
 }
 
 ################################################################################
+# Rearrangement Analysis
+################################################################################
+
+rearrange_analysis <- function() {
+  cat("rearrangement analysis example\n")
+  
+  # Create a named list of alignment stores for multi-library analysis
+  stores <- list(
+    sample = aln  # Use the loaded alignment as a single library
+  )
+  
+  # Run rearrangement analysis without verification
+  rearrange_results <- aln_rearrange(
+    store_list = stores,
+    intervals_df = intervals,
+    min_anchor_length = 50,  # Lower threshold for test data
+    max_mutations_percent = 0.1,  # Higher threshold for test data
+    should_verify = FALSE
+  )
+  
+  cat("found", nrow(rearrange_results$events), "rearrangement events\n")
+  
+  # Save results
+  if (nrow(rearrange_results$events) > 0) {
+    events_ofn <- paste0(ofn_prefix, "_rearrange_events.tsv")
+    cat(paste0("saving events to ", events_ofn, "\n"))
+    write.table(rearrange_results$events, file = events_ofn, sep = "\t", row.names = F, quote = F)
+    
+    support_ofn <- paste0(ofn_prefix, "_rearrange_support.tsv")
+    cat(paste0("saving support matrix to ", support_ofn, "\n"))
+    write.table(rearrange_results$support, file = support_ofn, sep = "\t", quote = F)
+    
+    coverage_ofn <- paste0(ofn_prefix, "_rearrange_coverage.tsv")
+    cat(paste0("saving coverage matrix to ", coverage_ofn, "\n"))
+    write.table(rearrange_results$coverage, file = coverage_ofn, sep = "\t", quote = F)
+  }
+  
+  return(rearrange_results)
+}
+
+################################################################################
 # main
 ################################################################################
 
@@ -150,6 +191,7 @@ tryCatch(
     query_consensus()
     query_full()
     query_by_read_ids(c("read_1", "read_2"))
+    rearrange_analysis()
   },
   error = function(e) {
     cat("Error: ", e$message, "\n")

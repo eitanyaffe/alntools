@@ -3,6 +3,7 @@
 `alntools` is a specialized toolkit for efficiently working with read alignments. It creates a compact binary representation of alignments (PAF format) and provides powerful querying capabilities to analyze specific genomic intervals. Key features include:
 
 - **Fast binary storage** of read alignments from PAF format with mutation encoding
+- **Genome rearrangement detection** for identifying large insertions, deletions, and inversions from read alignment patterns
 - **Five query modes** for flexible analysis:
   - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
@@ -385,6 +386,57 @@ The output TSV file contains the following columns (sorted by contig, then posit
 - Calculates enrichment as observed/expected ratio (t/e)
 - Applies Benjamini-Hochberg correction for multiple testing
 - Reports positions with q-value ≤ threshold, sorted by contig and position
+
+### 6. rearrange
+
+Detects genome rearrangements (large insertions, deletions, and inversions) from read alignments by analyzing alignment patterns within reads.
+
+```bash
+alntools rearrange -ifn_aln <input.aln> -ofn_prefix <output_prefix> [options]
+# OR for multi-library analysis:
+alntools rearrange -ifn_libraries <libraries.tsv> -ofn_prefix <output_prefix> [options]
+```
+
+**Mandatory Arguments:**
+* Either `-ifn_aln <fn>`: Single ALN file (treated as library "sample")
+* Or `-ifn_libraries <fn>`: Tab-delimited file with library definitions (format: `id fn`)
+* `-ofn_prefix <fn>`: Output prefix for result files
+
+**Optional Arguments:**
+* `-ifn_intervals <fn>`: Tab-delimited file with query intervals (format: `contig start end`). Only process rearrangements where anchor alignments overlap these intervals
+* `-max_gap <int>`: Maximum gap tolerance between anchor alignments (default: 10)
+* `-min_element_length <int>`: Minimum element length for deletions and insertions (default: 50)
+* `-min_anchor_length <int>`: Minimum anchor alignment length (default: 200)
+* `-max_mutations_percent <double>`: Maximum mutations percentage for all alignments (default: 0.01)
+
+**Examples:**
+
+```bash
+# Single library rearrangement detection
+alntools rearrange -ifn_aln output/sample.aln -ofn_prefix output/rearrangements
+
+# Multi-library analysis with interval filtering
+echo -e "id\tfn\nlib1\toutput/sample1.aln\nlib2\toutput/sample2.aln" > libraries.tsv
+echo -e "contig\tstart\tend\nchr1\t1000000\t2000000" > intervals.tsv
+alntools rearrange -ifn_libraries libraries.tsv -ifn_intervals intervals.tsv -ofn_prefix output/rearrangements
+```
+
+**Rearrangement Types:**
+- **large_insert**: Large insertions where element sequence comes from another location
+- **large_delete**: Large deletions with gaps between anchor alignments  
+- **large_invert**: Large inversions where element sequence is in reverse orientation
+
+**Output Files:**
+
+**Single Library Mode:**
+- `{prefix}_sample_read_events.tsv`: Individual rearrangement events per read
+- `{prefix}_sample_aggregated_events.tsv`: Aggregated events with read counts and coverage
+- `{prefix}_sample_read_support.tsv`: Reads supporting each event (including coverage reads)
+
+**Multi-Library Mode (additional files):**
+- `{prefix}_events.tsv`: Combined events across all libraries with library counts
+- `{prefix}_support.tsv`: Read support matrix (events × libraries)  
+- `{prefix}_coverage.tsv`: Coverage matrix (events × libraries)
 
 ## R Interface
 
