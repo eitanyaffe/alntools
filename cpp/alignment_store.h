@@ -113,6 +113,12 @@ class AlignmentStore {
   // check if alignment is locally aligned (first/last alignments on read are on same contig)
   bool is_alignment_local(const Alignment& alignment, int clip_margin = 10) const;
 
+  // get max overlap length with other alignments from same read (in read coordinates)
+  uint32_t get_alignment_overlap(const Alignment& input_alignment) const;
+
+  // get longest alignment in read interval, with fewest mutations as tiebreaker
+  const Alignment* get_alignment_in_read(uint32_t read_index, uint32_t start_pos, uint32_t end_pos) const;
+
   // accessor methods for read-to-alignment index
   bool is_read_alignment_index_built() const { return read_alignment_index_built_; }
   const std::unordered_map<uint32_t, std::vector<size_t>>& get_read_to_alignment_indices() const { return read_to_alignment_indices_; }

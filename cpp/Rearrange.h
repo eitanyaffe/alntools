@@ -3,10 +3,12 @@
 
 #include "alignment_store.h"
 #include "utils.h"
+#include "RearrangeErrors.h"
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Forward declaration
@@ -51,17 +53,23 @@ struct ReadEvent {
     std::string element_strand;  // "+" or "-" for element X (empty for deletions)
     uint32_t element_start;      // contig coordinates (0 for deletions)
     uint32_t element_end;        // contig coordinates (0 for deletions)
+    std::string left_shim;       // read sequence between A and X (empty for deletions)
+    std::string right_shim;      // read sequence between X and B (empty for deletions)
+    std::string middle_shim;     // read sequence between A and B (used for deletions)
     
     ReadEvent(const std::string& read_id = "", RearrangementType type = RearrangementType::LARGE_DELETE,
               const std::string& contig_id = "", const std::string& strand = "+",
               uint32_t out_clip = 0, uint32_t in_clip = 0,
               uint32_t read_clip_out = 0, uint32_t read_clip_in = 0,
               const std::string& element_contig = "", const std::string& element_strand = "",
-              uint32_t element_start = 0, uint32_t element_end = 0)
+              uint32_t element_start = 0, uint32_t element_end = 0,
+              const std::string& left_shim = "", const std::string& right_shim = "", 
+              const std::string& middle_shim = "")
         : read_id(read_id), type(type), contig_id(contig_id), strand(strand),
           out_clip(out_clip), in_clip(in_clip), read_clip_out(read_clip_out), read_clip_in(read_clip_in),
           element_contig(element_contig), element_strand(element_strand),
-          element_start(element_start), element_end(element_end) {}
+          element_start(element_start), element_end(element_end),
+          left_shim(left_shim), right_shim(right_shim), middle_shim(middle_shim) {}
 };
 
 struct AggregatedEvent {
@@ -77,18 +85,24 @@ struct AggregatedEvent {
     uint32_t element_end;
     uint32_t read_count;
     uint32_t read_coverage;
+    std::string left_shim;
+    std::string right_shim;
+    std::string middle_shim;
     
     AggregatedEvent(const std::string& event_id = "", RearrangementType type = RearrangementType::LARGE_DELETE,
                    const std::string& contig_id = "", const std::string& strand = "+",
                    uint32_t out_clip = 0, uint32_t in_clip = 0,
                    const std::string& element_contig = "", const std::string& element_strand = "",
                    uint32_t element_start = 0, uint32_t element_end = 0,
-                   uint32_t read_count = 0, uint32_t read_coverage = 0)
+                   uint32_t read_count = 0, uint32_t read_coverage = 0,
+                   const std::string& left_shim = "", const std::string& right_shim = "", 
+                   const std::string& middle_shim = "")
         : event_id(event_id), type(type), contig_id(contig_id), strand(strand),
           out_clip(out_clip), in_clip(in_clip),
           element_contig(element_contig), element_strand(element_strand),
           element_start(element_start), element_end(element_end),
-          read_count(read_count), read_coverage(read_coverage) {}
+          read_count(read_count), read_coverage(read_coverage),
+          left_shim(left_shim), right_shim(right_shim), middle_shim(middle_shim) {}
     
     // create aggregation key for grouping identical events
     std::string create_key() const;
@@ -166,20 +180,6 @@ struct ReadSupport {
 };
 
 class Rearrange {
-public:
-    // public access for RearrangeManager
-    std::vector<AggregatedEvent> aggregated_events;
-    
-    // multi-library support methods (public for RearrangeManager)
-    void get_events();
-    void get_coverage();
-    void aggregate_events();
-    std::set<std::string> get_event_keys() const;
-    void assign_event_ids(const std::map<std::string, std::string>& key_to_event_id);
-    
-    // interval filtering methods
-    void set_reads_and_alignments(const std::vector<Interval>& intervals);
-    
 private:
     const AlignmentStore& store;
     
@@ -187,7 +187,8 @@ private:
     int max_gap;
     int min_element_length;
     int min_anchor_length;
-    double max_mutations_percent;
+    double max_anchor_mutations_percent;
+    double max_element_mutation_percent;
     VerifyRearrange* verifier;
     
     // results
@@ -201,47 +202,82 @@ private:
     // contig-to-events mapping for efficient coverage lookup
     std::map<std::string, std::vector<std::pair<std::string, std::pair<uint32_t, uint32_t>>>> contig_to_events;
     
-    // event-to-supporting-reads mapping for contains_event detection
-    std::map<std::string, std::set<std::string>> event_to_supporting_reads;
+    // error tracking
+    RearrangeErrors error_tracker;
     
+    // read sequences for shim extraction
+    std::unordered_map<std::string, std::string> read_sequences;   
+
 public:
     Rearrange(const AlignmentStore& store,
-              VerifyRearrange* verifier = nullptr,
-              int max_gap = 10,
-              int min_element_length = 50,
-              int min_anchor_length = 200,
-              double max_mutations_percent = 0.01);
+       VerifyRearrange* verifier = nullptr,
+       int max_gap = 10,
+       int min_element_length = 50,
+       int min_anchor_length = 200,
+       double max_anchor_mutations_percent = 0.01,
+       double max_element_mutation_percent = 0.01);
+
+    // public access for RearrangeManager
+    std::vector<AggregatedEvent> aggregated_events;
     
-    void execute();
+    // multi-library support methods (public for RearrangeManager)
+    void get_events();
+    void get_coverage();
+    void aggregate_events(const std::map<std::string, std::string>& key_to_event_id);
+    std::set<std::string> get_event_keys() const;
+    
+    // interval filtering methods
+    void set_reads_and_alignments(const std::vector<Interval>& intervals);
+    
+    // accessor for error tracking (for R interface)
+    const RearrangeErrors& get_error_tracker() const;
+    
+    // read sequence loading methods
+    void load_read_sequences_from_file(const std::string& filename);
+    void load_read_sequences_from_map(const std::unordered_map<std::string, std::string>& sequences);
+    void clear_read_sequences();
+        
     void write_to_csv(const std::string& ofn_prefix);
     
 private:
     // alignment validation
     bool is_valid_anchor(const Alignment& aln) const;
     bool is_valid_element(const Alignment& aln) const;
-    bool are_compatible_anchors(const Alignment& A, const Alignment& B) const;
     
-    // event classification and creation
-    RearrangementType classify_event(const Alignment& A, const Alignment& B, const Alignment* X = nullptr) const;
-    bool validate_event_geometry(const Alignment& A, const Alignment& B, const Alignment* X, RearrangementType type) const;
-    ReadEvent create_normalized_event(const Alignment& A, const Alignment& B, const Alignment* X, RearrangementType type) const;
+    // new event testing functions
+    EventTestResult test_trio_event(const Alignment& A, const Alignment& B, const Alignment& X, 
+                                   bool is_read_reversed, ReadEvent& event);
+    EventTestResult test_pair_event(const Alignment& A, const Alignment& B, 
+                                   bool is_read_reversed, ReadEvent& event);
     
-    // main execution methods (now public for RearrangeManager)
+    // process single read functions
+    bool process_read(const std::vector<size_t>& alignment_indices, 
+                     const std::vector<Alignment>& alignments,
+                     size_t& tested_reads, size_t& found_events);
+    bool process_read_trios(const std::vector<size_t>& alignment_indices,
+                           const std::vector<Alignment>& alignments,
+                           const std::vector<bool>& is_valid_anchor_vec,
+                           size_t& tested_reads, size_t& found_events, bool is_verbose = false);
+    bool process_read_pairs(const std::vector<size_t>& alignment_indices,
+                           const std::vector<Alignment>& alignments,
+                           const std::vector<bool>& is_valid_anchor_vec,
+                           size_t& tested_reads, size_t& found_events, bool is_verbose = false);
     
-    // coverage analysis methods
-    void build_contig_to_events_mapping();
-    bool is_valid_support_alignment(const Alignment& aln) const;
-    std::vector<std::string> find_candidate_events(const std::string& contig_id, uint32_t start, uint32_t end) const;
-    bool check_event_support(const std::string& event_id, uint32_t clip_out, uint32_t clip_in,
-                           const Alignment& A, const Alignment* B, SupportType support_type) const;
-    ReadSupport create_read_support(const std::string& event_id, const std::string& read_id,
-                                  const std::string& contig, uint32_t clip_out, uint32_t clip_in,
-                                  const Alignment& A, const Alignment* B, SupportType support_type,
-                                  bool contains_event) const;
     
-    // utility methods
+    // helper functions for event testing
+    std::string extract_read_shim(const std::string& read_id, uint32_t start, uint32_t end, bool is_read_reversed) const;
     std::string alignment_to_strand_string(bool is_reverse) const;
-    bool elements_overlap_anchor_span(const Alignment& A, const Alignment& B, const Alignment& X) const;
+    bool alignments_overlap(const Alignment& A, const Alignment& B) const;
+    ReadEvent create_event(const Alignment& A, const Alignment& B, const Alignment* X, 
+                          RearrangementType type, bool is_read_reversed) const;
+    
+    // debugging functions
+    void print_event_debug(const std::string& context, const Alignment& S1, const Alignment& S2, 
+                          const Alignment& S3, const Alignment* A, const Alignment* B, 
+                          const Alignment* X, bool is_read_reversed) const;
+    void print_pair_debug(const std::string& context, const Alignment& S1, const Alignment& S2,
+                         const Alignment* A, const Alignment* B, bool is_read_reversed) const;
+    
 };
 
 #endif // REARRANGE_H

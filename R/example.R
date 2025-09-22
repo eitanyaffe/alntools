@@ -149,8 +149,9 @@ rearrange_analysis <- function() {
   rearrange_results <- aln_rearrange(
     store_list = stores,
     intervals_df = intervals,
-    min_anchor_length = 50,  # Lower threshold for test data
-    max_mutations_percent = 0.1,  # Higher threshold for test data
+    min_anchor_length = 50,
+    max_anchor_mutations_percent = 0.1,
+    max_element_mutation_percent = 1,
     should_verify = FALSE
   )
   

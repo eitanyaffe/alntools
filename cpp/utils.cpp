@@ -615,3 +615,51 @@ std::map<std::string, std::string> read_library_table(const std::string& filenam
     return library_files;
 }
 
+std::map<std::string, LibraryInfo> read_library_table_extended(const std::string& filename)
+{
+    std::map<std::string, LibraryInfo> library_info;
+    
+    std::ifstream lib_file(filename);
+    if (!lib_file.is_open()) {
+        std::cerr << "error: cannot open libraries file " << filename << std::endl;
+        std::exit(1);
+    }
+    
+    std::string line;
+    bool first_line = true;
+    while (std::getline(lib_file, line)) {
+        if (first_line) {
+            first_line = false;
+            continue; // skip header
+        }
+        if (line.empty()) continue;
+        
+        std::istringstream iss(line);
+        std::string lib_id, aln_file, read_file;
+        
+        // read required columns
+        if (std::getline(iss, lib_id, '\t') && std::getline(iss, aln_file, '\t')) {
+            // read optional third column (read file)
+            if (!std::getline(iss, read_file, '\t')) {
+                read_file = "";  // no read file specified
+            }
+            
+            library_info[lib_id] = LibraryInfo(lib_id, aln_file, read_file);
+        }
+    }
+    lib_file.close();
+    
+    std::cout << "found " << library_info.size() << " libraries in " << filename << std::endl;
+    
+    // report which libraries have read files
+    int with_reads = 0;
+    for (const auto& entry : library_info) {
+        if (!entry.second.read_file.empty()) {
+            with_reads++;
+        }
+    }
+    std::cout << "  " << with_reads << " libraries have read files specified" << std::endl;
+    
+    return library_info;
+}
+

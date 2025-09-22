@@ -101,7 +101,18 @@ void safe_open_file_for_writing(const std::string& filename, std::ofstream& file
 double binomial_right_tail(uint32_t n, double p, uint32_t k);
 
 // library table reading
+// library information structure
+struct LibraryInfo {
+    std::string lib_id;
+    std::string aln_file;
+    std::string read_file;  // optional, can be empty
+    
+    LibraryInfo(const std::string& id = "", const std::string& aln = "", const std::string& reads = "")
+        : lib_id(id), aln_file(aln), read_file(reads) {}
+};
+
 std::map<std::string, std::string> read_library_table(const std::string& filename);
+std::map<std::string, LibraryInfo> read_library_table_extended(const std::string& filename);
 
 template<typename T, typename GetPval, typename GetQval>
 void apply_bh_correction(std::vector<T>& results, 

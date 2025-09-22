@@ -1224,17 +1224,37 @@ std::string rearrangement_type_to_string(RearrangementType type) {
     }
 }
 
+// Helper function to convert EventTestResult to string
+std::string event_test_result_to_string(EventTestResult result) {
+    switch (result) {
+        case EventTestResult::FOUND_INSERTION: return "found_insertion";
+        case EventTestResult::FOUND_INVERSION: return "found_inversion";
+        case EventTestResult::FOUND_DELETION: return "found_deletion";
+        case EventTestResult::REJECT_ALIGNMENT_OVERLAP: return "reject_alignment_overlap";
+        case EventTestResult::REJECT_INSERT_ELEMENT_REINSERTED: return "reject_insert_element_reinserted";
+        case EventTestResult::REJECT_INSERT_ELEMENT_OVERLAPS: return "reject_insert_element_overlaps";
+        case EventTestResult::REJECT_ELEMENT_TOO_SHORT: return "reject_element_too_short";
+        case EventTestResult::REJECT_CONTAINED_ELEMENT_MARGIN_TOO_LARGE: return "reject_contained_element_margin_too_large";
+        case EventTestResult::REJECT_READ_GAP_TOO_LARGE: return "reject_read_gap_too_large";
+        default: return "unknown";
+    }
+}
+
 // [[Rcpp::export]]
 List aln_rearrange(
     List store_list,
-    DataFrame intervals_df = DataFrame(),
+    SEXP intervals_df = R_NilValue,
     int max_gap = 10,
     int min_element_length = 50,
     int min_anchor_length = 200,
-    double max_mutations_percent = 0.01,
+    double max_anchor_mutations_percent = 0.1,
+    double max_element_mutation_percent = 1,
+    int min_indel_length = 3,
     bool should_verify = false,
-    List reference_contigs = List(),
-    List reference_reads = List())
+    SEXP reference_contigs = R_NilValue,
+    SEXP reference_reads = R_NilValue,
+    bool extract_shims = false,
+    SEXP read_sequences = R_NilValue)
 {
     // validate store_list
     if (store_list.size() == 0) {
@@ -1260,6 +1280,9 @@ List aln_rearrange(
         // copy the store (since RearrangeManager expects ownership)
         stores[lib_id] = *store_ptr;
         
+        // count short indels for this store
+        stores[lib_id].count_short_indels(min_indel_length);
+        
         // ensure read-to-alignment index is built
         if (!stores[lib_id].is_read_alignment_index_built()) {
             stores[lib_id].init_read_alignment_index();
@@ -1267,24 +1290,36 @@ List aln_rearrange(
     }
     
     // convert intervals
-    std::vector<Interval> intervals = Rcpp_DataFrame_to_Intervals(intervals_df);
+    std::vector<Interval> intervals;
+    if (!Rf_isNull(intervals_df)) {
+        DataFrame df = as<DataFrame>(intervals_df);
+        intervals = Rcpp_DataFrame_to_Intervals(df);
+    }
     
     // handle verification sequences if needed
     VerifyRearrange* verifier = nullptr;
     VerifyRearrange verify_obj;
     if (should_verify) {
-        if (reference_contigs.size() == 0 || reference_reads.size() == 0) {
+        if (Rf_isNull(reference_contigs) || Rf_isNull(reference_reads)) {
             stop("reference_contigs and reference_reads required when should_verify=true");
+        }
+        
+        // convert SEXP to List
+        List contigs_list = as<List>(reference_contigs);
+        List reads_list = as<List>(reference_reads);
+        
+        if (contigs_list.size() == 0 || reads_list.size() == 0) {
+            stop("reference_contigs and reference_reads must not be empty when should_verify=true");
         }
         
         // extract sequences using existing helper functions
         std::unordered_map<std::string, std::string> contig_sequences;
         std::unordered_map<std::string, std::string> read_sequences;
         
-        if (!extract_sequences_from_list(reference_contigs, contig_sequences)) {
+        if (!extract_sequences_from_list(contigs_list, contig_sequences)) {
             stop("failed to extract contig sequences from reference_contigs");
         }
-        if (!extract_sequences_from_list(reference_reads, read_sequences)) {
+        if (!extract_sequences_from_list(reads_list, read_sequences)) {
             stop("failed to extract read sequences from reference_reads");
         }
         
@@ -1293,9 +1328,42 @@ List aln_rearrange(
         verifier = &verify_obj;
     }
     
-    // execute RearrangeManager
+    // create RearrangeManager (disable file writing for R interface)
     RearrangeManager manager(stores, intervals, verifier, max_gap, min_element_length, 
-                           min_anchor_length, max_mutations_percent);
+                           min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false);
+    
+    // load read sequences if requested
+    if (extract_shims && !Rf_isNull(read_sequences)) {
+        List sequences_list = as<List>(read_sequences);
+        
+        if (sequences_list.size() == 0) {
+            stop("read_sequences must not be empty when extract_shims=true");
+        }
+        
+        // convert to per-library format
+        std::map<std::string, std::unordered_map<std::string, std::string>> lib_to_sequences;
+        
+        CharacterVector seq_lib_names = sequences_list.names();
+        if (seq_lib_names.size() != sequences_list.size()) {
+            stop("all elements in read_sequences must be named with library IDs");
+        }
+        
+        for (int i = 0; i < sequences_list.size(); ++i) {
+            std::string lib_id = as<std::string>(seq_lib_names[i]);
+            List lib_sequences = sequences_list[i];
+            
+            std::unordered_map<std::string, std::string> sequences_map;
+            if (!extract_sequences_from_list(lib_sequences, sequences_map)) {
+                stop("failed to extract read sequences for library: %s", lib_id.c_str());
+            }
+            
+            lib_to_sequences[lib_id] = sequences_map;
+        }
+        
+        manager.load_read_sequences_from_map(lib_to_sequences);
+    }
+    
+    // execute RearrangeManager
     manager.execute();
     
     // get results
@@ -1409,10 +1477,38 @@ List aln_rearrange(
     rownames(coverage_matrix) = support_rownames;
     colnames(coverage_matrix) = support_colnames;
     
+    // create rejection summary
+    std::map<std::string, std::map<EventTestResult, size_t>> rejection_summary = manager.get_rejection_summary();
+    
+    // convert rejection summary to R data frame
+    CharacterVector reject_library_id;
+    CharacterVector reject_reason;
+    IntegerVector reject_count;
+    
+    for (const auto& lib_entry : rejection_summary) {
+        const std::string& lib_id = lib_entry.first;
+        const std::map<EventTestResult, size_t>& lib_rejections = lib_entry.second;
+        
+        for (const auto& reject_entry : lib_rejections) {
+            if (reject_entry.second > 0) {  // only include non-zero counts
+                reject_library_id.push_back(lib_id);
+                reject_reason.push_back(event_test_result_to_string(reject_entry.first));
+                reject_count.push_back(reject_entry.second);
+            }
+        }
+    }
+    
+    DataFrame rejections_df = DataFrame::create(
+        Named("library_id") = reject_library_id,
+        Named("rejection_reason") = reject_reason,
+        Named("count") = reject_count,
+        Named("stringsAsFactors") = false);
+    
     // return as named list
     return List::create(
         Named("events") = events_df,
         Named("support") = support_matrix,
         Named("coverage") = coverage_matrix,
+        Named("rejections") = rejections_df,
         Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()));
 }

@@ -24,6 +24,9 @@ struct SetRearrangementData {
     std::string element_strand;
     uint32_t element_start;
     uint32_t element_end;
+    std::string left_shim;
+    std::string right_shim;
+    std::string middle_shim;
     
     int total_support = 0;    // total reads across all libraries
     int total_coverage = 0;   // total coverage across all libraries  
@@ -52,6 +55,9 @@ struct RearrangementOutputRow {
     int total_support;
     int total_coverage;
     double frequency;
+    std::string left_shim;
+    std::string right_shim;
+    std::string middle_shim;
     
     std::string create_key() const;
 };
@@ -67,8 +73,10 @@ private:
     int max_gap;
     int min_element_length;
     int min_anchor_length;
-    double max_mutations_percent;
+    double max_anchor_mutations_percent;
+    double max_element_mutation_percent;
     VerifyRearrange* verifier;
+    bool write_per_library_files;
     
     // cross-library results
     std::map<std::string, SetRearrangementData> rearrangement_data;
@@ -85,19 +93,27 @@ public:
                      int max_gap = 10,
                      int min_element_length = 50,
                      int min_anchor_length = 200,
-                     double max_mutations_percent = 0.01);
+                     double max_anchor_mutations_percent = 0.01,
+                     double max_element_mutation_percent = 0.01,
+                     bool write_per_library_files = true);
     
     void execute();
     void write_to_csv(const std::string& ofn_prefix);
+    
+    // read sequence loading for shim extraction
+    void load_read_sequences_from_file(const std::string& filename);  // load same file for all libraries
+    void load_read_sequences_per_library(const std::map<std::string, std::string>& lib_to_read_file);  // per-library files
+    void load_read_sequences_from_map(const std::map<std::string, std::unordered_map<std::string, std::string>>& lib_to_sequences);  // from R
     
     // getters for R interface
     const std::vector<RearrangementOutputRow>& get_rearrangement_rows() const { return rearrangement_rows; }
     const std::map<std::string, SetRearrangementData>& get_rearrangement_data() const { return rearrangement_data; }
     std::vector<std::string> get_library_ids() const { return library_ids; }
+    std::map<std::string, std::map<EventTestResult, size_t>> get_rejection_summary() const;
     
 private:
     // two-pass execution flow
-    void collect_all_event_keys();
+    void create_lib_events();
     void sort_and_assign_event_ids();
     void process_libraries_with_event_ids();
     

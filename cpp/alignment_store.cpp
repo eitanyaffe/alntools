@@ -452,7 +452,7 @@ std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignme
       valid_count++;
     }
   }
-// print if we need to subsample
+  // print if we need to subsample
   if (max_alignments > 0 && valid_count > static_cast<size_t>(max_alignments)) {
     std::cout << "subsampling " << valid_count << " alignments to " << max_alignments << std::endl;
   }
@@ -743,4 +743,135 @@ bool AlignmentStore::is_alignment_local(const Alignment& alignment, int clip_mar
   
   // return true only if we found focal-contig alignments at both start and end
   return has_focal_at_start && has_focal_at_end;
+}
+
+uint32_t AlignmentStore::get_alignment_overlap(const Alignment& input_alignment) const
+{
+  if (!read_alignment_index_built_) {
+    cerr << "error: read alignment index not built. call init_read_alignment_index() first" << endl;
+    exit(EXIT_FAILURE);
+  }
+  
+  uint32_t read_index = input_alignment.read_index;
+  
+  // find all alignments for this read
+  auto it = read_to_alignment_indices_.find(read_index);
+  if (it == read_to_alignment_indices_.end() || it->second.empty()) {
+    return 0; // no alignments found for this read
+  }
+  
+  const vector<size_t>& alignment_indices = it->second;
+  if (alignment_indices.size() <= 1) {
+    return 0; // no other alignments to overlap with
+  }
+  
+  // use binary search to find potentially overlapping alignments
+  // calculate earliest possible start position for overlapping alignments
+  uint32_t min_possible_start = (input_alignment.read_start >= max_alignment_length_) ? 
+      (input_alignment.read_start - max_alignment_length_ + 1) : 0;
+  
+  // find first alignment that could overlap
+  auto it_start = std::lower_bound(alignment_indices.begin(), alignment_indices.end(), min_possible_start,
+      [this](size_t index, uint32_t min_start) {
+        return alignments_[index].read_start < min_start;
+      });
+  
+  // find last alignment that could overlap (starts before input_alignment ends)
+  auto it_end = std::upper_bound(alignment_indices.begin(), alignment_indices.end(), input_alignment.read_end,
+      [this](uint32_t query_end, size_t index) {
+        return query_end < alignments_[index].read_start;
+      });
+  
+  uint32_t max_overlap = 0;
+  
+  // check overlap with alignments in the potential range
+  for (auto it = it_start; it != it_end; ++it) {
+    size_t aln_idx = *it;
+    const Alignment& other_alignment = alignments_[aln_idx];
+    
+    // skip self
+    if (&other_alignment == &input_alignment) {
+      continue;
+    }
+    
+    // calculate overlap in read coordinates
+    uint32_t overlap_start = std::max(input_alignment.read_start, other_alignment.read_start);
+    uint32_t overlap_end = std::min(input_alignment.read_end, other_alignment.read_end);
+    
+    // check if there is actual overlap
+    if (overlap_end > overlap_start) {
+      uint32_t overlap_length = overlap_end - overlap_start;
+      if (overlap_length > max_overlap) {
+        max_overlap = overlap_length;
+      }
+    }
+  }
+  
+  return max_overlap;
+}
+
+const Alignment* AlignmentStore::get_alignment_in_read(uint32_t read_index, uint32_t start_pos, uint32_t end_pos) const
+{
+  if (!read_alignment_index_built_) {
+    cerr << "error: read alignment index not built. call init_read_alignment_index() first" << endl;
+    exit(EXIT_FAILURE);
+  }
+  
+  // check if interval is valid
+  if (start_pos >= end_pos) {
+    return nullptr; // no space for alignment
+  }
+  
+  // find all alignments for this read
+  auto it = read_to_alignment_indices_.find(read_index);
+  if (it == read_to_alignment_indices_.end() || it->second.empty()) {
+    return nullptr; // no alignments found for this read
+  }
+  
+  const vector<size_t>& alignment_indices = it->second;
+  if (alignment_indices.empty()) {
+    return nullptr;
+  }
+  
+  // use binary search to find potentially overlapping alignments
+  // calculate earliest possible start position for alignments that could fit in interval
+  uint32_t min_possible_start = (start_pos >= max_alignment_length_) ? 
+      (start_pos - max_alignment_length_ + 1) : 0;
+  
+  // find first alignment that could potentially fit in the interval
+  auto it_start = std::lower_bound(alignment_indices.begin(), alignment_indices.end(), min_possible_start,
+      [this](size_t index, uint32_t min_start) {
+        return alignments_[index].read_start < min_start;
+      });
+  
+  // find last alignment that starts before or at end_pos
+  auto it_end = std::upper_bound(alignment_indices.begin(), alignment_indices.end(), end_pos,
+      [this](uint32_t query_end, size_t index) {
+        return query_end < alignments_[index].read_start;
+      });
+  
+  const Alignment* best_alignment = nullptr;
+  uint32_t best_length = 0;
+  uint32_t best_mutation_count = UINT32_MAX;
+  
+  // check alignments in the potential range
+  for (auto it = it_start; it != it_end; ++it) {
+    size_t aln_idx = *it;
+    const Alignment& aln = alignments_[aln_idx];
+    
+    // check if alignment is completely within the interval
+    if (aln.read_start >= start_pos && aln.read_end <= end_pos) {
+      uint32_t length = aln.read_end - aln.read_start;
+      uint32_t mutation_count = aln.get_mutation_count();
+      
+      // select longest alignment, with fewest mutations as tiebreaker
+      if (length > best_length || (length == best_length && mutation_count < best_mutation_count)) {
+        best_alignment = &aln;
+        best_length = length;
+        best_mutation_count = mutation_count;
+      }
+    }
+  }
+  
+  return best_alignment;
 }

@@ -11,13 +11,15 @@ string SetRearrangementData::create_key() const
     ostringstream oss;
     oss << static_cast<int>(type) << "|"
         << contig_id << "|"
-        << strand << "|"
         << out_clip << "|"
         << in_clip << "|"
         << element_contig << "|"
         << element_strand << "|"
         << element_start << "|"
-        << element_end;
+        << element_end << "|"
+        << left_shim << "|"
+        << right_shim << "|"
+        << middle_shim;
     return oss.str();
 }
 
@@ -26,13 +28,15 @@ string RearrangementOutputRow::create_key() const
     ostringstream oss;
     oss << static_cast<int>(type) << "|"
         << contig_id << "|"
-        << strand << "|"
         << out_clip << "|"
         << in_clip << "|"
         << element_contig << "|"
         << element_strand << "|"
         << element_start << "|"
-        << element_end;
+        << element_end << "|"
+        << left_shim << "|"
+        << right_shim << "|"
+        << middle_shim;
     return oss.str();
 }
 
@@ -43,21 +47,69 @@ RearrangeManager::RearrangeManager(const std::map<std::string, AlignmentStore>& 
                                    int max_gap,
                                    int min_element_length,
                                    int min_anchor_length,
-                                   double max_mutations_percent)
+                                   double max_anchor_mutations_percent,
+                                   double max_element_mutation_percent,
+                                   bool write_per_library_files)
     : stores(stores)
     , intervals(intervals)
     , max_gap(max_gap)
     , min_element_length(min_element_length)
     , min_anchor_length(min_anchor_length)
-    , max_mutations_percent(max_mutations_percent)
+    , max_anchor_mutations_percent(max_anchor_mutations_percent)
+    , max_element_mutation_percent(max_element_mutation_percent)
     , verifier(verifier)
+    , write_per_library_files(write_per_library_files)
 {
     // extract ordered library IDs and create rearrangers
     for (const auto& entry : stores) {
         library_ids.push_back(entry.first);
         rearrangers[entry.first] = std::make_unique<Rearrange>(
-            entry.second, verifier, max_gap, min_element_length, min_anchor_length, max_mutations_percent);
+            entry.second, verifier, max_gap, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent);
     }
+}
+
+void RearrangeManager::load_read_sequences_from_file(const std::string& filename)
+{
+    cout << "loading read sequences for all libraries from: " << filename << endl;
+    
+    for (const std::string& lib_id : library_ids) {
+        rearrangers[lib_id]->load_read_sequences_from_file(filename);
+    }
+    
+    cout << "read sequences loaded for all " << library_ids.size() << " libraries" << endl;
+}
+
+void RearrangeManager::load_read_sequences_per_library(const std::map<std::string, std::string>& lib_to_read_file)
+{
+    cout << "loading read sequences per library..." << endl;
+    
+    for (const std::string& lib_id : library_ids) {
+        auto it = lib_to_read_file.find(lib_id);
+        if (it != lib_to_read_file.end() && !it->second.empty()) {
+            cout << "  loading reads for library " << lib_id << " from " << it->second << endl;
+            rearrangers[lib_id]->load_read_sequences_from_file(it->second);
+        } else {
+            cout << "  no read file specified for library " << lib_id << " - using N placeholders" << endl;
+        }
+    }
+    
+    cout << "per-library read sequence loading completed" << endl;
+}
+
+void RearrangeManager::load_read_sequences_from_map(const std::map<std::string, std::unordered_map<std::string, std::string>>& lib_to_sequences)
+{
+    cout << "loading read sequences from R for " << lib_to_sequences.size() << " libraries..." << endl;
+    
+    for (const std::string& lib_id : library_ids) {
+        auto it = lib_to_sequences.find(lib_id);
+        if (it != lib_to_sequences.end()) {
+            rearrangers[lib_id]->load_read_sequences_from_map(it->second);
+        } else {
+            cout << "  no read sequences provided for library " << lib_id << " - using N placeholders" << endl;
+        }
+    }
+    
+    cout << "read sequences from R loaded for all libraries" << endl;
 }
 
 void RearrangeManager::execute()
@@ -65,7 +117,7 @@ void RearrangeManager::execute()
     cout << "executing rearrangement detection across " << library_ids.size() << " libraries..." << endl;
     
     // Pass 1: Collect all event keys
-    collect_all_event_keys();
+    create_lib_events();
     
     // Sort keys and assign event IDs
     sort_and_assign_event_ids();
@@ -79,7 +131,7 @@ void RearrangeManager::execute()
     cout << "rearrangement detection completed" << endl;
 }
 
-void RearrangeManager::collect_all_event_keys()
+void RearrangeManager::create_lib_events()
 {
     cout << "collecting event keys from all libraries..." << endl;
     
@@ -120,7 +172,7 @@ void RearrangeManager::sort_and_assign_event_ids()
     
     // parse keys and sort by contig, then clip_out
     std::sort(sorted_keys.begin(), sorted_keys.end(), [](const std::string& a, const std::string& b) {
-        // keys are: type|contig_id|strand|out_clip|in_clip|element_contig|element_strand|element_start|element_end
+        // keys are: type|contig_id|out_clip|in_clip|element_contig|element_strand|element_start|element_end|left_shim|right_shim|middle_shim
         std::vector<std::string> parts_a, parts_b;
         std::stringstream ss_a(a), ss_b(b);
         std::string item;
@@ -128,13 +180,13 @@ void RearrangeManager::sort_and_assign_event_ids()
         while (std::getline(ss_a, item, '|')) parts_a.push_back(item);
         while (std::getline(ss_b, item, '|')) parts_b.push_back(item);
         
-        if (parts_a.size() >= 4 && parts_b.size() >= 4) {
-            // compare by contig_id first
+        if (parts_a.size() >= 3 && parts_b.size() >= 3) {
+            // compare by contig_id first (index 1)
             if (parts_a[1] != parts_b[1]) {
                 return parts_a[1] < parts_b[1];
             }
-            // then by out_clip
-            return std::stoi(parts_a[3]) < std::stoi(parts_b[3]);
+            // then by out_clip (index 2)
+            return std::stoi(parts_a[2]) < std::stoi(parts_b[2]);
         }
         return a < b; // fallback
     });
@@ -155,15 +207,14 @@ void RearrangeManager::process_libraries_with_event_ids()
     for (const std::string& lib_id : library_ids) {
         cout << "completing processing for library: " << lib_id << endl;
         
-        // assign event IDs to this library
-        rearrangers[lib_id]->assign_event_ids(key_to_event_id);
-        
         // complete aggregation and coverage calculation
-        rearrangers[lib_id]->aggregate_events();
+        rearrangers[lib_id]->aggregate_events(key_to_event_id);
         rearrangers[lib_id]->get_coverage();
         
-        // write per-library files
-        rearrangers[lib_id]->write_to_csv("output/" + lib_id);
+        // write per-library files (only if enabled)
+        if (write_per_library_files) {
+            rearrangers[lib_id]->write_to_csv("output/" + lib_id);
+        }
         
         cout << "library " << lib_id << " processing completed" << endl;
     }
@@ -360,4 +411,18 @@ void RearrangeManager::write_coverage_matrix(const std::string& ofn_prefix)
     
     file.close();
     cout << "wrote coverage matrix to " << filename << endl;
+}
+
+std::map<std::string, std::map<EventTestResult, size_t>> RearrangeManager::get_rejection_summary() const
+{
+    std::map<std::string, std::map<EventTestResult, size_t>> rejection_summary;
+    
+    for (const std::string& lib_id : library_ids) {
+        auto it = rearrangers.find(lib_id);
+        if (it != rearrangers.end()) {
+            rejection_summary[lib_id] = it->second->get_error_tracker().get_rejection_counts();
+        }
+    }
+    
+    return rejection_summary;
 }

@@ -20,10 +20,13 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     params.add_parser("max_gap", new ParserInteger("maximum gap tolerance for all geometric constraints (default 10)", 10), false);
     params.add_parser("min_element_length", new ParserInteger("minimum element length for deletions (default 50)", 50), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 200)", 200), false);
-    params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage for all alignments (default 0.01)", 0.01), false);
+    params.add_parser("max_anchor_mutations_percent", new ParserDouble("maximum mutations percentage for anchor alignments (default 0.01)", 0.01), false);
+    params.add_parser("max_element_mutation_percent", new ParserDouble("maximum mutations percentage for element alignments (default 0.01)", 0.01), false);
+    params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
     params.add_parser("should_verify", new ParserBoolean("verify rearrangement events against reference sequences (default false)", false), false);
     params.add_parser("ifn_contigs", new ParserFilename("input contig FASTA file (required if should_verify=true)"), false);
-    params.add_parser("ifn_reads", new ParserFilename("input read FASTQ file (required if should_verify=true)"), false);
+    params.add_parser("ifn_reads", new ParserFilename("input read FASTQ/FASTA file (required if should_verify=true or extract_shims=true)"), false);
+    params.add_parser("extract_shims", new ParserBoolean("extract actual read sequences for shim regions (default false)", false), false);
 
     if (argc == 1) {
         params.usage(name);
@@ -53,7 +56,9 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     int max_gap = params.get_int("max_gap");
     int min_element_length = params.get_int("min_element_length");
     int min_anchor_length = params.get_int("min_anchor_length");
-    double max_mutations_percent = params.get_double("max_mutations_percent");
+    double max_anchor_mutations_percent = params.get_double("max_anchor_mutations_percent");
+    double max_element_mutation_percent = params.get_double("max_element_mutation_percent");
+    int min_indel_length = params.get_int("min_indel_length");
 
     if (max_gap < 0) {
         cerr << "error: max_gap must be non-negative" << endl;
@@ -70,12 +75,23 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
         exit(1);
     }
 
-    if (max_mutations_percent < 0.0 || max_mutations_percent > 1.0) {
-        cerr << "error: max_mutations_percent must be between 0.0 and 1.0" << endl;
+    if (max_anchor_mutations_percent < 0.0 || max_anchor_mutations_percent > 100.0) {
+        cerr << "error: max_anchor_mutations_percent must be between 0.0 and 100.0" << endl;
+        exit(1);
+    }
+
+    if (max_element_mutation_percent < 0.0 || max_element_mutation_percent > 100.0) {
+        cerr << "error: max_element_mutation_percent must be between 0.0 and 100.0" << endl;
+        exit(1);
+    }
+
+    if (min_indel_length <= 0) {
+        cerr << "error: min_indel_length must be positive" << endl;
         exit(1);
     }
 
     bool should_verify = params.get_bool("should_verify");
+    bool extract_shims = params.get_bool("extract_shims");
     string ifn_contigs = params.get_string("ifn_contigs");
     string ifn_reads = params.get_string("ifn_reads");
     
@@ -88,6 +104,11 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
             cerr << "error: ifn_reads is required when should_verify=true" << endl;
             exit(1);
         }
+    }
+    
+    if (extract_shims && ifn_reads.empty()) {
+        cerr << "error: ifn_reads is required when extract_shims=true" << endl;
+        exit(1);
     }
 
     params.print(cout);
@@ -105,8 +126,11 @@ int rearrange_main(const char* name, int argc, char** argv)
     int max_gap = params.get_int("max_gap");
     int min_element_length = params.get_int("min_element_length");
     int min_anchor_length = params.get_int("min_anchor_length");
-    double max_mutations_percent = params.get_double("max_mutations_percent");
+    double max_anchor_mutations_percent = params.get_double("max_anchor_mutations_percent");
+    double max_element_mutation_percent = params.get_double("max_element_mutation_percent");
+    int min_indel_length = params.get_int("min_indel_length");
     bool should_verify = params.get_bool("should_verify");
+    bool extract_shims = params.get_bool("extract_shims");
     string ifn_contigs = params.get_string("ifn_contigs");
     string ifn_reads = params.get_string("ifn_reads");
 
@@ -123,7 +147,9 @@ int rearrange_main(const char* name, int argc, char** argv)
     cout << "  max_gap: " << max_gap << endl;
     cout << "  min_element_length: " << min_element_length << endl;
     cout << "  min_anchor_length: " << min_anchor_length << endl;
-    cout << "  max_mutations_percent: " << max_mutations_percent << endl;
+    cout << "  max_anchor_mutations_percent: " << max_anchor_mutations_percent << endl;
+    cout << "  max_element_mutation_percent: " << max_element_mutation_percent << endl;
+    cout << "  min_indel_length: " << min_indel_length << endl;
     cout << "  should_verify: " << (should_verify ? "true" : "false") << endl;
     if (should_verify) {
         cout << "  ifn_contigs: " << ifn_contigs << endl;
@@ -141,15 +167,29 @@ int rearrange_main(const char* name, int argc, char** argv)
 
     // Always use RearrangeManager - create single library for ifn_aln mode
     map<string, string> library_files;
+    map<string, string> library_read_files;  // lib_id -> read_file
     
     if (!ifn_aln.empty()) {
         // Single file mode - create single library with id "sample"
         library_files["sample"] = ifn_aln;
+        if (extract_shims && !ifn_reads.empty()) {
+            library_read_files["sample"] = ifn_reads;
+        }
         cout << "single library mode: using " << ifn_aln << " as library 'sample'" << endl;
     } else {
-        // Multi-library mode - read libraries table
+        // Multi-library mode - read libraries table with extended format
         cout << "loading libraries from " << ifn_libraries << endl;
-        library_files = read_library_table(ifn_libraries);
+        map<string, LibraryInfo> library_info = read_library_table_extended(ifn_libraries);
+        
+        for (const auto& entry : library_info) {
+            const string& lib_id = entry.first;
+            const LibraryInfo& info = entry.second;
+            
+            library_files[lib_id] = info.aln_file;
+            if (extract_shims && !info.read_file.empty()) {
+                library_read_files[lib_id] = info.read_file;
+            }
+        }
     }
     
     // load all ALN stores
@@ -161,6 +201,9 @@ int rearrange_main(const char* name, int argc, char** argv)
         cout << "loading library " << lib_id << " from " << aln_file << endl;
         AlignmentStore store;
         store.load(aln_file);
+        
+        // count short indels for this store
+        store.count_short_indels(min_indel_length);
         
         // build read-to-alignment index
         if (!store.is_read_alignment_index_built()) {
@@ -180,8 +223,15 @@ int rearrange_main(const char* name, int argc, char** argv)
         verifier = &verify_obj;
     }
     
-    // create and execute rearrangement manager
-    RearrangeManager manager(stores, intervals, verifier, max_gap, min_element_length, min_anchor_length, max_mutations_percent);
+    // create rearrangement manager
+    RearrangeManager manager(stores, intervals, verifier, max_gap, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true);
+    
+    // load read sequences per library if requested
+    if (extract_shims && !library_read_files.empty()) {
+        manager.load_read_sequences_per_library(library_read_files);
+    }
+    
+    // execute rearrangement analysis
     manager.execute();
     manager.write_to_csv(ofn_prefix);
 
