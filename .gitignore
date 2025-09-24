@@ -30,3 +30,11 @@ test_fixed_bins.tsv
 debug_cpu_bins.tsv
 scripts/compare_cpu_gpu_bins.sh
 cpp/QueryBin_old.h
+cpp/Rearrange_bu.h
+cpp/Rearrange_bu.cpp
+cpp/RearrangeErrors_bu.h
+cpp/RearrangeErrors_bu.cpp
+cpp/RearrangeManager_bu.cpp
+cpp/RearrangeManager_bu.h
+cpp/VerifyRearrange_bu.cpp
+cpp/VerifyRearrange_bu.h

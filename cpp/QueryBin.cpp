@@ -175,7 +175,7 @@ void QueryBin::calc_position_coverage(std::map<std::pair<uint32_t, uint32_t>, Bi
     // query alignments overlapping this bin interval
     std::string contig_id = store.get_contig_id(contig_index);
     Interval bin_interval(contig_id, b_start, b_start + static_cast<uint32_t>(binsize));
-    auto alignment_refs = store.get_alignments_in_interval(bin_interval);
+    auto alignment_refs = store.get_alignments_intersecting_interval(bin_interval);
     
     // reset coverage map for this bin
     data.position_coverage.clear();
@@ -432,7 +432,7 @@ void QueryBin::aggregate_data()
     }
     
     // Get alignments overlapping this interval
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_intersecting_interval(interval);
     
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();
@@ -471,15 +471,6 @@ void QueryBin::aggregate_data()
     for (size_t i = 0; i < processed_alignments.size(); ++i) {
       const Alignment* aln_ptr = processed_alignments[i];
       process_single_alignment(*aln_ptr, local_bin_results);
-      
-      // estimated progress reporting (only from thread 0)
-      if (omp_get_thread_num() == 0) {
-        ++thread0_counter;
-        if (thread0_counter % progress_step == 0) {
-          double estimated_progress = static_cast<double>(thread0_counter * omp_get_num_threads()) / total_alignments;
-          cout << "progress: " << std::fixed << std::setprecision(1) << estimated_progress << " done" << endl;
-        }
-      }
     }
     
     // merge local results into global bin_results (without coverage calculation)
@@ -497,12 +488,6 @@ void QueryBin::aggregate_data()
   for (size_t i = 0; i < processed_alignments.size(); ++i) {
     const Alignment* aln_ptr = processed_alignments[i];
     process_single_alignment(*aln_ptr, bin_results);
-    
-    // Progress reporting every 10%
-    if ((i + 1) % progress_step == 0) {
-      double progress = 100.0 * (i + 1) / total_alignments;
-      cout << "progress: " << std::fixed << std::setprecision(0) << progress << "% (" << (i + 1) << "/" << total_alignments << " alignments)" << endl;
-    }
   }
   
   // calculate position coverage efficiently for sequential processing

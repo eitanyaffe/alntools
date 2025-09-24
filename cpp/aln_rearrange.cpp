@@ -1,7 +1,6 @@
 #include "Params.h"
 #include "Rearrange.h"
-#include "RearrangeManager.h"
-#include "VerifyRearrange.h"
+#include "RearrangeVerify.h"
 #include "alignment_store.h"
 #include "utils.h"
 #include <iostream>
@@ -165,7 +164,7 @@ int rearrange_main(const char* name, int argc, char** argv)
         cout << "no intervals file provided - processing all reads" << endl;
     }
 
-    // Always use RearrangeManager - create single library for ifn_aln mode
+    // Always use Rearrange - create single library for ifn_aln mode
     map<string, string> library_files;
     map<string, string> library_read_files;  // lib_id -> read_file
     
@@ -215,16 +214,17 @@ int rearrange_main(const char* name, int argc, char** argv)
     }
     
     // create verifier if needed
-    VerifyRearrange* verifier = nullptr;
-    VerifyRearrange verify_obj;
+    RearrangeVerify* verifier = nullptr;
+    RearrangeVerify verify_obj;
     if (should_verify) {
         cout << "verification enabled - loading sequences..." << endl;
-        verify_obj.load_sequences(ifn_contigs, ifn_reads);
+        verify_obj.load_contig_sequences_from_file(ifn_contigs);
+        verify_obj.load_read_sequences_from_file(ifn_reads);
         verifier = &verify_obj;
     }
     
     // create rearrangement manager
-    RearrangeManager manager(stores, intervals, verifier, max_gap, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true);
+    Rearrange manager(stores, intervals, verifier, max_gap, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true);
     
     // load read sequences per library if requested
     if (extract_shims && !library_read_files.empty()) {

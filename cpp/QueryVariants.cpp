@@ -106,7 +106,7 @@ void QueryVariants::execute()
       }
       
       // get alignments overlapping this interval
-      auto alignment_refs = store.get_alignments_in_interval(interval);
+      auto alignment_refs = store.get_alignments_intersecting_interval(interval);
       
       for (const auto& alignment_ref : alignment_refs) {
         const Alignment& aln = alignment_ref.get();
@@ -285,7 +285,7 @@ void QueryVariants::calculate_coverage()
       
       // create interval for this position
       Interval pos_interval(variant.contig, pos_0based, pos_0based + 1);
-      auto alignment_refs = store.get_alignments_in_interval(pos_interval);
+      auto alignment_refs = store.get_alignments_intersecting_interval(pos_interval);
       
       int coverage = 0;
       for (const auto& alignment_ref : alignment_refs) {

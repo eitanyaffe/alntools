@@ -31,7 +31,7 @@ void QueryFull::generate_output_data()
 
   cout << "number of intervals: " << intervals.size() << endl;
   for (const auto& interval : intervals) {
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval, max_alignments);
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_intersecting_interval(interval, max_alignments);
     cout << "interval: " << interval.to_string() << endl;
     cout << "number of alignments: " << alignments.size() << endl;
 

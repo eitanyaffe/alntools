@@ -116,7 +116,7 @@ void QueryConsensus::calc_variant_coverage()
     // create a small interval around this position
     std::string contig_id = store.get_contig_id(contig_index);
     Interval pos_interval(contig_id, position, position + 1);
-    auto alignment_refs = store.get_alignments_in_interval(pos_interval);
+    auto alignment_refs = store.get_alignments_intersecting_interval(pos_interval);
     
     int coverage = 0;
     for (const auto& alignment_ref : alignment_refs) {
@@ -230,7 +230,7 @@ void QueryConsensus::aggregate_data()
     }
     
     // get alignments overlapping this interval
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_intersecting_interval(interval);
     
     for (const auto& alignment_ref : alignments) {
       const auto& aln = alignment_ref.get();

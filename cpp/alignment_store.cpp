@@ -412,7 +412,7 @@ const string& AlignmentStore::get_contig_id(size_t contig_index) const
   return contigs_[contig_index].id;
 }
 
-std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignments_in_interval(const Interval& interval, int max_alignments) const
+std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignments_intersecting_interval(const Interval& interval, int max_alignments) const
 {
   std::vector<std::reference_wrapper<const Alignment>> result;
 

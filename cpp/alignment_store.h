@@ -83,8 +83,8 @@ class AlignmentStore {
   const string& get_read_id(size_t read_index) const;
   const string& get_contig_id(size_t contig_index) const;
 
-  // get alignments in a specific interval
-  std::vector<std::reference_wrapper<const Alignment>> get_alignments_in_interval(const Interval& interval, int max_alignments = 0) const;
+  // get alignments intersecting a specific interval
+  std::vector<std::reference_wrapper<const Alignment>> get_alignments_intersecting_interval(const Interval& interval, int max_alignments = 0) const;
 
   // break position detection result
   struct BreakPosition {

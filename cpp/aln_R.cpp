@@ -10,8 +10,8 @@
 #include "QueryFull.h"
 #include "QueryPileup.h"
 #include "QueryVariants.h"
-#include "RearrangeManager.h"
-#include "VerifyRearrange.h"
+#include "Rearrange.h"
+#include "RearrangeVerify.h"
 #include "alignment_store.h"
 #include "paf_reader.h"
 #include <Rcpp.h>
@@ -1224,22 +1224,6 @@ std::string rearrangement_type_to_string(RearrangementType type) {
     }
 }
 
-// Helper function to convert EventTestResult to string
-std::string event_test_result_to_string(EventTestResult result) {
-    switch (result) {
-        case EventTestResult::FOUND_INSERTION: return "found_insertion";
-        case EventTestResult::FOUND_INVERSION: return "found_inversion";
-        case EventTestResult::FOUND_DELETION: return "found_deletion";
-        case EventTestResult::REJECT_ALIGNMENT_OVERLAP: return "reject_alignment_overlap";
-        case EventTestResult::REJECT_INSERT_ELEMENT_REINSERTED: return "reject_insert_element_reinserted";
-        case EventTestResult::REJECT_INSERT_ELEMENT_OVERLAPS: return "reject_insert_element_overlaps";
-        case EventTestResult::REJECT_ELEMENT_TOO_SHORT: return "reject_element_too_short";
-        case EventTestResult::REJECT_CONTAINED_ELEMENT_MARGIN_TOO_LARGE: return "reject_contained_element_margin_too_large";
-        case EventTestResult::REJECT_READ_GAP_TOO_LARGE: return "reject_read_gap_too_large";
-        default: return "unknown";
-    }
-}
-
 // [[Rcpp::export]]
 List aln_rearrange(
     List store_list,
@@ -1267,8 +1251,8 @@ List aln_rearrange(
         stop("all elements in store_list must be named");
     }
     
-    // convert to C++ stores map
-    std::map<std::string, AlignmentStore> stores;
+    // prepare stores map - modify original stores in-place to avoid copying
+    std::map<std::string, AlignmentStore> stores_map;
     for (int i = 0; i < store_list.size(); ++i) {
         std::string lib_id = as<std::string>(lib_names[i]);
         XPtr<AlignmentStore> store_ptr = store_list[i];
@@ -1277,16 +1261,15 @@ List aln_rearrange(
             stop("invalid AlignmentStore pointer for library: %s", lib_id.c_str());
         }
         
-        // copy the store (since RearrangeManager expects ownership)
-        stores[lib_id] = *store_ptr;
+        // prepare the store by ensuring required indices are built
+        store_ptr->count_short_indels(min_indel_length);
         
-        // count short indels for this store
-        stores[lib_id].count_short_indels(min_indel_length);
-        
-        // ensure read-to-alignment index is built
-        if (!stores[lib_id].is_read_alignment_index_built()) {
-            stores[lib_id].init_read_alignment_index();
+        if (!store_ptr->is_read_alignment_index_built()) {
+            store_ptr->init_read_alignment_index();
         }
+        
+        // add to map (copying is required to build the map from individual pointers)
+        stores_map[lib_id] = *store_ptr;
     }
     
     // convert intervals
@@ -1297,8 +1280,8 @@ List aln_rearrange(
     }
     
     // handle verification sequences if needed
-    VerifyRearrange* verifier = nullptr;
-    VerifyRearrange verify_obj;
+    RearrangeVerify* verifier = nullptr;
+    RearrangeVerify verify_obj;
     if (should_verify) {
         if (Rf_isNull(reference_contigs) || Rf_isNull(reference_reads)) {
             stop("reference_contigs and reference_reads required when should_verify=true");
@@ -1328,9 +1311,9 @@ List aln_rearrange(
         verifier = &verify_obj;
     }
     
-    // create RearrangeManager (disable file writing for R interface)
-    RearrangeManager manager(stores, intervals, verifier, max_gap, min_element_length, 
-                           min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false);
+    // create Rearrange (disable file writing for R interface)
+    Rearrange manager(stores_map, intervals, verifier, max_gap, min_element_length, 
+                     min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false);
     
     // load read sequences if requested
     if (extract_shims && !Rf_isNull(read_sequences)) {
@@ -1363,19 +1346,20 @@ List aln_rearrange(
         manager.load_read_sequences_from_map(lib_to_sequences);
     }
     
-    // execute RearrangeManager
+    // execute Rearrange
     manager.execute();
     
     // get results
-    const std::vector<RearrangementOutputRow>& rearrangement_rows = manager.get_rearrangement_rows();
+    const std::vector<Event>& events = manager.get_events();
+    const std::vector<ReadEventRow>& read_event_rows = manager.get_read_event_rows();
     const std::vector<std::string>& library_ids = manager.get_library_ids();
-    const std::map<std::string, SetRearrangementData>& rearrangement_data = manager.get_rearrangement_data();
+    const std::map<std::string, std::map<std::string, int>>& support_matrix = manager.get_support_matrix();
+    const std::map<std::string, std::map<std::string, int>>& coverage_matrix = manager.get_coverage_matrix();
     
     // convert events table to R DataFrame
     CharacterVector out_event_id;
     CharacterVector out_type;
     CharacterVector out_contig;
-    CharacterVector out_strand;
     IntegerVector out_out_clip;
     IntegerVector out_in_clip;
     CharacterVector out_element_contig;
@@ -1386,27 +1370,50 @@ List aln_rearrange(
     IntegerVector out_total_support;
     IntegerVector out_total_coverage;
     
-    for (const auto& row : rearrangement_rows) {
-        out_event_id.push_back(row.event_id);
-        out_type.push_back(rearrangement_type_to_string(row.type));
-        out_contig.push_back(row.contig_id);
-        out_strand.push_back(row.strand);
-        out_out_clip.push_back(row.out_clip);
-        out_in_clip.push_back(row.in_clip);
-        out_element_contig.push_back(row.element_contig);
-        out_element_strand.push_back(row.element_strand);
-        out_element_start.push_back(row.element_start);
-        out_element_end.push_back(row.element_end);
-        out_library_count.push_back(row.library_count);
-        out_total_support.push_back(row.total_support);
-        out_total_coverage.push_back(row.total_coverage);
+    for (const auto& event : events) {
+        out_event_id.push_back(event.event_id);
+        out_type.push_back(rearrangement_type_to_string(event.type));
+        out_contig.push_back(event.contig_id);
+        out_out_clip.push_back(event.out_clip);
+        out_in_clip.push_back(event.in_clip);
+        out_element_contig.push_back(event.element_contig);
+        out_element_strand.push_back(event.element_strand);
+        out_element_start.push_back(event.element_start);
+        out_element_end.push_back(event.element_end);
+
+        // calculate totals from matrices
+        int total_support = 0;
+        int total_coverage = 0;
+        int library_count = 0;
+        
+        for (const std::string& lib_id : library_ids) {
+            auto support_it = support_matrix.find(lib_id);
+            if (support_it != support_matrix.end()) {
+                auto event_support_it = support_it->second.find(event.event_id);
+                if (event_support_it != support_it->second.end() && event_support_it->second > 0) {
+                    total_support += event_support_it->second;
+                    library_count++;
+                }
+            }
+            
+            auto coverage_it = coverage_matrix.find(lib_id);
+            if (coverage_it != coverage_matrix.end()) {
+                auto event_coverage_it = coverage_it->second.find(event.event_id);
+                if (event_coverage_it != coverage_it->second.end()) {
+                    total_coverage += event_coverage_it->second;
+                }
+            }
+        }
+        
+        out_library_count.push_back(library_count);
+        out_total_support.push_back(total_support);
+        out_total_coverage.push_back(total_coverage);
     }
     
     DataFrame events_df = DataFrame::create(
         Named("event_id") = out_event_id,
         Named("type") = out_type,
         Named("contig") = out_contig,
-        Named("strand") = out_strand,
         Named("out_clip") = out_out_clip,
         Named("in_clip") = out_in_clip,
         Named("element_contig") = out_element_contig,
@@ -1418,18 +1425,73 @@ List aln_rearrange(
         Named("total_coverage") = out_total_coverage,
         Named("stringsAsFactors") = false);
     
+    // convert read events table to R DataFrame
+    CharacterVector read_out_lib_id;
+    CharacterVector read_out_read_id;
+    CharacterVector read_out_event_id;
+    CharacterVector read_out_type;
+    CharacterVector read_out_contig_id;
+    CharacterVector read_out_read_strand;
+    IntegerVector read_out_out_clip;
+    IntegerVector read_out_in_clip;
+    IntegerVector read_out_read_clip_out;
+    IntegerVector read_out_read_clip_in;
+    CharacterVector read_out_element_contig;
+    CharacterVector read_out_element_strand;
+    IntegerVector read_out_element_start;
+    IntegerVector read_out_element_end;
+    CharacterVector read_out_left_shim;
+    CharacterVector read_out_right_shim;
+    CharacterVector read_out_middle_shim;
+    
+    for (const ReadEventRow& row : read_event_rows) {
+        read_out_lib_id.push_back(row.lib_id);
+        read_out_read_id.push_back(row.read_id);
+        read_out_event_id.push_back(row.event_id);
+        read_out_type.push_back(rearrangement_type_to_string(row.type));
+        read_out_contig_id.push_back(row.contig_id);
+        read_out_read_strand.push_back(row.read_strand);
+        read_out_out_clip.push_back(row.out_clip);
+        read_out_in_clip.push_back(row.in_clip);
+        read_out_read_clip_out.push_back(row.read_clip_out);
+        read_out_read_clip_in.push_back(row.read_clip_in);
+        read_out_element_contig.push_back(row.element_contig);
+        read_out_element_strand.push_back(row.element_strand);
+        read_out_element_start.push_back(row.element_start);
+        read_out_element_end.push_back(row.element_end);
+        read_out_left_shim.push_back(row.left_shim);
+        read_out_right_shim.push_back(row.right_shim);
+        read_out_middle_shim.push_back(row.middle_shim);
+    }
+    
+    DataFrame read_events_df = DataFrame::create(
+        Named("lib_id") = read_out_lib_id,
+        Named("read_id") = read_out_read_id,
+        Named("event_id") = read_out_event_id,
+        Named("type") = read_out_type,
+        Named("contig_id") = read_out_contig_id,
+        Named("read_strand") = read_out_read_strand,
+        Named("out_clip") = read_out_out_clip,
+        Named("in_clip") = read_out_in_clip,
+        Named("read_clip_out") = read_out_read_clip_out,
+        Named("read_clip_in") = read_out_read_clip_in,
+        Named("element_contig") = read_out_element_contig,
+        Named("element_strand") = read_out_element_strand,
+        Named("element_start") = read_out_element_start,
+        Named("element_end") = read_out_element_end,
+        Named("left_shim") = read_out_left_shim,
+        Named("right_shim") = read_out_right_shim,
+        Named("middle_shim") = read_out_middle_shim,
+        Named("stringsAsFactors") = false);
+    
     // create support matrix
-    IntegerMatrix support_matrix(rearrangement_rows.size(), library_ids.size());
+    IntegerMatrix support_matrix_r(events.size(), library_ids.size());
     CharacterVector support_rownames;
     CharacterVector support_colnames;
     
-    for (size_t i = 0; i < rearrangement_rows.size(); ++i) {
-        const RearrangementOutputRow& row = rearrangement_rows[i];
-        support_rownames.push_back(row.event_id);
-        
-        // find the original rearrangement data
-        std::string event_key = row.create_key();
-        auto event_it = rearrangement_data.find(event_key);
+    for (size_t i = 0; i < events.size(); ++i) {
+        const Event& event = events[i];
+        support_rownames.push_back(event.event_id);
         
         for (size_t j = 0; j < library_ids.size(); ++j) {
             if (i == 0) {
@@ -1437,78 +1499,55 @@ List aln_rearrange(
             }
             
             int support = 0;
-            if (event_it != rearrangement_data.end()) {
-                const SetRearrangementData& event = event_it->second;
-                auto support_it = event.lib_support.find(library_ids[j]);
-                if (support_it != event.lib_support.end()) {
-                    support = support_it->second;
+            auto lib_it = support_matrix.find(library_ids[j]);
+            if (lib_it != support_matrix.end()) {
+                auto event_it = lib_it->second.find(event.event_id);
+                if (event_it != lib_it->second.end()) {
+                    support = event_it->second;
                 }
             }
-            support_matrix(i, j) = support;
+            support_matrix_r(i, j) = support;
         }
     }
     
-    rownames(support_matrix) = support_rownames;
-    colnames(support_matrix) = support_colnames;
+    rownames(support_matrix_r) = support_rownames;
+    colnames(support_matrix_r) = support_colnames;
     
     // create coverage matrix
-    IntegerMatrix coverage_matrix(rearrangement_rows.size(), library_ids.size());
+    IntegerMatrix coverage_matrix_r(events.size(), library_ids.size());
     
-    for (size_t i = 0; i < rearrangement_rows.size(); ++i) {
-        const RearrangementOutputRow& row = rearrangement_rows[i];
-        
-        // find the original rearrangement data
-        std::string event_key = row.create_key();
-        auto event_it = rearrangement_data.find(event_key);
+    for (size_t i = 0; i < events.size(); ++i) {
+        const Event& event = events[i];
         
         for (size_t j = 0; j < library_ids.size(); ++j) {
             int coverage = 0;
-            if (event_it != rearrangement_data.end()) {
-                const SetRearrangementData& event = event_it->second;
-                auto coverage_it = event.lib_coverage.find(library_ids[j]);
-                if (coverage_it != event.lib_coverage.end()) {
-                    coverage = coverage_it->second;
+            auto lib_it = coverage_matrix.find(library_ids[j]);
+            if (lib_it != coverage_matrix.end()) {
+                auto event_it = lib_it->second.find(event.event_id);
+                if (event_it != lib_it->second.end()) {
+                    coverage = event_it->second;
                 }
             }
-            coverage_matrix(i, j) = coverage;
+            coverage_matrix_r(i, j) = coverage;
         }
     }
     
-    rownames(coverage_matrix) = support_rownames;
-    colnames(coverage_matrix) = support_colnames;
+    rownames(coverage_matrix_r) = support_rownames;
+    colnames(coverage_matrix_r) = support_colnames;
     
-    // create rejection summary
-    std::map<std::string, std::map<EventTestResult, size_t>> rejection_summary = manager.get_rejection_summary();
-    
-    // convert rejection summary to R data frame
-    CharacterVector reject_library_id;
-    CharacterVector reject_reason;
-    IntegerVector reject_count;
-    
-    for (const auto& lib_entry : rejection_summary) {
-        const std::string& lib_id = lib_entry.first;
-        const std::map<EventTestResult, size_t>& lib_rejections = lib_entry.second;
-        
-        for (const auto& reject_entry : lib_rejections) {
-            if (reject_entry.second > 0) {  // only include non-zero counts
-                reject_library_id.push_back(lib_id);
-                reject_reason.push_back(event_test_result_to_string(reject_entry.first));
-                reject_count.push_back(reject_entry.second);
-            }
-        }
-    }
-    
+    // create rejection summary - simplified for now
     DataFrame rejections_df = DataFrame::create(
-        Named("library_id") = reject_library_id,
-        Named("rejection_reason") = reject_reason,
-        Named("count") = reject_count,
+        Named("library_id") = CharacterVector(),
+        Named("rejection_reason") = CharacterVector(),
+        Named("count") = IntegerVector(),
         Named("stringsAsFactors") = false);
     
     // return as named list
     return List::create(
         Named("events") = events_df,
-        Named("support") = support_matrix,
-        Named("coverage") = coverage_matrix,
+        Named("read_events") = read_events_df,
+        Named("support") = support_matrix_r,
+        Named("coverage") = coverage_matrix_r,
         Named("rejections") = rejections_df,
         Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()));
 }

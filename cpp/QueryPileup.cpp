@@ -52,7 +52,7 @@ void QueryPileup::aggregate_data()
   // Loop through intervals (again) to process alignments associated with them
   for (const auto& interval : intervals) {
     // Get alignments overlapping this interval
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_in_interval(interval);
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_intersecting_interval(interval);
 
     // Loop through alignments
     for (const auto& alignment_ref : alignments) {
