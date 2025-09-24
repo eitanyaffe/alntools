@@ -417,7 +417,9 @@ std::vector<std::reference_wrapper<const Alignment>> AlignmentStore::get_alignme
   std::vector<std::reference_wrapper<const Alignment>> result;
 
   auto contig_map_it = contig_id_to_index.find(interval.contig);
-  massert(contig_map_it != contig_id_to_index.end(), "contig not found: %s", interval.contig.c_str());
+  if (contig_map_it == contig_id_to_index.end()) {
+    return result;
+  }
   size_t contig_index = contig_map_it->second;
 
   auto align_map_it = alignment_index_by_contig_.find(contig_index);
