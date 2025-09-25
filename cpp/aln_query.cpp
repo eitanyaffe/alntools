@@ -30,6 +30,23 @@ HeightStyle string_to_height_style(const std::string& style_str)
   }
 }
 
+// convert string to ChunkType enum
+ChunkType string_to_chunk_type(const std::string& chunk_str)
+{
+  if (chunk_str == "read") {
+    return ChunkType::READ;
+  } else if (chunk_str == "alignment") {
+    return ChunkType::ALIGNMENT;
+  } else if (chunk_str == "break_on_overlap") {
+    return ChunkType::BREAK_ON_OVERLAP;
+  } else if (chunk_str == "break_on_gap") {
+    return ChunkType::BREAK_ON_GAP;
+  } else {
+    // default to BREAK_ON_OVERLAP
+    return ChunkType::BREAK_ON_OVERLAP;
+  }
+}
+
 void query_params(const char* name, int argc, char** argv, Parameters& params)
 {
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), false);
@@ -41,6 +58,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
   params.add_parser("non_ref_threshold", new ParserDouble("non-reference sites threshold for 'bin' mode", 0.9), false);
   params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
+  params.add_parser("chunk_type", new ParserString("chunk definition style for 'full' mode (read, alignment, break_on_overlap, break_on_gap)", "break_on_overlap"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
   params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped)", "all"), false);
   params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
@@ -48,6 +66,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 10.0)", 10.0), false);
   params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 0)", 0), false);
   params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
+  params.add_parser("max_gap", new ParserInteger("maximum gap between alignments in same chunk for 'full' mode (default 10)", 10), false);
   params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
   params.add_parser("num_threads", new ParserInteger("number of threads for 'bin' and 'consensus' modes (0 for auto)", 0), false);
   params.add_parser("consensus_threshold", new ParserDouble("consensus threshold for 'consensus' mode (default 0.9)", 0.9), false);
@@ -103,12 +122,19 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
     }
   }
 
-  // Validate height_style if mode is 'full'
+  // Validate height_style and chunk_type if mode is 'full'
   if (mode == "full") {
     string height_style = params.get_string("height_style");
     if (height_style != "by_coord_left" && height_style != "by_coord_right" && 
         height_style != "by_mutations") {
       cerr << "error: invalid height_style specified: " << height_style << ". Must be 'by_coord_left', 'by_coord_right', or 'by_mutations'." << endl;
+      exit(1);
+    }
+    
+    string chunk_type = params.get_string("chunk_type");
+    if (chunk_type != "read" && chunk_type != "alignment" && 
+        chunk_type != "break_on_overlap" && chunk_type != "break_on_gap") {
+      cerr << "error: invalid chunk_type specified: " << chunk_type << ". Must be 'read', 'alignment', 'break_on_overlap', or 'break_on_gap'." << endl;
       exit(1);
     }
     
@@ -161,6 +187,9 @@ int query_main(const char* name, int argc, char** argv)
   // Get height style and convert to enum
   HeightStyle height_style = string_to_height_style(params.get_string("height_style"));
   
+  // Get chunk type and convert to enum
+  ChunkType chunk_type = string_to_chunk_type(params.get_string("chunk_type"));
+  
   // get max alignments parameter
   int max_alignments = params.get_int("max_alignments");
   
@@ -171,6 +200,7 @@ int query_main(const char* name, int argc, char** argv)
   double max_mutations_percent = params.get_double("max_mutations_percent");
   int min_alignment_length = params.get_int("min_alignment_length");
   int max_alignment_length = params.get_int("max_alignment_length");
+  int max_gap = params.get_int("max_gap");
   int min_indel_length = params.get_int("min_indel_length");
   
   // get gene annotation parameters
@@ -284,7 +314,7 @@ int query_main(const char* name, int argc, char** argv)
     store.count_short_indels(min_indel_length);
     
     if (mode == "full") {
-      QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+      QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, max_gap, chunk_type);
       queryFull.execute();
       queryFull.write_to_csv(ofn_prefix);
     } else if (mode == "pileup") {

@@ -595,6 +595,8 @@ List aln_query_full(
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
     int max_alignment_length = 0,
+    int max_gap = 10,
+    std::string chunk_type_str = "break_on_overlap",
     int min_indel_length = 3)
 {
   // Validate the external pointer
@@ -614,6 +616,20 @@ List aln_query_full(
     stop("Invalid height_style parameter. Must be 'by_coord_left', 'by_coord_right', or 'by_mutations'.");
   }
 
+  // Convert chunk_type_str to ChunkType enum
+  ChunkType chunk_type;
+  if (chunk_type_str == "read") {
+    chunk_type = ChunkType::READ;
+  } else if (chunk_type_str == "alignment") {
+    chunk_type = ChunkType::ALIGNMENT;
+  } else if (chunk_type_str == "break_on_overlap") {
+    chunk_type = ChunkType::BREAK_ON_OVERLAP;
+  } else if (chunk_type_str == "break_on_gap") {
+    chunk_type = ChunkType::BREAK_ON_GAP;
+  } else {
+    stop("Invalid chunk_type parameter. Must be 'read', 'alignment', 'break_on_overlap', or 'break_on_gap'.");
+  }
+
   // Get reference to the AlignmentStore object
   AlignmentStore& store = *store_ptr;
 
@@ -626,7 +642,7 @@ List aln_query_full(
   // Convert clip_mode_str to ClipMode enum
   ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
   
-  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, max_gap, chunk_type);
 
   // Run the steps
   queryFull.execute();
@@ -645,6 +661,7 @@ List aln_query_full(
   CharacterVector out_aln_cs_tag;
   IntegerVector out_aln_height;
   IntegerVector out_aln_num_mutations;
+  CharacterVector out_aln_chunk_id;
 
   for (const auto& aln : alignments) {
     out_aln_idx.push_back(static_cast<double>(aln.alignment_index + 1)); // R numeric can hold uint64_t
@@ -659,6 +676,7 @@ List aln_query_full(
     out_aln_cs_tag.push_back(aln.cs_tag);
     out_aln_height.push_back(aln.height);
     out_aln_num_mutations.push_back(aln.num_mutations);
+    out_aln_chunk_id.push_back(aln.chunk_id);
   }
 
   DataFrame alignments_df = DataFrame::create(
@@ -674,6 +692,7 @@ List aln_query_full(
       Named("cs_tag") = out_aln_cs_tag,
       Named("mutation_count") = out_aln_num_mutations,
       Named("height") = out_aln_height,
+      Named("chunk_id") = out_aln_chunk_id,
       Named("stringsAsFactors") = false);
 
   // --- Create Mutations DataFrame ---
@@ -749,10 +768,53 @@ List aln_query_full(
       Named("is_reverse") = out_read_reversed,
       Named("stringsAsFactors") = false);
 
+  // --- Create Chunks DataFrame ---
+  const std::vector<FullOutputChunk>& chunks = queryFull.get_output_chunks();
+  CharacterVector out_chunk_id;
+  CharacterVector out_chunk_read_id;
+  CharacterVector out_chunk_contig_id;
+  IntegerVector out_chunk_read_length;
+  IntegerVector out_chunk_span_start;
+  IntegerVector out_chunk_span_end;
+  IntegerVector out_chunk_total_aligned_length;
+  IntegerVector out_chunk_num_alignments;
+  IntegerVector out_chunk_num_mutations;
+  IntegerVector out_chunk_height;
+  LogicalVector out_chunk_read_reversed;
+
+  for (const auto& chunk : chunks) {
+    out_chunk_id.push_back(chunk.chunk_id);
+    out_chunk_read_id.push_back(chunk.read_id);
+    out_chunk_contig_id.push_back(chunk.contig_id);
+    out_chunk_read_length.push_back(chunk.read_length);
+    out_chunk_span_start.push_back(chunk.span_start);
+    out_chunk_span_end.push_back(chunk.span_end);
+    out_chunk_total_aligned_length.push_back(chunk.total_aligned_length);
+    out_chunk_num_alignments.push_back(chunk.num_alignments);
+    out_chunk_num_mutations.push_back(chunk.num_mutations);
+    out_chunk_height.push_back(chunk.height);
+    out_chunk_read_reversed.push_back(chunk.read_reversed);
+  }
+
+  DataFrame chunks_df = DataFrame::create(
+      Named("chunk_id") = out_chunk_id,
+      Named("read_id") = out_chunk_read_id,
+      Named("contig_id") = out_chunk_contig_id,
+      Named("read_length") = out_chunk_read_length,
+      Named("span_start") = out_chunk_span_start,
+      Named("span_end") = out_chunk_span_end,
+      Named("total_aligned_length") = out_chunk_total_aligned_length,
+      Named("num_alignments") = out_chunk_num_alignments,
+      Named("num_mutations") = out_chunk_num_mutations,
+      Named("height") = out_chunk_height,
+      Named("read_reversed") = out_chunk_read_reversed,
+      Named("stringsAsFactors") = false);
+
   return List::create(
       Named("alignments") = alignments_df,
       Named("mutations") = mutations_df,
-      Named("reads") = reads_df);
+      Named("reads") = reads_df,
+      Named("chunks") = chunks_df);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -147,6 +147,12 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
   - `by_mutations`: Arrange by mutation density.
+* `-chunk_type <string>`: For full mode, how to define chunks (stretches of alignments) for height calculation:
+  - `read`: Entire read forms one chunk (equivalent to read-based heights).
+  - `alignment`: Each alignment forms its own chunk (maximum granularity).
+  - `break_on_overlap`: Start new chunk when alignments overlap (default).
+  - `break_on_gap`: Start new chunk when gap between alignments exceeds max_gap.
+* `-max_gap <int>`: Maximum gap tolerance for chunk detection in read coordinates (default: `10`).
 
 **Alignment Filtering Options (all modes):**
 * `-clip_mode <string>`: Clipping mode for filtering alignments:
@@ -173,10 +179,11 @@ alntools query -ifn_aln output/test.aln \
    -ofn_prefix output/query -mode full
 ```
 
-This produces three output files:
-- `output/query_alignments.tsv`: Detailed alignment information with heights inherited from reads
+This produces four output files:
+- `output/query_alignments.tsv`: Detailed alignment information with heights inherited from chunks, includes chunk_id column
 - `output/query_mutations.tsv`: Mutation details for each alignment
-- `output/query_reads.tsv`: Read statistics and height assignments (heights calculated on reads first)
+- `output/query_reads.tsv`: Read statistics and height assignments (maintained for compatibility)
+- `output/query_chunks.tsv`: Chunk statistics and height assignments (chunks are used for height calculation)
 
 **Example of bin query mode**
 
@@ -498,11 +505,13 @@ consensus_results <- aln_query_consensus(aln, intervals, consensus_threshold = 0
 
 # height_style options: "by_coord_left", "by_coord_right", "by_mutations"
 height_style <- "by_coord_left"
-# Full query
+# Full query with chunk options
+# chunk_type options: "read", "alignment", "break_on_overlap", "break_on_gap"
+chunk_type <- "break_on_overlap"
 full_results <- aln_query_full(aln, intervals, height_style, max_alignments = 0, clip_mode_str = "all", clip_margin = 10,
                               min_mutations_percent = 0.0, max_mutations_percent = 10.0,
-                              min_alignment_length = 0, max_alignment_length = 0, min_indel_length = 3)
-# Returns a list with $alignments, $mutations, and $reads dataframes
+                              min_alignment_length = 0, max_alignment_length = 0, max_gap = 10, chunk_type, min_indel_length = 3)
+# Returns a list with $alignments, $mutations, $reads, and $chunks dataframes
 
 # Break position detection
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 1)
@@ -569,6 +578,8 @@ write.table(full_results$alignments, file = paste0(output_prefix, "_alignments.t
 write.table(full_results$mutations, file = paste0(output_prefix, "_mutations.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 write.table(full_results$reads, file = paste0(output_prefix, "_reads.tsv"), 
+            sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(full_results$chunks, file = paste0(output_prefix, "_chunks.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 write.table(breaks_results, file = paste0(output_prefix, "_breaks.tsv"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
