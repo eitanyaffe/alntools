@@ -151,8 +151,8 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
   - `read`: Entire read forms one chunk (equivalent to read-based heights).
   - `alignment`: Each alignment forms its own chunk (maximum granularity).
   - `break_on_overlap`: Start new chunk when alignments overlap (default).
-  - `break_on_gap`: Start new chunk when gap between alignments exceeds max_gap.
-* `-max_gap <int>`: Maximum gap tolerance for chunk detection in read coordinates (default: `10`).
+  - `break_on_gap`: Start new chunk when gap between alignments exceeds max_margin.
+* `-max_margin <int>`: Maximum margin tolerance for chunk detection in read coordinates (default: `10`).
 
 **Alignment Filtering Options (all modes):**
 * `-clip_mode <string>`: Clipping mode for filtering alignments:
@@ -411,7 +411,7 @@ alntools rearrange -ifn_libraries <libraries.tsv> -ofn_prefix <output_prefix> [o
 
 **Optional Arguments:**
 * `-ifn_intervals <fn>`: Tab-delimited file with query intervals (format: `contig start end`). Only process rearrangements where anchor alignments overlap these intervals
-* `-max_gap <int>`: Maximum gap tolerance between anchor alignments (default: 10)
+* `-max_margin <int>`: Maximum margin tolerance between anchor alignments (default: 10)
 * `-min_element_length <int>`: Minimum element length for deletions and insertions (default: 50)
 * `-min_anchor_length <int>`: Minimum anchor alignment length (default: 200)
 * `-max_mutations_percent <double>`: Maximum mutations percentage for all alignments (default: 0.01)
@@ -510,7 +510,7 @@ height_style <- "by_coord_left"
 chunk_type <- "break_on_overlap"
 full_results <- aln_query_full(aln, intervals, height_style, max_alignments = 0, clip_mode_str = "all", clip_margin = 10,
                               min_mutations_percent = 0.0, max_mutations_percent = 10.0,
-                              min_alignment_length = 0, max_alignment_length = 0, max_gap = 10, chunk_type, min_indel_length = 3)
+                              min_alignment_length = 0, max_alignment_length = 0, max_margin = 10, chunk_type, min_indel_length = 3)
 # Returns a list with $alignments, $mutations, $reads, and $chunks dataframes
 
 # Break position detection

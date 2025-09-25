@@ -10,12 +10,12 @@
 
 using namespace std;
 
-QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, ClipMode clip_mode, int clip_margin, double min_mutations_percent, double max_mutations_percent, int min_alignment_length, int max_alignment_length, int max_gap, ChunkType chunk_type)
+QueryFull::QueryFull(const vector<Interval>& intervals, const AlignmentStore& store, HeightStyle height_style, int max_alignments, ClipMode clip_mode, int clip_margin, double min_mutations_percent, double max_mutations_percent, int min_alignment_length, int max_alignment_length, int max_margin, ChunkType chunk_type)
     : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , height_style(height_style)
     , max_alignments(max_alignments)
-    , max_gap(max_gap)
+    , max_margin(max_margin)
     , chunk_type(chunk_type)
 {
   // warn about performance with many intervals
@@ -606,14 +606,14 @@ void QueryFull::collect_chunks_from_alignments()
           });
 
       if (chunk_type == ChunkType::BREAK_ON_OVERLAP) {
-        // start new chunk if next alignment overlaps: next.start < (current_chunk_end - max_gap)
+        // start new chunk if next alignment overlaps: next.start < (current_chunk_end - max_margin)
         if (!alignments.empty()) {
           chunks.push_back({alignments[0]});
           int current_chunk_end = alignments[0]->read_end;
           
           for (size_t i = 1; i < alignments.size(); i++) {
             // check if next alignment overlaps
-            if (alignments[i]->read_start < (current_chunk_end - max_gap)) {
+            if (alignments[i]->read_start < (current_chunk_end - max_margin)) {
               // start new chunk due to overlap
               chunks.push_back({alignments[i]});
               current_chunk_end = alignments[i]->read_end;
@@ -631,7 +631,7 @@ void QueryFull::collect_chunks_from_alignments()
           
           for (size_t i = 1; i < alignments.size(); i++) {
             int gap = alignments[i]->read_start - alignments[i-1]->read_end;
-            if (gap <= max_gap) {
+            if (gap <= max_margin) {
               // add to current chunk
               chunks.back().push_back(alignments[i]);
             } else {

@@ -34,13 +34,13 @@ string event_test_result_to_string(EventTestResult result)
 
 RearrangeReadEvent::RearrangeReadEvent(const AlignmentStore& store,
                                      RearrangeVerify* verifier,
-                                     int max_gap,
+                                     int max_margin,
                                      int min_element_length,
                                      int min_anchor_length,
                                      double max_anchor_mutations_percent,
                                      double max_element_mutation_percent)
     : store(store)
-    , max_gap(max_gap)
+    , max_margin(max_margin)
     , min_element_length(min_element_length)
     , min_anchor_length(min_anchor_length)
     , max_anchor_mutations_percent(max_anchor_mutations_percent)
@@ -220,7 +220,7 @@ bool RearrangeReadEvent::is_valid_anchor(const Alignment& aln) const
     }
     
     // check alignment overlap
-    if (store.get_alignment_overlap(aln) > static_cast<uint32_t>(max_gap)) {
+    if (store.get_alignment_overlap(aln) > static_cast<uint32_t>(max_margin)) {
         return false;
     }
     
@@ -315,11 +315,11 @@ bool RearrangeReadEvent::process_read_trios(const vector<size_t>& alignment_indi
             continue;
         }
         
-        // test gaps (allowing max_gap overlap/gap with anchor1 and anchor2)
+        // test gaps (allowing max_margin overlap/gap with anchor1 and anchor2)
         int32_t delta1 = static_cast<int32_t>(element->read_start) - static_cast<int32_t>(anchor1.read_end);
         int32_t delta2 = static_cast<int32_t>(anchor2.read_start) - static_cast<int32_t>(element->read_end);
         
-        if (abs(delta1) > max_gap || abs(delta2) > max_gap) {
+        if (abs(delta1) > max_margin || abs(delta2) > max_margin) {
             continue;
         }
         
@@ -379,10 +379,10 @@ bool RearrangeReadEvent::process_read_pairs(const vector<size_t>& alignment_indi
             continue;
         }
         
-        // test gaps (allowing max_gap overlap/gap between anchors)
+        // test gaps (allowing max_margin overlap/gap between anchors)
         int32_t delta = static_cast<int32_t>(anchor2.read_start) - static_cast<int32_t>(anchor1.read_end);
         
-        if (abs(delta) > max_gap) {
+        if (abs(delta) > max_margin) {
             continue;
         }
         
@@ -455,7 +455,7 @@ EventTestResult RearrangeReadEvent::test_trio_event(const Alignment& A, const Al
     uint32_t distance_X_B = B.contig_start - X.contig_end;
     uint32_t max_distance = max(distance_X_A, distance_X_B);
     
-    if (max_distance > static_cast<uint32_t>(max_gap)) {
+    if (max_distance > static_cast<uint32_t>(max_margin)) {
         add_rejection(EventTestResult::REJECT_CONTAINED_ELEMENT_MARGIN_TOO_LARGE, rejection_counts);
         return EventTestResult::REJECT_CONTAINED_ELEMENT_MARGIN_TOO_LARGE;
     }
@@ -496,7 +496,7 @@ EventTestResult RearrangeReadEvent::test_pair_event(const Alignment& A, const Al
     
     // check gap in read coords between A and B
     uint32_t gap_A_B = (B.read_start > A.read_end) ? (B.read_start - A.read_end) : 0;
-    if (gap_A_B > static_cast<uint32_t>(max_gap)) {
+    if (gap_A_B > static_cast<uint32_t>(max_margin)) {
         add_rejection(EventTestResult::REJECT_READ_GAP_TOO_LARGE, rejection_counts);
         return EventTestResult::REJECT_READ_GAP_TOO_LARGE;
     }

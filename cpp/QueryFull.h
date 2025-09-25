@@ -17,7 +17,7 @@ enum class HeightStyle {
 enum class ChunkType {
   READ, // define chunk as entire read
   ALIGNMENT, // define one chunk per alignment
-  BREAK_ON_OVERLAP, // start new chunk if next alignment overlaps (next.start < current.end - max_gap)
+  BREAK_ON_OVERLAP, // start new chunk if next alignment overlaps (next.start < current.end - max_margin)
   BREAK_ON_GAP // break if next alignment has a large gap (as implemented now)
 };
 
@@ -79,7 +79,7 @@ class QueryFull : public QueryBase {
   const AlignmentStore& store;
   HeightStyle height_style;
   int max_alignments;
-  int max_gap;
+  int max_margin;
   ChunkType chunk_type;
 
   std::vector<FullOutputAlignments> output_alignments;
@@ -124,7 +124,7 @@ class QueryFull : public QueryBase {
       double max_mutations_percent = 10.0,
       int min_alignment_length = 0,
       int max_alignment_length = 0,
-      int max_gap = 10,
+      int max_margin = 10,
       ChunkType chunk_type = ChunkType::BREAK_ON_OVERLAP);
 
   // execute the query

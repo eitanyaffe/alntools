@@ -595,7 +595,7 @@ List aln_query_full(
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
     int max_alignment_length = 0,
-    int max_gap = 10,
+    int max_margin = 10,
     std::string chunk_type_str = "break_on_overlap",
     int min_indel_length = 3)
 {
@@ -642,7 +642,7 @@ List aln_query_full(
   // Convert clip_mode_str to ClipMode enum
   ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
   
-  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, max_gap, chunk_type);
+  QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, max_margin, chunk_type);
 
   // Run the steps
   queryFull.execute();
@@ -1290,7 +1290,7 @@ std::string rearrangement_type_to_string(RearrangementType type) {
 List aln_rearrange(
     List store_list,
     SEXP intervals_df = R_NilValue,
-    int max_gap = 10,
+    int max_margin = 10,
     int min_element_length = 50,
     int min_anchor_length = 200,
     double max_anchor_mutations_percent = 0.1,
@@ -1374,7 +1374,7 @@ List aln_rearrange(
     }
     
     // create Rearrange (disable file writing for R interface)
-    Rearrange manager(stores_map, intervals, verifier, max_gap, min_element_length, 
+    Rearrange manager(stores_map, intervals, verifier, max_margin, min_element_length, 
                      min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false);
     
     // load read sequences if requested

@@ -90,7 +90,7 @@ private:
     const AlignmentStore& store;
     
     // parameters
-    int max_gap;
+    int max_margin;
     int min_element_length;
     int min_anchor_length;
     double max_anchor_mutations_percent;
@@ -108,7 +108,7 @@ private:
 public:
     RearrangeReadEvent(const AlignmentStore& store,
                       RearrangeVerify* verifier = nullptr,
-                      int max_gap = 10,
+                      int max_margin = 10,
                       int min_element_length = 50,
                       int min_anchor_length = 200,
                       double max_anchor_mutations_percent = 0.01,

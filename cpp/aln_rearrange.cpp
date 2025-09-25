@@ -16,7 +16,7 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     params.add_parser("ifn_libraries", new ParserFilename("input table with library definitions (multi-library mode)"), false);
     params.add_parser("ifn_intervals", new ParserFilename("input table with query contig intervals"), false);
     params.add_parser("ofn_prefix", new ParserFilename("output prefix"), false);
-    params.add_parser("max_gap", new ParserInteger("maximum gap tolerance for all geometric constraints (default 10)", 10), false);
+    params.add_parser("max_margin", new ParserInteger("maximum margin tolerance for all geometric constraints (default 10)", 10), false);
     params.add_parser("min_element_length", new ParserInteger("minimum element length for deletions (default 50)", 50), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 200)", 200), false);
     params.add_parser("max_anchor_mutations_percent", new ParserDouble("maximum mutations percentage for anchor alignments (default 0.01)", 0.01), false);
@@ -52,15 +52,15 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     params.verify_mandatory();
 
     // validate parameters
-    int max_gap = params.get_int("max_gap");
+    int max_margin = params.get_int("max_margin");
     int min_element_length = params.get_int("min_element_length");
     int min_anchor_length = params.get_int("min_anchor_length");
     double max_anchor_mutations_percent = params.get_double("max_anchor_mutations_percent");
     double max_element_mutation_percent = params.get_double("max_element_mutation_percent");
     int min_indel_length = params.get_int("min_indel_length");
 
-    if (max_gap < 0) {
-        cerr << "error: max_gap must be non-negative" << endl;
+    if (max_margin < 0) {
+        cerr << "error: max_margin must be non-negative" << endl;
         exit(1);
     }
 
@@ -122,7 +122,7 @@ int rearrange_main(const char* name, int argc, char** argv)
     string ifn_libraries = params.get_string("ifn_libraries");
     string ifn_intervals = params.get_string("ifn_intervals");
     string ofn_prefix = params.get_string("ofn_prefix");
-    int max_gap = params.get_int("max_gap");
+    int max_margin = params.get_int("max_margin");
     int min_element_length = params.get_int("min_element_length");
     int min_anchor_length = params.get_int("min_anchor_length");
     double max_anchor_mutations_percent = params.get_double("max_anchor_mutations_percent");
@@ -143,7 +143,7 @@ int rearrange_main(const char* name, int argc, char** argv)
     }
     cout << "  ifn_intervals: " << ifn_intervals << endl;
     cout << "  ofn_prefix: " << ofn_prefix << endl;
-    cout << "  max_gap: " << max_gap << endl;
+    cout << "  max_margin: " << max_margin << endl;
     cout << "  min_element_length: " << min_element_length << endl;
     cout << "  min_anchor_length: " << min_anchor_length << endl;
     cout << "  max_anchor_mutations_percent: " << max_anchor_mutations_percent << endl;
@@ -224,7 +224,7 @@ int rearrange_main(const char* name, int argc, char** argv)
     }
     
     // create rearrangement manager
-    Rearrange manager(stores, intervals, verifier, max_gap, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true);
+    Rearrange manager(stores, intervals, verifier, max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true);
     
     // load read sequences per library if requested
     if (extract_shims && !library_read_files.empty()) {
