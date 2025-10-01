@@ -137,3 +137,6 @@ void apply_bh_correction(std::vector<T>& results,
     get_qval(results[i]) = std::min(get_qval(results[i]), get_qval(results[i + 1]));
   }
 }
+
+// safely extract substring from [start, end)
+string safe_substr(const string& s, uint32_t start, uint32_t end);

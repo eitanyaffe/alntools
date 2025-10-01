@@ -18,9 +18,8 @@ string Event::create_key() const
         << element_strand << "|"
         << element_start << "|"
         << element_end << "|"
-        << left_shim << "|"
-        << right_shim << "|"
-        << middle_shim;
+        << read_seams << "|"
+        << assembly_seams;
     return oss.str();
 }
 
@@ -137,13 +136,13 @@ bool RearrangeEventGroup::is_similar(const ReadEvent& a, const ReadEvent& b) con
         if (abs(static_cast<int>(a.element_end) - static_cast<int>(b.element_end)) > max_margin) return false;
     }
     
-    // shim lengths must be similar (within margin)
-    if (abs(static_cast<int>(a.left_shim.length()) - static_cast<int>(b.left_shim.length())) > max_margin) return false;
-    if (abs(static_cast<int>(a.right_shim.length()) - static_cast<int>(b.right_shim.length())) > max_margin) return false;
-    if (abs(static_cast<int>(a.middle_shim.length()) - static_cast<int>(b.middle_shim.length())) > max_margin) return false;
+    
+    // seam lengths must be similar (within margin)
+    if (abs(static_cast<int>(a.read_seams.length()) - static_cast<int>(b.read_seams.length())) > max_margin) return false;
+    if (abs(static_cast<int>(a.assembly_seams.length()) - static_cast<int>(b.assembly_seams.length())) > max_margin) return false;
     
     // note: we ignore read_strand as requested
-    // note: we ignore shim sequences, only check lengths
+    // note: we ignore seam sequences, only check lengths
     
     return true;
 }
@@ -159,9 +158,8 @@ bool RearrangeEventGroup::is_exact_match(const ReadEvent& a, const ReadEvent& b)
            a.element_strand == b.element_strand &&
            a.element_start == b.element_start &&
            a.element_end == b.element_end &&
-           a.left_shim == b.left_shim &&
-           a.right_shim == b.right_shim &&
-           a.middle_shim == b.middle_shim;
+           a.read_seams == b.read_seams &&
+           a.assembly_seams == b.assembly_seams;
 }
 
 Event RearrangeEventGroup::create_representative_event(const ReadEvent& read_event, const string& event_id) const
@@ -170,7 +168,7 @@ Event RearrangeEventGroup::create_representative_event(const ReadEvent& read_eve
                 read_event.out_clip, read_event.in_clip,
                 read_event.element_contig, read_event.element_strand,
                 read_event.element_start, read_event.element_end,
-                read_event.left_shim, read_event.right_shim, read_event.middle_shim);
+                read_event.read_seams, read_event.assembly_seams);
 }
 
 void RearrangeEventGroup::flatten_events(const map<string, vector<ReadEvent>>& lib_events,

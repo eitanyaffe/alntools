@@ -17,22 +17,20 @@ struct Event {
     std::string element_strand;
     uint32_t element_start;
     uint32_t element_end;
-    std::string left_shim;
-    std::string right_shim;
-    std::string middle_shim;
+    std::string read_seams;      // seams in read coordinates and sequences
+    std::string assembly_seams;  // seams in assembly coordinates and sequences
     
     Event(const std::string& event_id = "", RearrangementType type = RearrangementType::LARGE_DELETE,
           const std::string& contig_id = "",
           uint32_t out_clip = 0, uint32_t in_clip = 0,
           const std::string& element_contig = "", const std::string& element_strand = "",
           uint32_t element_start = 0, uint32_t element_end = 0,
-          const std::string& left_shim = "", const std::string& right_shim = "", 
-          const std::string& middle_shim = "")
+          const std::string& read_seams = "", const std::string& assembly_seams = "")
         : event_id(event_id), type(type), contig_id(contig_id),
           out_clip(out_clip), in_clip(in_clip),
           element_contig(element_contig), element_strand(element_strand),
           element_start(element_start), element_end(element_end),
-          left_shim(left_shim), right_shim(right_shim), middle_shim(middle_shim) {}
+          read_seams(read_seams), assembly_seams(assembly_seams) {}
     
     // create key for exact matching (all fields)
     std::string create_key() const;

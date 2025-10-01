@@ -143,6 +143,12 @@ struct Alignment {
   }
 };
 
+// Forward declaration
+class AlignmentStore;
+
+// Function to print Alignment with read and contig names
+void print_alignment(const Alignment& align, const AlignmentStore& store, const std::string& label = "");
+
 // Structure to represent an interval
 struct Interval {
   string contig;

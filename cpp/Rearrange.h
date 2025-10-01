@@ -6,6 +6,7 @@
 #include "RearrangeEventGroup.h"
 #include "RearrangeCoverage.h"
 #include "RearrangeVerify.h"
+#include "Sequences.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -22,13 +23,16 @@ struct ReadEventRow {
     uint32_t in_clip;
     uint32_t read_clip_out;
     uint32_t read_clip_in;
+    uint32_t span_start;
+    uint32_t span_end;
+    uint32_t read_span_start;
+    uint32_t read_span_end;
     std::string element_contig;
     std::string element_strand;
     uint32_t element_start;
     uint32_t element_end;
-    std::string left_shim;
-    std::string right_shim;
-    std::string middle_shim;
+    std::string read_seams;      // seams in read coordinates and sequences
+    std::string assembly_seams;  // seams in assembly coordinates and sequences
 };
 
 // main rearrangement detection class (similar interface to old RearrangeManager)
@@ -46,6 +50,14 @@ private:
     double max_element_mutation_percent;
     RearrangeVerify* verifier;
     bool write_per_library_files;
+    ResolveSeams resolve_seams;
+    
+    // sequence objects
+    const AssemblySequences* assembly_sequences;
+    const ReadSequences* read_sequences;
+    
+    // output prefix for caching
+    std::string output_prefix;
     
     // event grouper (reused across workflow)
     RearrangeEventGroup event_grouper;
@@ -68,21 +80,20 @@ public:
     Rearrange(const std::map<std::string, AlignmentStore>& stores,
               const std::vector<Interval>& intervals,
               RearrangeVerify* verifier = nullptr,
+              ResolveSeams resolve_seams = ResolveSeams::NO,
+              const AssemblySequences* assembly_seqs = nullptr,
+              const ReadSequences* read_seqs = nullptr,
               int max_margin = 10,
               int min_element_length = 50,
               int min_anchor_length = 200,
               double max_anchor_mutations_percent = 0.01,
               double max_element_mutation_percent = 0.01,
-              bool write_per_library_files = true);
+              bool write_per_library_files = true,
+              const std::string& output_prefix = "");
     
     // main execution function
     void execute();
-    
-    // read sequence loading for shim extraction
-    void load_read_sequences_from_file(const std::string& filename);  // load same file for all libraries
-    void load_read_sequences_per_library(const std::map<std::string, std::string>& lib_to_read_file);  // per-library files
-    void load_read_sequences_from_map(const std::map<std::string, std::unordered_map<std::string, std::string>>& lib_to_sequences);  // from R
-    
+        
     // output functions
     void write_to_csv(const std::string& ofn_prefix);
     

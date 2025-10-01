@@ -179,7 +179,6 @@ void write_fastq(const string& filename, unordered_map<string, string>& reads)
 }
 
 // Function to apply mutations to a contig fragment
-// Note: Now takes AlignmentStore to fetch mutations by index
 string apply_mutations(const string& seq, const vector<uint32_t>& mutation_indices,
     const AlignmentStore& store, const Alignment& alignment,
     const string& read_id, const string& contig_id)
@@ -595,18 +594,49 @@ std::map<std::string, std::string> read_library_table(const std::string& filenam
     }
     
     std::string line;
-    bool first_line = true;
-    while (std::getline(lib_file, line)) {
-        if (first_line) {
-            first_line = false;
-            continue; // skip header
+    std::vector<std::string> headers;
+    int lib_id_col = -1, aln_fn_col = -1;
+    
+    // parse header row to find column indices
+    if (std::getline(lib_file, line)) {
+        std::istringstream header_iss(line);
+        std::string header;
+        int col_index = 0;
+        while (std::getline(header_iss, header, '\t')) {
+            headers.push_back(header);
+            if (header == "lib_id") {
+                lib_id_col = col_index;
+            } else if (header == "aln_fn") {
+                aln_fn_col = col_index;
+            }
+            col_index++;
         }
+        
+        // validate required columns
+        if (lib_id_col == -1) {
+            std::cerr << "error: required column 'lib_id' not found in " << filename << std::endl;
+            std::exit(1);
+        }
+        if (aln_fn_col == -1) {
+            std::cerr << "error: required column 'aln_fn' not found in " << filename << std::endl;
+            std::exit(1);
+        }
+    }
+    
+    // parse data rows
+    while (std::getline(lib_file, line)) {
         if (line.empty()) continue;
         
         std::istringstream iss(line);
-        std::string lib_id, aln_file;
-        if (std::getline(iss, lib_id, '\t') && std::getline(iss, aln_file, '\t')) {
-            library_files[lib_id] = aln_file;
+        std::vector<std::string> fields;
+        std::string field;
+        while (std::getline(iss, field, '\t')) {
+            fields.push_back(field);
+        }
+        
+        // extract required fields if they exist
+        if (lib_id_col < static_cast<int>(fields.size()) && aln_fn_col < static_cast<int>(fields.size())) {
+            library_files[fields[lib_id_col]] = fields[aln_fn_col];
         }
     }
     lib_file.close();
@@ -626,22 +656,58 @@ std::map<std::string, LibraryInfo> read_library_table_extended(const std::string
     }
     
     std::string line;
-    bool first_line = true;
-    while (std::getline(lib_file, line)) {
-        if (first_line) {
-            first_line = false;
-            continue; // skip header
+    std::vector<std::string> headers;
+    int lib_id_col = -1, aln_fn_col = -1, read_fn_col = -1;
+    
+    // parse header row to find column indices
+    if (std::getline(lib_file, line)) {
+        std::istringstream header_iss(line);
+        std::string header;
+        int col_index = 0;
+        while (std::getline(header_iss, header, '\t')) {
+            headers.push_back(header);
+            if (header == "lib_id") {
+                lib_id_col = col_index;
+            } else if (header == "aln_fn") {
+                aln_fn_col = col_index;
+            } else if (header == "read_fn") {
+                read_fn_col = col_index;
+            }
+            col_index++;
         }
+        
+        // validate required columns
+        if (lib_id_col == -1) {
+            std::cerr << "error: required column 'lib_id' not found in " << filename << std::endl;
+            std::exit(1);
+        }
+        if (aln_fn_col == -1) {
+            std::cerr << "error: required column 'aln_fn' not found in " << filename << std::endl;
+            std::exit(1);
+        }
+        // read_fn_col is optional
+    }
+    
+    // parse data rows
+    while (std::getline(lib_file, line)) {
         if (line.empty()) continue;
         
         std::istringstream iss(line);
-        std::string lib_id, aln_file, read_file;
+        std::vector<std::string> fields;
+        std::string field;
+        while (std::getline(iss, field, '\t')) {
+            fields.push_back(field);
+        }
         
-        // read required columns
-        if (std::getline(iss, lib_id, '\t') && std::getline(iss, aln_file, '\t')) {
-            // read optional third column (read file)
-            if (!std::getline(iss, read_file, '\t')) {
-                read_file = "";  // no read file specified
+        // extract required and optional fields
+        if (lib_id_col < static_cast<int>(fields.size()) && aln_fn_col < static_cast<int>(fields.size())) {
+            std::string lib_id = fields[lib_id_col];
+            std::string aln_file = fields[aln_fn_col];
+            std::string read_file = "";
+            
+            // read_fn is optional
+            if (read_fn_col != -1 && read_fn_col < static_cast<int>(fields.size())) {
+                read_file = fields[read_fn_col];
             }
             
             library_info[lib_id] = LibraryInfo(lib_id, aln_file, read_file);
@@ -663,3 +729,12 @@ std::map<std::string, LibraryInfo> read_library_table_extended(const std::string
     return library_info;
 }
 
+// returns substring from [start, end), handling out-of-bounds gracefully
+string safe_substr(const string& s, uint32_t start, uint32_t end)
+{
+    if (start >= s.size() || end <= start) {
+        return "";
+    }
+    uint32_t real_end = std::min(end, static_cast<uint32_t>(s.size()));
+    return s.substr(start, real_end - start);
+}

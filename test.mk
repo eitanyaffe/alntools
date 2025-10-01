@@ -22,7 +22,7 @@ TEST_MIN_CONSENSUS_COVERAGE = 3
 
 .PHONY: test test_basic test_full test_query_full test_query_bin \
 test_query_pileup test_query_consensus test_query_variants test_coverage test_query_all test_R_all test_R_commands test_R_plot \
-test_create_dense_paf test_genes clean-test test-r-load
+test_create_dense_paf test_genes test_rearrange test_rearrange_basic test_rearrange_reference clean-test test-r-load
 
 ########################################################################################
 # creating aln files
@@ -117,7 +117,7 @@ test_query_variants: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running QUERY VARIANTS"
 	# create libraries table for testing
-	@echo "id	fn" > $(TEST_OUTPUT_DIR)/libraries.tsv
+	@echo "lib_id	aln_fn" > $(TEST_OUTPUT_DIR)/libraries.tsv
 	@echo "lib1	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.tsv
 	@echo "lib2	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.tsv
 	$(TARGET) query \
@@ -179,13 +179,6 @@ test_R_plot:
 test_R: test_R_commands test_R_plot
 
 ########################################################################################
-# combo rules
-########################################################################################
-
-test: test_basic test_full test_query_full test_query_all
-	@echo "all tests completed successfully"
-
-########################################################################################
 # Gene annotation tests  
 ########################################################################################
 
@@ -202,7 +195,7 @@ test_genes: $(TARGET)
 	@echo "ALN file created, now testing gene annotation..."
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	# Test variants with gene annotation
-	@echo "id	fn" > $(TEST_OUTPUT_DIR)/libraries_genes.tsv
+	@echo "lib_id	aln_fn" > $(TEST_OUTPUT_DIR)/libraries_genes.tsv
 	@echo "lib1	$(TEST_OUTPUT_DIR)/test_dense.aln" >> $(TEST_OUTPUT_DIR)/libraries_genes.tsv
 	$(TARGET) query \
 		-mode variants \
@@ -246,6 +239,91 @@ test_genes: $(TARGET)
 	@echo "GENE ANNOTATION TEST completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
+########################################################################################
+# Test rearrangement detection
+########################################################################################
+
+test_rearrange_basic: $(TARGET)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running REARRANGEMENT BASIC TEST (resolve_seams=no)"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# First construct ALN file
+	rm -rf $(TEST_OUTPUT_DIR) && mkdir -p $(TEST_OUTPUT_DIR)
+	$(TARGET) construct \
+		-ifn_paf $(TEST_PAF) \
+		-ofn $(TEST_OUTPUT_DIR)/test.aln
+	@echo "ALN file created, now testing rearrangement detection..."
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# Test basic rearrangement detection without sequence resolution
+	$(TARGET) rearrange \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
+		-ifn_intervals $(TEST_INTERVALS_SMALL) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/rearrange_basic \
+		-max_margin 10 \
+		-min_element_length 50 \
+		-min_anchor_length 200 \
+		-max_anchor_mutations_percent 0.01 \
+		-max_element_mutation_percent 0.01 \
+		-should_verify F \
+		-resolve_seams no
+	@echo "Checking output files..."
+	@ls -la $(TEST_OUTPUT_DIR)/rearrange_basic*
+	@echo "Checking CSV structure (first few lines)..."
+	@head -5 $(TEST_OUTPUT_DIR)/rearrange_basic.csv || echo "CSV file not found"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "REARRANGEMENT BASIC TEST completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+test_rearrange_reference: $(TARGET)
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "running REARRANGEMENT REFERENCE TEST (resolve_seams=reference_only)"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# Construct ALN file with verification enabled
+	rm -rf $(TEST_OUTPUT_DIR) && mkdir -p $(TEST_OUTPUT_DIR)
+	$(TARGET) construct \
+		-ifn_paf $(TEST_PAF) \
+		-ifn_reads $(TEST_READS) \
+		-ifn_contigs $(TEST_CONTIGS) \
+		-verify T \
+		-ofn $(TEST_OUTPUT_DIR)/test_verified.aln
+	@echo "Verified ALN file created, now testing rearrangement with reference seams..."
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	# Test rearrangement detection with reference sequence resolution
+	$(TARGET) rearrange \
+		-ifn_aln $(TEST_OUTPUT_DIR)/test_verified.aln \
+		-ifn_intervals $(TEST_INTERVALS_SMALL) \
+		-ofn_prefix $(TEST_OUTPUT_DIR)/rearrange_reference \
+		-max_margin 10 \
+		-min_element_length 50 \
+		-min_anchor_length 200 \
+		-max_anchor_mutations_percent 0.01 \
+		-max_element_mutation_percent 0.01 \
+		-should_verify T \
+		-ifn_contigs $(TEST_CONTIGS) \
+		-resolve_seams reference_only
+	@echo "Checking output files..."
+	@ls -la $(TEST_OUTPUT_DIR)/rearrange_reference*
+	@echo "Checking CSV structure (first few lines)..."
+	@head -5 $(TEST_OUTPUT_DIR)/rearrange_reference.csv || echo "CSV file not found"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+	@echo "REARRANGEMENT REFERENCE TEST completed successfully"
+	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+# Combined rearrangement tests
+test_rearrange: test_rearrange_basic test_rearrange_reference
+	@echo "all rearrangement tests completed successfully"
+
+########################################################################################
+# Clean test outputs
+########################################################################################
+
 # Clean test outputs
 test_clean:
 	rm -rf $(TEST_OUTPUT_DIR) 
+
+########################################################################################
+# combo rules
+########################################################################################
+
+test: test_basic test_full test_query_full test_query_all
+	@echo "all tests completed successfully"

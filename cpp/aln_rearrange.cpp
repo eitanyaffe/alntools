@@ -1,10 +1,12 @@
 #include "Params.h"
 #include "Rearrange.h"
 #include "RearrangeVerify.h"
+#include "Sequences.h"
 #include "alignment_store.h"
 #include "utils.h"
 #include <iostream>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -23,9 +25,9 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     params.add_parser("max_element_mutation_percent", new ParserDouble("maximum mutations percentage for element alignments (default 0.01)", 0.01), false);
     params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
     params.add_parser("should_verify", new ParserBoolean("verify rearrangement events against reference sequences (default false)", false), false);
-    params.add_parser("ifn_contigs", new ParserFilename("input contig FASTA file (required if should_verify=true)"), false);
-    params.add_parser("ifn_reads", new ParserFilename("input read FASTQ/FASTA file (required if should_verify=true or extract_shims=true)"), false);
-    params.add_parser("extract_shims", new ParserBoolean("extract actual read sequences for shim regions (default false)", false), false);
+    params.add_parser("verify_error_mode", new ParserString("verification error handling: exit_on_error, exit_if_error, warning_only (default exit_on_error)", "exit_on_error"), false);
+    params.add_parser("ifn_contigs", new ParserFilename("input contig FASTA file (required if should_verify=true or resolve_seams requires reference)"), false);
+    params.add_parser("resolve_seams", new ParserString("seam resolution mode: no, reads_only, reference_only, complete (default no)", "no"), false);
 
     if (argc == 1) {
         params.usage(name);
@@ -90,23 +92,11 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     }
 
     bool should_verify = params.get_bool("should_verify");
-    bool extract_shims = params.get_bool("extract_shims");
     string ifn_contigs = params.get_string("ifn_contigs");
-    string ifn_reads = params.get_string("ifn_reads");
     
-    if (should_verify) {
-        if (ifn_contigs.empty()) {
-            cerr << "error: ifn_contigs is required when should_verify=true" << endl;
-            exit(1);
-        }
-        if (ifn_reads.empty()) {
-            cerr << "error: ifn_reads is required when should_verify=true" << endl;
-            exit(1);
-        }
-    }
-    
-    if (extract_shims && ifn_reads.empty()) {
-        cerr << "error: ifn_reads is required when extract_shims=true" << endl;
+    // basic validation - detailed validation will be done in main function
+    if (should_verify && ifn_contigs.empty()) {
+        cerr << "error: ifn_contigs is required when should_verify=true" << endl;
         exit(1);
     }
 
@@ -129,9 +119,19 @@ int rearrange_main(const char* name, int argc, char** argv)
     double max_element_mutation_percent = params.get_double("max_element_mutation_percent");
     int min_indel_length = params.get_int("min_indel_length");
     bool should_verify = params.get_bool("should_verify");
-    bool extract_shims = params.get_bool("extract_shims");
+    string resolve_seams_str = params.get_string("resolve_seams");
+    ResolveSeams resolve_seams = string_to_resolve_seams(resolve_seams_str);
     string ifn_contigs = params.get_string("ifn_contigs");
-    string ifn_reads = params.get_string("ifn_reads");
+    string verify_error_mode_str = params.get_string("verify_error_mode");
+    VerifyErrorMode verify_error_mode = string_to_verify_error_mode(verify_error_mode_str);
+    
+    // validation based on resolve_seams mode
+    if (should_verify || resolve_seams == ResolveSeams::REFERENCE_ONLY || resolve_seams == ResolveSeams::COMPLETE) {
+        if (ifn_contigs.empty()) {
+            cerr << "error: ifn_contigs is required for verification or reference seam resolution" << endl;
+            exit(1);
+        }
+    }
 
     cout << "rearrange command called:" << endl;
     if (!ifn_aln.empty()) {
@@ -151,8 +151,11 @@ int rearrange_main(const char* name, int argc, char** argv)
     cout << "  min_indel_length: " << min_indel_length << endl;
     cout << "  should_verify: " << (should_verify ? "true" : "false") << endl;
     if (should_verify) {
+        cout << "  verify_error_mode: " << verify_error_mode_to_string(verify_error_mode) << endl;
+    }
+    cout << "  resolve_seams: " << resolve_seams_to_string(resolve_seams) << endl;
+    if (should_verify || resolve_seams == ResolveSeams::REFERENCE_ONLY || resolve_seams == ResolveSeams::COMPLETE) {
         cout << "  ifn_contigs: " << ifn_contigs << endl;
-        cout << "  ifn_reads: " << ifn_reads << endl;
     }
 
     // Load intervals (optional)
@@ -171,9 +174,8 @@ int rearrange_main(const char* name, int argc, char** argv)
     if (!ifn_aln.empty()) {
         // Single file mode - create single library with id "sample"
         library_files["sample"] = ifn_aln;
-        if (extract_shims && !ifn_reads.empty()) {
-            library_read_files["sample"] = ifn_reads;
-        }
+        // Note: read files will be handled by library table for multi-library mode
+        // For single library mode, read sequences would need to be loaded separately
         cout << "single library mode: using " << ifn_aln << " as library 'sample'" << endl;
     } else {
         // Multi-library mode - read libraries table with extended format
@@ -185,7 +187,7 @@ int rearrange_main(const char* name, int argc, char** argv)
             const LibraryInfo& info = entry.second;
             
             library_files[lib_id] = info.aln_file;
-            if (extract_shims && !info.read_file.empty()) {
+            if (!info.read_file.empty()) {
                 library_read_files[lib_id] = info.read_file;
             }
         }
@@ -206,30 +208,46 @@ int rearrange_main(const char* name, int argc, char** argv)
         
         // build read-to-alignment index
         if (!store.is_read_alignment_index_built()) {
-            cout << "building read-to-alignment index for library " << lib_id << endl;
             store.init_read_alignment_index();
         }
         
         stores[lib_id] = std::move(store);
     }
     
-    // create verifier if needed
+    // create sequence objects and verifier if needed
+    unique_ptr<AssemblySequences> assembly_sequences;
+    unique_ptr<ReadSequences> read_sequences;
     RearrangeVerify* verifier = nullptr;
-    RearrangeVerify verify_obj;
+    unique_ptr<RearrangeVerify> verify_obj;
+    
+    if (should_verify || resolve_seams == ResolveSeams::REFERENCE_ONLY || resolve_seams == ResolveSeams::COMPLETE) {
+        cout << "loading assembly sequences..." << endl;
+        assembly_sequences = make_unique<AssemblySequences>();
+        assembly_sequences->load_from_file(ifn_contigs);
+    }
+    
+    if (should_verify || resolve_seams == ResolveSeams::READS_ONLY || resolve_seams == ResolveSeams::COMPLETE) {
+        cout << "registering read sequence files..." << endl;
+        read_sequences = make_unique<ReadSequences>();
+        // register all library files (no loading into memory)
+        for (const auto& entry : library_read_files) {
+            const string& lib_id = entry.first;
+            const string& read_file = entry.second;
+            read_sequences->register_lib_file(lib_id, read_file);
+        }
+    }
+    
     if (should_verify) {
-        cout << "verification enabled - loading sequences..." << endl;
-        verify_obj.load_contig_sequences_from_file(ifn_contigs);
-        verify_obj.load_read_sequences_from_file(ifn_reads);
-        verifier = &verify_obj;
+        cout << "verification enabled" << endl;
+        verify_obj = make_unique<RearrangeVerify>(assembly_sequences.get(), verify_error_mode);
+        verifier = verify_obj.get();
     }
     
     // create rearrangement manager
-    Rearrange manager(stores, intervals, verifier, max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true);
+    Rearrange manager(stores, intervals, verifier, resolve_seams, assembly_sequences.get(), read_sequences.get(), 
+                     max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true, ofn_prefix);
     
-    // load read sequences per library if requested
-    if (extract_shims && !library_read_files.empty()) {
-        manager.load_read_sequences_per_library(library_read_files);
-    }
+    // Note: read sequences are now loaded directly into sequence objects above
     
     // execute rearrangement analysis
     manager.execute();

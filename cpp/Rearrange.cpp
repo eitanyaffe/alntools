@@ -1,4 +1,5 @@
 #include "Rearrange.h"
+#include "Sequences.h"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -9,12 +10,16 @@ using namespace std;
 Rearrange::Rearrange(const map<string, AlignmentStore>& stores,
                      const vector<Interval>& intervals,
                      RearrangeVerify* verifier,
+                     ResolveSeams resolve_seams,
+                     const AssemblySequences* assembly_seqs,
+                     const ReadSequences* read_seqs,
                      int max_margin,
                      int min_element_length,
                      int min_anchor_length,
                      double max_anchor_mutations_percent,
                      double max_element_mutation_percent,
-                     bool write_per_library_files)
+                     bool write_per_library_files,
+                     const string& output_prefix)
     : stores(stores)
     , intervals(intervals)
     , max_margin(max_margin)
@@ -24,6 +29,10 @@ Rearrange::Rearrange(const map<string, AlignmentStore>& stores,
     , max_element_mutation_percent(max_element_mutation_percent)
     , verifier(verifier)
     , write_per_library_files(write_per_library_files)
+    , resolve_seams(resolve_seams)
+    , assembly_sequences(assembly_seqs)
+    , read_sequences(read_seqs)
+    , output_prefix(output_prefix)
     , event_grouper(max_margin)
 {
     // extract ordered library IDs
@@ -35,6 +44,7 @@ Rearrange::Rearrange(const map<string, AlignmentStore>& stores,
 void Rearrange::execute()
 {
     cout << "executing rearrangement detection across " << library_ids.size() << " libraries..." << endl;
+    cout << "resolve_seams mode: " << resolve_seams_to_string(resolve_seams) << endl;
     
     // step 1: detect events per library
     detect_events_per_library();
@@ -60,8 +70,8 @@ void Rearrange::detect_events_per_library()
         cout << "processing library: " << lib_id << endl;
         
         // create worker on stack
-        RearrangeReadEvent detector(stores.at(lib_id), verifier, max_margin,
-                                   min_element_length, min_anchor_length,
+        RearrangeReadEvent detector(stores.at(lib_id), verifier, resolve_seams, assembly_sequences, read_sequences,
+                                   max_margin, min_element_length, min_anchor_length,
                                    max_anchor_mutations_percent, max_element_mutation_percent);
         
         // apply interval filtering
@@ -72,7 +82,7 @@ void Rearrange::detect_events_per_library()
         map<string, size_t> rejections;
         
         // detect events in this library
-        detector.detect_events(events, rejections);
+        detector.detect_events(lib_id, events, rejections, stores.at(lib_id), output_prefix);
                 
         // print rejection summary for this library
         size_t total_rejected = detector.get_total_rejected_count(rejections);
@@ -152,13 +162,16 @@ void Rearrange::prepare_output_tables()
                 row.in_clip = read_event.in_clip;
                 row.read_clip_out = read_event.read_clip_out;
                 row.read_clip_in = read_event.read_clip_in;
+                row.span_start = read_event.span_start;
+                row.span_end = read_event.span_end;
+                row.read_span_start = read_event.read_span_start;
+                row.read_span_end = read_event.read_span_end;
                 row.element_contig = read_event.element_contig;
                 row.element_strand = read_event.element_strand;
                 row.element_start = read_event.element_start;
                 row.element_end = read_event.element_end;
-                row.left_shim = read_event.left_shim;
-                row.right_shim = read_event.right_shim;
-                row.middle_shim = read_event.middle_shim;
+                row.read_seams = read_event.read_seams;
+                row.assembly_seams = read_event.assembly_seams;
                 
                 read_event_rows.push_back(row);
             }
@@ -169,23 +182,7 @@ void Rearrange::prepare_output_tables()
          << rep_events.size() << " event rows" << endl;
 }
 
-void Rearrange::load_read_sequences_from_file(const string& filename)
-{
-    // TODO: implement when needed
-    cout << "loading read sequences from file: " << filename << " (not implemented)" << endl;
-}
-
-void Rearrange::load_read_sequences_per_library(const map<string, string>& lib_to_read_file)
-{
-    // TODO: implement when needed
-    cout << "loading per-library read sequences (not implemented)" << endl;
-}
-
-void Rearrange::load_read_sequences_from_map(const map<string, unordered_map<string, string>>& lib_to_sequences)
-{
-    // TODO: implement when needed
-    cout << "loading read sequences from map (not implemented)" << endl;
-}
+// Old sequence loading functions removed - now handled by sequence classes
 
 map<string, size_t> Rearrange::get_rejection_counts() const
 {
@@ -222,17 +219,18 @@ void Rearrange::write_read_events_file(const string& ofn_prefix)
     
     // write header
     ofs << "lib_id\tread_id\tevent_id\ttype\tcontig_id\tread_strand\tout_clip\tin_clip"
-        << "\tread_clip_out\tread_clip_in\telement_contig\telement_strand"
-        << "\telement_start\telement_end\tleft_shim\tright_shim\tmiddle_shim" << endl;
+        << "\tread_clip_out\tread_clip_in\tspan_start\tspan_end\tread_span_start\tread_span_end"
+        << "\telement_contig\telement_strand\telement_start\telement_end\tread_seams\tassembly_seams" << endl;
     
     // write data
     for (const ReadEventRow& row : read_event_rows) {
         ofs << row.lib_id << "\t" << row.read_id << "\t" << row.event_id << "\t"
             << row.type << "\t" << row.contig_id << "\t" << row.read_strand << "\t"
             << row.out_clip << "\t" << row.in_clip << "\t" << row.read_clip_out << "\t"
-            << row.read_clip_in << "\t" << row.element_contig << "\t" << row.element_strand << "\t"
-            << row.element_start << "\t" << row.element_end << "\t" << row.left_shim << "\t"
-            << row.right_shim << "\t" << row.middle_shim << endl;
+            << row.read_clip_in << "\t" << row.span_start << "\t" << row.span_end << "\t"
+            << row.read_span_start << "\t" << row.read_span_end << "\t" << row.element_contig << "\t"
+            << row.element_strand << "\t" << row.element_start << "\t" << row.element_end << "\t"
+            << row.read_seams << "\t" << row.assembly_seams << endl;
     }
     
     ofs.close();
@@ -251,14 +249,14 @@ void Rearrange::write_events_file(const string& ofn_prefix)
     
     // write header
     ofs << "event_id\ttype\tcontig_id\tout_clip\tin_clip\telement_contig"
-        << "\telement_strand\telement_start\telement_end\tleft_shim\tright_shim\tmiddle_shim" << endl;
+        << "\telement_strand\telement_start\telement_end\tread_seams\tassembly_seams" << endl;
     
     // write data
     for (const Event& event : rep_events) {
         ofs << event.event_id << "\t" << event.type << "\t" << event.contig_id << "\t"
             << event.out_clip << "\t" << event.in_clip << "\t" << event.element_contig << "\t"
             << event.element_strand << "\t" << event.element_start << "\t" << event.element_end << "\t"
-            << event.left_shim << "\t" << event.right_shim << "\t" << event.middle_shim << endl;
+            << event.read_seams << "\t" << event.assembly_seams << endl;
     }
     
     ofs.close();

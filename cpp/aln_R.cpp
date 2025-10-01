@@ -12,6 +12,7 @@
 #include "QueryVariants.h"
 #include "Rearrange.h"
 #include "RearrangeVerify.h"
+#include "Sequences.h"
 #include "alignment_store.h"
 #include "paf_reader.h"
 #include <Rcpp.h>
@@ -1298,9 +1299,7 @@ List aln_rearrange(
     int min_indel_length = 3,
     bool should_verify = false,
     SEXP reference_contigs = R_NilValue,
-    SEXP reference_reads = R_NilValue,
-    bool extract_shims = false,
-    SEXP read_sequences = R_NilValue)
+    std::string resolve_seams = "no")
 {
     // validate store_list
     if (store_list.size() == 0) {
@@ -1341,72 +1340,49 @@ List aln_rearrange(
         intervals = Rcpp_DataFrame_to_Intervals(df);
     }
     
-    // handle verification sequences if needed
-    RearrangeVerify* verifier = nullptr;
-    RearrangeVerify verify_obj;
-    if (should_verify) {
-        if (Rf_isNull(reference_contigs) || Rf_isNull(reference_reads)) {
-            stop("reference_contigs and reference_reads required when should_verify=true");
+    // parse resolve_seams parameter
+    ResolveSeams resolve_seams_mode = string_to_resolve_seams(resolve_seams);
+    
+    // create sequence objects
+    std::unique_ptr<AssemblySequences> assembly_sequences;
+    std::unique_ptr<ReadSequences> read_sequences_obj;
+    
+    // load assembly sequences if needed
+    if (should_verify || resolve_seams_mode == ResolveSeams::REFERENCE_ONLY || resolve_seams_mode == ResolveSeams::COMPLETE) {
+        if (Rf_isNull(reference_contigs)) {
+            stop("reference_contigs required for verification or reference seam resolution");
         }
         
-        // convert SEXP to List
         List contigs_list = as<List>(reference_contigs);
-        List reads_list = as<List>(reference_reads);
-        
-        if (contigs_list.size() == 0 || reads_list.size() == 0) {
-            stop("reference_contigs and reference_reads must not be empty when should_verify=true");
+        if (contigs_list.size() == 0) {
+            stop("reference_contigs must not be empty");
         }
         
-        // extract sequences using existing helper functions
         std::unordered_map<std::string, std::string> contig_sequences;
-        std::unordered_map<std::string, std::string> read_sequences;
-        
         if (!extract_sequences_from_list(contigs_list, contig_sequences)) {
             stop("failed to extract contig sequences from reference_contigs");
         }
-        if (!extract_sequences_from_list(reads_list, read_sequences)) {
-            stop("failed to extract read sequences from reference_reads");
-        }
         
-        // load into verifier
-        verify_obj.load_sequences_from_maps(contig_sequences, read_sequences);
-        verifier = &verify_obj;
+        assembly_sequences = std::make_unique<AssemblySequences>();
+        assembly_sequences->load_from_map(contig_sequences);
     }
     
-    // create Rearrange (disable file writing for R interface)
-    Rearrange manager(stores_map, intervals, verifier, max_margin, min_element_length, 
-                     min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false);
-    
-    // load read sequences if requested
-    if (extract_shims && !Rf_isNull(read_sequences)) {
-        List sequences_list = as<List>(read_sequences);
-        
-        if (sequences_list.size() == 0) {
-            stop("read_sequences must not be empty when extract_shims=true");
-        }
-        
-        // convert to per-library format
-        std::map<std::string, std::unordered_map<std::string, std::string>> lib_to_sequences;
-        
-        CharacterVector seq_lib_names = sequences_list.names();
-        if (seq_lib_names.size() != sequences_list.size()) {
-            stop("all elements in read_sequences must be named with library IDs");
-        }
-        
-        for (int i = 0; i < sequences_list.size(); ++i) {
-            std::string lib_id = as<std::string>(seq_lib_names[i]);
-            List lib_sequences = sequences_list[i];
-            
-            std::unordered_map<std::string, std::string> sequences_map;
-            if (!extract_sequences_from_list(lib_sequences, sequences_map)) {
-                stop("failed to extract read sequences for library: %s", lib_id.c_str());
-            }
-            
-            lib_to_sequences[lib_id] = sequences_map;
-        }
-        
-        manager.load_read_sequences_from_map(lib_to_sequences);
+    // read sequences not supported through R interface
+    if (resolve_seams_mode == ResolveSeams::READS_ONLY || resolve_seams_mode == ResolveSeams::COMPLETE) {
+        stop("read sequence resolution not supported through R interface - use resolve_seams='no' or 'reference_only'");
     }
+    
+    // create verifier if needed
+    RearrangeVerify* verifier = nullptr;
+    std::unique_ptr<RearrangeVerify> verify_obj;
+    if (should_verify) {
+        verify_obj = std::make_unique<RearrangeVerify>(assembly_sequences.get());
+        verifier = verify_obj.get();
+    }
+    
+    // create Rearrange (disable file writing for R interface, no caching)
+    Rearrange manager(stores_map, intervals, verifier, resolve_seams_mode, assembly_sequences.get(), read_sequences_obj.get(),
+                     max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false, "");
     
     // execute Rearrange
     manager.execute();
@@ -1431,6 +1407,8 @@ List aln_rearrange(
     IntegerVector out_library_count;
     IntegerVector out_total_support;
     IntegerVector out_total_coverage;
+    CharacterVector out_read_seams;
+    CharacterVector out_assembly_seams;
     
     for (const auto& event : events) {
         out_event_id.push_back(event.event_id);
@@ -1470,6 +1448,8 @@ List aln_rearrange(
         out_library_count.push_back(library_count);
         out_total_support.push_back(total_support);
         out_total_coverage.push_back(total_coverage);
+        out_read_seams.push_back(event.read_seams);
+        out_assembly_seams.push_back(event.assembly_seams);
     }
     
     DataFrame events_df = DataFrame::create(
@@ -1485,6 +1465,8 @@ List aln_rearrange(
         Named("library_count") = out_library_count,
         Named("total_support") = out_total_support,
         Named("total_coverage") = out_total_coverage,
+        Named("read_seams") = out_read_seams,
+        Named("assembly_seams") = out_assembly_seams,
         Named("stringsAsFactors") = false);
     
     // convert read events table to R DataFrame
@@ -1498,13 +1480,16 @@ List aln_rearrange(
     IntegerVector read_out_in_clip;
     IntegerVector read_out_read_clip_out;
     IntegerVector read_out_read_clip_in;
+    IntegerVector read_out_span_start;
+    IntegerVector read_out_span_end;
+    IntegerVector read_out_read_span_start;
+    IntegerVector read_out_read_span_end;
     CharacterVector read_out_element_contig;
     CharacterVector read_out_element_strand;
     IntegerVector read_out_element_start;
     IntegerVector read_out_element_end;
-    CharacterVector read_out_left_shim;
-    CharacterVector read_out_right_shim;
-    CharacterVector read_out_middle_shim;
+    CharacterVector read_out_read_seams;
+    CharacterVector read_out_assembly_seams;
     
     for (const ReadEventRow& row : read_event_rows) {
         read_out_lib_id.push_back(row.lib_id);
@@ -1517,13 +1502,16 @@ List aln_rearrange(
         read_out_in_clip.push_back(row.in_clip);
         read_out_read_clip_out.push_back(row.read_clip_out);
         read_out_read_clip_in.push_back(row.read_clip_in);
+        read_out_span_start.push_back(row.span_start);
+        read_out_span_end.push_back(row.span_end);
+        read_out_read_span_start.push_back(row.read_span_start);
+        read_out_read_span_end.push_back(row.read_span_end);
         read_out_element_contig.push_back(row.element_contig);
         read_out_element_strand.push_back(row.element_strand);
         read_out_element_start.push_back(row.element_start);
         read_out_element_end.push_back(row.element_end);
-        read_out_left_shim.push_back(row.left_shim);
-        read_out_right_shim.push_back(row.right_shim);
-        read_out_middle_shim.push_back(row.middle_shim);
+        read_out_read_seams.push_back(row.read_seams);
+        read_out_assembly_seams.push_back(row.assembly_seams);
     }
     
     DataFrame read_events_df = DataFrame::create(
@@ -1537,13 +1525,16 @@ List aln_rearrange(
         Named("in_clip") = read_out_in_clip,
         Named("read_clip_out") = read_out_read_clip_out,
         Named("read_clip_in") = read_out_read_clip_in,
+        Named("span_start") = read_out_span_start,
+        Named("span_end") = read_out_span_end,
+        Named("read_span_start") = read_out_read_span_start,
+        Named("read_span_end") = read_out_read_span_end,
         Named("element_contig") = read_out_element_contig,
         Named("element_strand") = read_out_element_strand,
         Named("element_start") = read_out_element_start,
         Named("element_end") = read_out_element_end,
-        Named("left_shim") = read_out_left_shim,
-        Named("right_shim") = read_out_right_shim,
-        Named("middle_shim") = read_out_middle_shim,
+        Named("read_seams") = read_out_read_seams,
+        Named("assembly_seams") = read_out_assembly_seams,
         Named("stringsAsFactors") = false);
     
     // create support matrix
