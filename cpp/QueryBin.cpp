@@ -445,10 +445,6 @@ void QueryBin::aggregate_data()
 
   // Start timing
   auto start_time = std::chrono::high_resolution_clock::now();
-
-  // Calculate progress reporting thresholds (every 10%)
-  size_t total_alignments = processed_alignments.size();
-  size_t progress_step = std::max(static_cast<size_t>(1), total_alignments / 10 / num_threads);
   
   // Second pass: process each alignment only once (parallelized)
 #ifdef _OPENMP
@@ -466,7 +462,6 @@ void QueryBin::aggregate_data()
       local_bin_results[entry.first] = BinData();
     }
     
-    size_t thread0_counter = 0;
     #pragma omp for
     for (size_t i = 0; i < processed_alignments.size(); ++i) {
       const Alignment* aln_ptr = processed_alignments[i];
