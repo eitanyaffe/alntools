@@ -75,11 +75,9 @@ string format_sequence_info(const string& seq, const string& label)
 void add_segment(VerifyContext& ctx, SegmentType type, const string& sequence)
 {
     if (!sequence.empty()) {
-        uint32_t length_before = ctx.final_sequence.length();
         ctx.final_sequence += sequence;
         // add segment type annotation for each position in the added sequence
         ctx.segment_annotations.insert(ctx.segment_annotations.end(), sequence.length(), type);
-        uint32_t length_after = ctx.final_sequence.length();
     }
 }
 
@@ -89,10 +87,8 @@ void remove_segment(VerifyContext& ctx, uint32_t length)
     massert(length > 0 && length <= ctx.final_sequence.length(), 
             "remove_segment: invalid length=%u for final_sequence of length=%zu", 
             length, ctx.final_sequence.length());
-    uint32_t length_before = ctx.final_sequence.length();
     ctx.final_sequence.resize(ctx.final_sequence.size() - length);
     ctx.segment_annotations.resize(ctx.segment_annotations.size() - length);
-    uint32_t length_after = ctx.final_sequence.length();
 }
 
 // Helper function for detailed mismatch analysis

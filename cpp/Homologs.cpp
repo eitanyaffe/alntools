@@ -165,6 +165,39 @@ vector<ContigRegion> Homologs::search_homologs(const string& fasta_file,
     return find_homologous_regions(query_kmers, kmer_index, threshold_percent);
 }
 
+vector<ContigRegion> Homologs::search_homologs(const AssemblySequences& assembly,
+                                              const string& query_contig,
+                                              uint32_t query_start,
+                                              uint32_t query_end,
+                                              uint32_t k,
+                                              uint32_t num_kmers,
+                                              double threshold_percent) {
+    
+    if (!assembly.has_contig(query_contig)) {
+        throw runtime_error("contig '" + query_contig + "' not found in assembly");
+    }
+    
+    // get query sequence
+    string query_sequence = assembly.get_sequence(query_contig);
+    if (query_end > query_sequence.length()) {
+        throw runtime_error("end position " + to_string(query_end) + 
+                          " exceeds contig length " + to_string(query_sequence.length()));
+    }
+    
+    // extract query kmers
+    vector<string> query_kmers = extract_query_kmers(query_sequence, query_start, query_end, k, num_kmers);
+    
+    if (query_kmers.empty()) {
+        throw runtime_error("no kmers could be extracted from query region");
+    }
+    
+    // build kmer index
+    auto kmer_index = build_kmer_index(assembly, k);
+    
+    // find homologous regions
+    return find_homologous_regions(query_kmers, kmer_index, threshold_percent);
+}
+
 void Homologs::write_results(const vector<ContigRegion>& regions, const string& output_file) {
     ofstream out(output_file);
     if (!out) {
@@ -191,16 +224,4 @@ void Homologs::write_results(const vector<ContigRegion>& regions, const string& 
     out.close();
 }
 
-void homologs_usage(const char* name) {
-    fprintf(stderr, "usage: %s [options]\n", name);
-    fprintf(stderr, "options:\n");
-    fprintf(stderr, "  -ifn_fasta <filename>    input assembly FASTA file\n");
-    fprintf(stderr, "  -contig <string>         query contig name\n");
-    fprintf(stderr, "  -start <int>             query start position (1-based)\n");
-    fprintf(stderr, "  -end <int>               query end position (1-based, inclusive)\n");
-    fprintf(stderr, "  -k <int>                 kmer size (default: 21)\n");
-    fprintf(stderr, "  -num_kmers <int>         number of kmers to extract (default: 10)\n");
-    fprintf(stderr, "  -threshold <double>      minimum percentage of kmers required (default: 80.0)\n");
-    fprintf(stderr, "  -ofn <filename>          output regions file\n");
-}
 

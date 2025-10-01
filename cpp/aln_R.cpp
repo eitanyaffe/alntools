@@ -1607,7 +1607,7 @@ List aln_rearrange(
 }
 
 // [[Rcpp::export]]
-DataFrame homologs_search(const std::string& fasta_file,
+DataFrame homologs_search(List assembly_sequences,
                          const std::string& query_contig,
                          int query_start,
                          int query_end,
@@ -1616,9 +1616,19 @@ DataFrame homologs_search(const std::string& fasta_file,
                          double threshold = 80.0) {
     
     try {
+        // extract assembly sequences from List to C++ map
+        std::unordered_map<std::string, std::string> sequences_map;
+        if (!extract_sequences_from_list(assembly_sequences, sequences_map)) {
+            stop("failed to extract assembly sequences from List");
+        }
+        
+        // load sequences into AssemblySequences object
+        AssemblySequences assembly;
+        assembly.load_from_map(sequences_map);
+        
         Homologs homologs;
         std::vector<ContigRegion> regions = homologs.search_homologs(
-            fasta_file, query_contig, 
+            assembly, query_contig, 
             static_cast<uint32_t>(query_start), 
             static_cast<uint32_t>(query_end),
             static_cast<uint32_t>(k), 

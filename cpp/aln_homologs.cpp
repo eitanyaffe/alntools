@@ -3,6 +3,19 @@
 
 using namespace std;
 
+void homologs_usage(const char* name) {
+    fprintf(stderr, "usage: %s [options]\n", name);
+    fprintf(stderr, "options:\n");
+    fprintf(stderr, "  -ifn_fasta <filename>    input assembly FASTA file\n");
+    fprintf(stderr, "  -contig <string>         query contig name\n");
+    fprintf(stderr, "  -start <int>             query start position (1-based)\n");
+    fprintf(stderr, "  -end <int>               query end position (1-based, inclusive)\n");
+    fprintf(stderr, "  -k <int>                 kmer size (default: 21)\n");
+    fprintf(stderr, "  -num_kmers <int>         number of kmers to extract (default: 10)\n");
+    fprintf(stderr, "  -threshold <double>      minimum percentage of kmers required (default: 80.0)\n");
+    fprintf(stderr, "  -ofn <filename>          output regions file\n");
+}
+
 int homologs_main(const char* name, int argc, char** argv) {
     // delegate to the implementation in Homologs.cpp
     Homologs homologs;

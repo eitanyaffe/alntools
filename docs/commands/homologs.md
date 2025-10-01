@@ -70,9 +70,16 @@ The homologs functionality is also available through R:
 ```r
 library(alntools)
 
+# Load assembly sequences (example with named list)
+assembly_seqs <- list(
+  ctg001 = "ATCGATCGATCG...",
+  ctg002 = "GCTAGCTAGCTA...",
+  ctg003 = "TTAATTAATTAA..."
+)
+
 # Find homologous regions
 results <- homologs_search(
-  fasta_file = "assembly.fasta",
+  assembly_sequences = assembly_seqs,
   query_contig = "ctg001",
   query_start = 1000,
   query_end = 11000,

@@ -37,8 +37,17 @@ public:
     Homologs();
     ~Homologs();
     
-    // main search function
+    // main search function (file-based)
     std::vector<ContigRegion> search_homologs(const std::string& fasta_file,
+                                             const std::string& query_contig,
+                                             uint32_t query_start,
+                                             uint32_t query_end,
+                                             uint32_t k,
+                                             uint32_t num_kmers,
+                                             double threshold_percent);
+    
+    // main search function (pre-loaded sequences)
+    std::vector<ContigRegion> search_homologs(const class AssemblySequences& assembly,
                                              const std::string& query_contig,
                                              uint32_t query_start,
                                              uint32_t query_end,
@@ -49,8 +58,5 @@ public:
     // write results to file
     void write_results(const std::vector<ContigRegion>& regions, const std::string& output_file);
 };
-
-// usage function
-void homologs_usage(const char* name);
 
 #endif // HOMOLOGS_H
