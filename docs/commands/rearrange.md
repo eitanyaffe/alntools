@@ -19,10 +19,10 @@ alntools rearrange -ifn_libraries <libraries.tsv> -ofn_prefix <output_prefix> [o
 
 **Optional Arguments:**
 * `-ifn_intervals <fn>`: Tab-delimited file with query intervals (format: `contig start end`). Only process rearrangements where anchor alignments overlap these intervals
-* `-max_margin <int>`: Maximum margin tolerance between anchor alignments (default: 10)
+* `-max_margin <int>`: Maximum margin tolerance of alignments required to be adjacent (default: 10)
 * `-min_element_length <int>`: Minimum element length for deletions and insertions (default: 50)
 * `-min_anchor_length <int>`: Minimum anchor alignment length (default: 200)
-* `-max_mutations_percent <double>`: Maximum mutations percentage for all alignments (default: 0.01)
+* `-max_mutations_percent <double>`: Maximum mutations percentage for anchors (default: 0.1)
 
 ## Examples
 
@@ -65,23 +65,38 @@ Rearrangement detection analyzes reads with multiple alignments to identify stru
 - For deletions: no element alignment (gap between anchors)
 
 **Seams:**
-- Sequences that connect the alignments within the read
-- **Read seams**: actual sequences from the read that bridge alignments
-- **Assembly seams**: corresponding sequences from the assembly (for comparison)
+- Sequences that connect the alignments within the read, in case there is a gap between alignments or they overlap 
+- **Read seams**: read sequences between adjacent alignments
+- **Assembly seams**: assembly sequences between adjacent alignments
 
 ### From Contig to Read: The Mutation Process
 
-To understand how a rearrangement transforms a contig segment into a read segment:
+Each rearrangement type follows a specific pattern for combining alignments and seams to reconstruct the read sequence:
 
-1. **Start with anchor A**: Extract contig sequence and apply mutations from alignment A
-2. **Add left seam**: Insert read sequence (for insertions) or skip sequence (for deletions)
-3. **Add element X** (if present): Extract and mutate element sequence, applying reverse complement for inversions
-4. **Add right seam**: Insert read sequence (for insertions) or skip sequence (for deletions)  
-5. **End with anchor B**: Extract contig sequence and apply mutations from alignment B
+#### Large Insertion
+**Pattern:** A → left_seam → X → right_seam → B
 
-**For deletions:** A → left_seam → B (skipping deleted region)
-**For insertions:** A → left_seam → X → right_seam → B (inserting element X)
-**For inversions:** A → left_seam → X_reversed → right_seam → B (reversing element X)
+1. **Clip at boundaries**: Remove sequences outside the rearrangement region
+2. **Handle gaps/overlaps**: If there's a gap between A and the insertion point, keep it in the assembly seam; overlaps are also preserved in seams
+3. **Add left seam**: Bridge from anchor A to element X
+4. **Add element X**: Insert the element sequence (properly oriented)  
+5. **Add right seam**: Bridge from element X to anchor B
+6. **Mutations applied**: Each alignment (A, X, B) has its mutations applied during sequence extraction
+
+#### Large Inversion  
+**Pattern:** A → left_seam → X_reversed → right_seam → B
+
+Same process as insertion, but the element X is reverse-complemented. The element sequence is right there in the middle, just flipped in orientation relative to the flanking anchors.
+
+#### Large Deletion
+**Pattern:** A → seam → B (skipping deleted region)
+
+1. **Clip at boundaries**: Remove sequences outside the rearrangement region
+2. **Skip deleted region**: Jump directly from anchor A to anchor B
+3. **Add bridging seam**: Connect A and B with any intervening read sequence
+4. **No element**: The deleted assembly region is absent from the final read sequence
+
+**Note:** These instructions deal only with rearrangement of alignments and seams. To get the actual read sequence, alignments are also mutated along the way as needed using their individual mutation profiles.
 
 ### Seams Explained
 
@@ -89,6 +104,19 @@ To understand how a rearrangement transforms a contig segment into a read segmen
 - **Gap seams**: When there's a gap in the read, the seam contains the bridging sequence
 - **Overlap seams**: When alignments overlap, the seam represents the overlapping region
 - Seams are essential for reconstructing the complete read sequence from individual alignments
+
+**Seam Format in Output:**
+- **Gap seams**: Prefixed with `+` (e.g., `+ATCG` indicates a 4bp gap with sequence ATCG)
+- **Overlap seams**: Prefixed with `-` (e.g., `-GCTA` indicates a 4bp overlap with sequence GCTA)
+- **Multiple seams**: Separated by colons (`:`) for events with multiple seam regions
+- **Empty seams**: No prefix, represented as empty strings between colons
+
+**Examples:**
+- `+ATCG` - Single gap seam with sequence ATCG
+- `-GC` - Single overlap seam with sequence GC
+- `+ATCG:+TTAA` - Two gap seams (for insertions/inversions with left and right seams)
+- `+ATCG:` - Gap seam followed by empty seam
+- `:+TTAA` - Empty seam followed by gap seam
 
 **To get seams, you need:**
 - Read sequences (to extract actual bridging sequences)
@@ -107,7 +135,6 @@ The verification component checks consistency between detected events and the or
 3. **Construct final sequence**: Assemble A + seams + X + seams + B
 4. **Compare**: Verify that the constructed sequence matches the actual read sequence
 
-**Verification is not about finding rearrangements** - it's about validating that the detected rearrangements are consistent with the underlying sequence data.
 
 ## Output File Formats
 

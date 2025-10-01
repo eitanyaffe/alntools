@@ -283,8 +283,22 @@ Matrix with variant IDs as rows and library IDs as columns (coverage counts)
 | element_strand   | Element strand (empty for deletions)     | string |
 | element_start    | Element start (0 for deletions)          | int    |
 | element_end      | Element end (0 for deletions)            | int    |
-| read_seams       | Read seam sequences                       | string |
-| assembly_seams   | Assembly seam sequences                   | string |
+| read_seams       | Read seam sequences (see format below)   | string |
+| assembly_seams   | Assembly seam sequences (see format below) | string |
+
+**Seam Sequence Format:**
+
+Seam sequences in both `read_seams` and `assembly_seams` columns use the following format:
+- **Multiple seams**: Separated by colons (`:`)
+- **Gap seams**: Prefixed with `+` (e.g., `+ATCG` indicates a 4bp gap with sequence ATCG)
+- **Overlap seams**: Prefixed with `-` (e.g., `-GCTA` indicates a 4bp overlap with sequence GCTA)
+- **Empty seams**: No prefix, empty string between colons
+
+**Examples:**
+- `+ATCG:+TTAA` - Two gap seams with sequences ATCG and TTAA
+- `-GC:-AT` - Two overlap seams with sequences GC and AT  
+- `+ATCG:` - One gap seam followed by one empty seam
+- `:+TTAA` - One empty seam followed by one gap seam
 
 **`{prefix}_sample_aggregated_events.tsv`:**
 Aggregated version with read counts and coverage statistics per event.
