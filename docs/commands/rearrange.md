@@ -67,7 +67,7 @@ Rearrangement detection analyzes reads with multiple alignments to identify stru
 **Seams:**
 - Sequences that connect the alignments within the read, in case there is a gap between alignments or they overlap 
 - **Read seams**: read sequences between adjacent alignments
-- **Assembly seams**: assembly sequences between adjacent alignments
+- **Assembly seams**: assembly sequences that define how alignments interact in assembly space (not used for read construction)
 
 ### From Contig to Read: The Mutation Process
 
@@ -104,6 +104,28 @@ Same process as insertion. The element X_tag is reverse-complemented if the X al
 - **Clip coordinates** (`out_clip`, `in_clip`) define the breakpoints: `out_clip = min(A.end, B.end)`, `in_clip = max(A.start, B.start)`
 - **Mutations are applied** to each alignment segment (A, B, X) using their individual PAF mutation profiles
 - **Seam handling** depends on whether alignments have gaps (add sequence) or overlaps (remove sequence) between them
+
+### Assembly Seams: How Alignments Interact in Assembly Space
+
+Assembly seams define the relationship between alignments in the reference assembly coordinates. They are not used for read construction but describe the structural variation in assembly space:
+
+#### Large Insertion
+**Assembly pattern:** A ← seam → B (one seam between A and B)
+
+The assembly seam represents the sequence between anchor alignments A and B in the assembly. This shows what assembly sequence is "replaced" by the inserted element X in the read.
+
+#### Large Deletion  
+**Assembly pattern:** A → B (no seam)
+
+No assembly seam because the deleted region is the gap between A and B alignments in the assembly. The deletion is simply the missing assembly sequence between the anchors.
+
+#### Large Inversion
+**Assembly pattern:** A ← left_seam → X ← right_seam → B (two seams)
+
+- **Left seam (A-X)**: Assembly sequence between anchor A and element X
+- **Right seam (X-B)**: Assembly sequence between element X and anchor B
+
+This shows how the element X relates to the flanking anchors A and B in the original assembly coordinates.
 
 ### Seams Explained
 
