@@ -71,7 +71,7 @@ Rearrangement detection analyzes reads with multiple alignments to identify stru
 
 ### From Contig to Read: The Mutation Process
 
-Each rearrangement type follows a specific pattern for combining mutated alignment segments and seams to reconstruct the read sequence:
+A rearrangement event can be defined by the steps followed to transform an assembly sequence into the read sequence that generated the event.
 
 #### Large Insertion
 **Pattern:** A → left_seam → X → right_seam → B
@@ -88,7 +88,7 @@ Each rearrangement type follows a specific pattern for combining mutated alignme
 #### Large Inversion  
 **Pattern:** A → left_seam → X_reversed → right_seam → B
 
-Same process as insertion. The element X sequence is reverse-complemented if the X alignment is on the reverse strand, creating the inversion effect.
+Same process as insertion, but X must be located between A and B in assembly space. The element X sequence is reverse-complemented if the X alignment is on the reverse strand, creating the inversion effect.
 
 #### Large Deletion
 **Pattern:** A → seam → B
@@ -105,28 +105,6 @@ Same process as insertion. The element X sequence is reverse-complemented if the
 - **Mutations are applied** to each alignment segment (A, B, X) using their individual PAF mutation profiles
 - **Seam handling** depends on whether alignments have gaps (add sequence) or overlaps (remove sequence) between them
 
-### Assembly Seams: How Alignments Interact in Assembly Space
-
-Assembly seams define the relationship between alignments in the reference assembly coordinates. They are not used for read construction but describe the structural variation in assembly space:
-
-#### Large Insertion
-**Assembly pattern:** A ← seam → B (one seam between A and B)
-
-The assembly seam represents the sequence between anchor alignments A and B in the assembly. This shows what assembly sequence is "replaced" by the inserted element X in the read.
-
-#### Large Deletion  
-**Assembly pattern:** A → B (no seam)
-
-No assembly seam because the deleted region is the gap between A and B alignments in the assembly. The deletion is simply the missing assembly sequence between the anchors.
-
-#### Large Inversion
-**Assembly pattern:** A ← left_seam → X ← right_seam → B (two seams)
-
-- **Left seam (A-X)**: Assembly sequence between anchor A and element X
-- **Right seam (X-B)**: Assembly sequence between element X and anchor B
-
-This shows how the element X relates to the flanking anchors A and B in the original assembly coordinates.
-
 ### Seams Explained
 
 **Seams represent the boundaries between alignments:**
@@ -140,30 +118,25 @@ This shows how the element X relates to the flanking anchors A and B in the orig
 - **Multiple seams**: Separated by colons (`:`) for events with multiple seam regions
 - **Empty seams**: No prefix, represented as empty strings between colons
 
-**Examples:**
-- `+ATCG` - Single gap seam with sequence ATCG
-- `-GC` - Single overlap seam with sequence GC
-- `+ATCG:+TTAA` - Two gap seams (for insertions/inversions with left and right seams)
-- `+ATCG:` - Gap seam followed by empty seam
-- `:+TTAA` - Empty seam followed by gap seam
-
 **To get seams, you need:**
-- Read sequences (to extract actual bridging sequences)
-- Alignment coordinates (to identify gaps and overlaps)
-- Assembly sequences (to compare expected vs. observed seams)
+- Read sequences for read seams
+- Assembly sequences for assembly seams
 
-## Verification Process
+## Event Aggregation
 
-The verification component checks consistency between detected events and the original sequences:
+Individual read events are grouped into aggregated events based on similarity:
 
-**Purpose:** Ensure that the rearrangement model accurately explains how the contig segments were mutated to produce the observed read sequence.
+**Grouping Criteria:**
+- Same rearrangement type and contig
+- Clip coordinates within margin tolerance (`max_margin` parameter)
+- Matching element details (contig, strand, coordinates within margin)
+- Similar seam lengths (within margin)
 
-**Process:**
-1. **Extract sequences**: Get contig and read sequences for all alignments
-2. **Apply mutations**: Mutate contig segments according to alignment mutations
-3. **Construct final sequence**: Assemble A + seams + X + seams + B
-4. **Compare**: Verify that the constructed sequence matches the actual read sequence
+**Omitted Fields:**
+- **Read-specific fields**: `read_id`, `read_strand`, `read_clip_*`, `read_span_*` are omitted because aggregated events represent population-level structural variations, not individual read details
+- **Seam sequences**: Only seam lengths are compared for grouping; exact sequences are preserved in representative events but not used for similarity
 
+This creates population-level events supported by multiple reads across potentially multiple libraries.
 
 ## Output File Formats
 
