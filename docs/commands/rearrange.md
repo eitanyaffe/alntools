@@ -71,32 +71,39 @@ Rearrangement detection analyzes reads with multiple alignments to identify stru
 
 ### From Contig to Read: The Mutation Process
 
-Each rearrangement type follows a specific pattern for combining alignments and seams to reconstruct the read sequence:
+Each rearrangement type follows a specific pattern for combining mutated alignment segments and seams to reconstruct the read sequence:
 
 #### Large Insertion
-**Pattern:** A → left_seam → X → right_seam → B
+**Pattern:** A_tag → left_seam → X_tag → right_seam → B_tag
 
-1. **Clip at boundaries**: Remove sequences outside the rearrangement region
-2. **Handle gaps/overlaps**: If there's a gap between A and the insertion point, keep it in the assembly seam; overlaps are also preserved in seams
-3. **Add left seam**: Bridge from anchor A to element X
-4. **Add element X**: Insert the element sequence (properly oriented)  
-5. **Add right seam**: Bridge from element X to anchor B
-6. **Mutations applied**: Each alignment (A, X, B) has its mutations applied during sequence extraction
+1. **Create A_tag**: Extract contig sequence from alignment A coordinates, apply A's mutations
+2. **Handle left seam**: 
+   - If gap seam: add the bridging sequence from the read
+   - If overlap seam: verify exact match and remove overlapping sequence from end of A_tag
+3. **Create X_tag**: Extract element sequence from alignment X coordinates, apply X's mutations
+4. **Apply orientation**: If X alignment is reverse strand, reverse-complement the X_tag
+5. **Handle right seam**: Same gap/overlap logic as left seam
+6. **Create B_tag**: Extract contig sequence from alignment B coordinates, apply B's mutations
 
 #### Large Inversion  
-**Pattern:** A → left_seam → X_reversed → right_seam → B
+**Pattern:** A_tag → left_seam → X_tag_reversed → right_seam → B_tag
 
-Same process as insertion, but the element X is reverse-complemented. The element sequence is right there in the middle, just flipped in orientation relative to the flanking anchors.
+Same process as insertion. The element X_tag is reverse-complemented if the X alignment is on the reverse strand, creating the inversion effect.
 
 #### Large Deletion
-**Pattern:** A → seam → B (skipping deleted region)
+**Pattern:** A_tag → seam → B_tag
 
-1. **Clip at boundaries**: Remove sequences outside the rearrangement region
-2. **Skip deleted region**: Jump directly from anchor A to anchor B
-3. **Add bridging seam**: Connect A and B with any intervening read sequence
-4. **No element**: The deleted assembly region is absent from the final read sequence
+1. **Create A_tag**: Extract and mutate alignment A sequence
+2. **Handle seam**: 
+   - If gap seam: add bridging sequence from read
+   - If overlap seam: verify exact match and remove overlapping sequence from A_tag
+3. **Create B_tag**: Extract and mutate alignment B sequence
+4. **No element**: The deleted assembly region between A and B is skipped entirely
 
-**Note:** These instructions deal only with rearrangement of alignments and seams. To get the actual read sequence, alignments are also mutated along the way as needed using their individual mutation profiles.
+**Key Points:**
+- **Clip coordinates** (`out_clip`, `in_clip`) define the breakpoints: `out_clip = min(A.end, B.end)`, `in_clip = max(A.start, B.start)`
+- **Mutations are applied** to each alignment segment (A, B, X) using their individual PAF mutation profiles
+- **Seam handling** depends on whether alignments have gaps (add sequence) or overlaps (remove sequence) between them
 
 ### Seams Explained
 
