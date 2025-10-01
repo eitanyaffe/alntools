@@ -294,12 +294,6 @@ Seam sequences in both `read_seams` and `assembly_seams` columns use the followi
 - **Overlap seams**: Prefixed with `-` (e.g., `-GCTA` indicates a 4bp overlap with sequence GCTA)
 - **Empty seams**: No prefix, empty string between colons
 
-**Examples:**
-- `+ATCG:+TTAA` - Two gap seams with sequences ATCG and TTAA
-- `-GC:-AT` - Two overlap seams with sequences GC and AT  
-- `+ATCG:` - One gap seam followed by one empty seam
-- `:+TTAA` - One empty seam followed by one gap seam
-
 **`{prefix}_sample_aggregated_events.tsv`:**
 Aggregated version with read counts and coverage statistics per event.
 
