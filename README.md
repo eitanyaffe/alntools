@@ -67,6 +67,7 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [coverage](docs/commands/coverage.md) | Generate alignment coverage statistics | [→](docs/commands/coverage.md) |
 | [breaks](docs/commands/breaks.md) | Find positions with excessive read start/end clustering | [→](docs/commands/breaks.md) |
 | [rearrange](docs/commands/rearrange.md) | Detect genome rearrangements from read alignments | [→](docs/commands/rearrange.md) |
+| [homologs](docs/commands/homologs.md) | Find homologous regions using kmer-based search | [→](docs/commands/homologs.md) |
 
 ## Documentation
 
@@ -92,6 +93,7 @@ alntools coverage -ifn output/test.aln -ofn_prefix output/coverage
 
 # 5. Detect structural variations
 alntools rearrange -ifn_aln output/test.aln -ofn_prefix output/rearrangements
+
 ```
 
 ## Running Tests

@@ -13,6 +13,7 @@
 #include "Rearrange.h"
 #include "RearrangeVerify.h"
 #include "Sequences.h"
+#include "Homologs.h"
 #include "alignment_store.h"
 #include "paf_reader.h"
 #include <Rcpp.h>
@@ -1603,4 +1604,72 @@ List aln_rearrange(
         Named("coverage") = coverage_matrix_r,
         Named("rejections") = rejections_df,
         Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()));
+}
+
+// [[Rcpp::export]]
+DataFrame homologs_search(const std::string& fasta_file,
+                         const std::string& query_contig,
+                         int query_start,
+                         int query_end,
+                         int k = 21,
+                         int num_kmers = 10,
+                         double threshold = 80.0) {
+    
+    try {
+        Homologs homologs;
+        std::vector<ContigRegion> regions = homologs.search_homologs(
+            fasta_file, query_contig, 
+            static_cast<uint32_t>(query_start), 
+            static_cast<uint32_t>(query_end),
+            static_cast<uint32_t>(k), 
+            static_cast<uint32_t>(num_kmers), 
+            threshold);
+        
+        // convert results to R vectors
+        CharacterVector assembly_vec;
+        CharacterVector contig_vec;
+        IntegerVector start_vec;
+        IntegerVector end_vec;
+        CharacterVector desc_vec;
+        CharacterVector id_vec;
+        IntegerVector length_vec;
+        IntegerVector kmer_count_vec;
+        NumericVector coverage_vec;
+        
+        for (size_t i = 0; i < regions.size(); i++) {
+            const ContigRegion& region = regions[i];
+            
+            assembly_vec.push_back("assembly");
+            contig_vec.push_back(region.contig);
+            start_vec.push_back(static_cast<int>(region.start));
+            end_vec.push_back(static_cast<int>(region.end));
+            length_vec.push_back(static_cast<int>(region.length));
+            kmer_count_vec.push_back(static_cast<int>(region.kmer_count));
+            coverage_vec.push_back(region.coverage_percent);
+            
+            // create description with length and coverage info
+            std::string desc = "kmer_match_length_" + std::to_string(region.length) + 
+                              "_coverage_" + std::to_string(static_cast<int>(region.coverage_percent)) + "pct";
+            desc_vec.push_back(desc);
+            
+            std::string region_id = "homolog_" + std::to_string(i + 1);
+            id_vec.push_back(region_id);
+        }
+        
+        // create and return DataFrame
+        return DataFrame::create(
+            Named("assembly") = assembly_vec,
+            Named("contig") = contig_vec,
+            Named("start") = start_vec,
+            Named("end") = end_vec,
+            Named("desc") = desc_vec,
+            Named("id") = id_vec,
+            Named("length") = length_vec,
+            Named("kmer_count") = kmer_count_vec,
+            Named("coverage_percent") = coverage_vec,
+            Named("stringsAsFactors") = false);
+            
+    } catch (const std::exception& e) {
+        stop("homologs search failed: " + std::string(e.what()));
+    }
 }
