@@ -67,37 +67,37 @@ Rearrangement detection analyzes reads with multiple alignments to identify stru
 **Seams:**
 - Sequences that connect the alignments within the read, in case there is a gap between alignments or they overlap 
 - **Read seams**: read sequences between adjacent alignments
-- **Assembly seams**: assembly sequences that define how alignments interact in assembly space (not used for read construction)
+- **Assembly seams**: assembly sequences that define how alignments interact in assembly space
 
 ### From Contig to Read: The Mutation Process
 
 Each rearrangement type follows a specific pattern for combining mutated alignment segments and seams to reconstruct the read sequence:
 
 #### Large Insertion
-**Pattern:** A_tag → left_seam → X_tag → right_seam → B_tag
+**Pattern:** A → left_seam → X → right_seam → B
 
-1. **Create A_tag**: Extract contig sequence from alignment A coordinates, apply A's mutations
+1. **Create A sequence**: Extract contig sequence from alignment A coordinates, apply A's mutations
 2. **Handle left seam**: 
    - If gap seam: add the bridging sequence from the read
-   - If overlap seam: verify exact match and remove overlapping sequence from end of A_tag
-3. **Create X_tag**: Extract element sequence from alignment X coordinates, apply X's mutations
-4. **Apply orientation**: If X alignment is reverse strand, reverse-complement the X_tag
+   - If overlap seam: verify exact match and remove overlapping sequence from end of A sequence
+3. **Create X sequence**: Extract element sequence from alignment X coordinates, apply X's mutations
+4. **Apply orientation**: If X alignment is reverse strand, reverse-complement the X sequence
 5. **Handle right seam**: Same gap/overlap logic as left seam
-6. **Create B_tag**: Extract contig sequence from alignment B coordinates, apply B's mutations
+6. **Create B sequence**: Extract contig sequence from alignment B coordinates, apply B's mutations
 
 #### Large Inversion  
-**Pattern:** A_tag → left_seam → X_tag_reversed → right_seam → B_tag
+**Pattern:** A → left_seam → X_reversed → right_seam → B
 
-Same process as insertion. The element X_tag is reverse-complemented if the X alignment is on the reverse strand, creating the inversion effect.
+Same process as insertion. The element X sequence is reverse-complemented if the X alignment is on the reverse strand, creating the inversion effect.
 
 #### Large Deletion
-**Pattern:** A_tag → seam → B_tag
+**Pattern:** A → seam → B
 
-1. **Create A_tag**: Extract and mutate alignment A sequence
+1. **Create A sequence**: Extract and mutate alignment A sequence
 2. **Handle seam**: 
    - If gap seam: add bridging sequence from read
-   - If overlap seam: verify exact match and remove overlapping sequence from A_tag
-3. **Create B_tag**: Extract and mutate alignment B sequence
+   - If overlap seam: verify exact match and remove overlapping sequence from A sequence
+3. **Create B sequence**: Extract and mutate alignment B sequence
 4. **No element**: The deleted assembly region between A and B is skipped entirely
 
 **Key Points:**
