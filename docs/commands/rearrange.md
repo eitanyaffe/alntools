@@ -151,11 +151,3 @@ This creates population-level events supported by multiple reads across potentia
 - `{prefix}_coverage.tsv`: Coverage matrix (events × libraries)
 
 See [File Formats](../file-formats.md) for detailed specifications of output formats.
-
-## Notes
-
-- Rearrangement detection requires reads with multiple alignments to the same contig
-- The algorithm is designed to detect large-scale structural variations (>50bp by default)
-- Verification ensures that detected events are biologically plausible
-- Multi-library analysis enables population-level structural variation studies
-- Use interval filtering to focus on specific genomic regions of interest
