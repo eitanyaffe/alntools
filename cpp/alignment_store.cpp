@@ -692,7 +692,6 @@ void AlignmentStore::init_read_alignment_index()
   }
   
   read_alignment_index_built_ = true;
-  cout << "read-to-alignments index built for " << read_to_alignment_indices_.size() << " reads" << endl;
 }
 
 bool AlignmentStore::is_alignment_local(const Alignment& alignment, int clip_margin) const
