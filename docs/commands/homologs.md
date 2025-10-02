@@ -21,6 +21,7 @@ alntools homologs -ifn_fasta <assembly.fasta> -contig <query_contig> -start <sta
 * `-k <int>`: Kmer size (default: 21).
 * `-num_kmers <int>`: Number of kmers to extract from query region (default: 10).
 * `-threshold <double>`: Minimum percentage of kmers required for a match (default: 80.0).
+* `-num_threads <int>`: Number of threads for parallel processing (0 for auto-detection, default: 0).
 
 ## Example
 
@@ -85,7 +86,8 @@ results <- homologs_search(
   query_end = 11000,
   k = 21,
   num_kmers = 10,
-  threshold = 80.0
+  threshold = 80.0,
+  num_threads = 0  # auto-detect optimal thread count
 )
 
 # Results is a data.frame with additional columns:

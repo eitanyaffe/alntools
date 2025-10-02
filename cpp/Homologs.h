@@ -5,11 +5,6 @@
 #include <vector>
 #include <unordered_map>
 
-struct KmerHit {
-    std::string contig;
-    uint32_t position;
-};
-
 struct ContigRegion {
     std::string contig;
     uint32_t start;
@@ -21,20 +16,24 @@ struct ContigRegion {
 
 class Homologs {
 private:
+    int num_threads;
+    
     // extract kmers evenly spaced from query region
     std::vector<std::string> extract_query_kmers(const std::string& sequence, uint32_t start, uint32_t end, 
                                                  uint32_t k, uint32_t num_kmers);
     
-    // build hash table of all kmers in assembly
-    std::unordered_map<std::string, std::vector<KmerHit>> build_kmer_index(const class AssemblySequences& assembly, uint32_t k);
+    // build hash table of kmers for a single contig
+    std::unordered_map<std::string, std::vector<uint32_t>> build_contig_kmer_index(const std::string& sequence, uint32_t k);
     
-    // find regions with sufficient kmer coverage
-    std::vector<ContigRegion> find_homologous_regions(const std::vector<std::string>& query_kmers,
-                                                     const std::unordered_map<std::string, std::vector<KmerHit>>& kmer_index,
-                                                     double threshold_percent);
+    // process a single contig for homologous regions
+    ContigRegion process_contig(const std::string& contig_id,
+                               const std::string& sequence,
+                               const std::vector<std::string>& query_kmers,
+                               uint32_t k,
+                               double threshold_percent);
 
 public:
-    Homologs();
+    Homologs(int num_threads = 0);
     ~Homologs();
     
     // main search function (file-based)

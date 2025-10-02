@@ -1613,7 +1613,8 @@ DataFrame homologs_search(List assembly_sequences,
                          int query_end,
                          int k = 21,
                          int num_kmers = 10,
-                         double threshold = 80.0) {
+                         double threshold = 80.0,
+                         int num_threads = 0) {
     
     try {
         // extract assembly sequences from List to C++ map
@@ -1626,7 +1627,7 @@ DataFrame homologs_search(List assembly_sequences,
         AssemblySequences assembly;
         assembly.load_from_map(sequences_map);
         
-        Homologs homologs;
+        Homologs homologs(num_threads);
         std::vector<ContigRegion> regions = homologs.search_homologs(
             assembly, query_contig, 
             static_cast<uint32_t>(query_start), 

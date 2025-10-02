@@ -1,6 +1,10 @@
 #include "Homologs.h"
 #include <iostream>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 using namespace std;
 
 void homologs_usage(const char* name) {
@@ -13,13 +17,11 @@ void homologs_usage(const char* name) {
     fprintf(stderr, "  -k <int>                 kmer size (default: 21)\n");
     fprintf(stderr, "  -num_kmers <int>         number of kmers to extract (default: 10)\n");
     fprintf(stderr, "  -threshold <double>      minimum percentage of kmers required (default: 80.0)\n");
+    fprintf(stderr, "  -num_threads <int>       number of threads (0 for auto, default: 0)\n");
     fprintf(stderr, "  -ofn <filename>          output regions file\n");
 }
 
 int homologs_main(const char* name, int argc, char** argv) {
-    // delegate to the implementation in Homologs.cpp
-    Homologs homologs;
-    
     // default parameters
     string ifn_fasta = "";
     string query_contig = "";
@@ -28,6 +30,7 @@ int homologs_main(const char* name, int argc, char** argv) {
     uint32_t k = 21;
     uint32_t num_kmers = 10;
     double threshold = 80.0;
+    int num_threads = 0;
     string ofn = "";
     
     // parse command line arguments
@@ -47,6 +50,8 @@ int homologs_main(const char* name, int argc, char** argv) {
             num_kmers = atoi(argv[++i]);
         } else if (arg == "-threshold" && i + 1 < argc) {
             threshold = atof(argv[++i]);
+        } else if (arg == "-num_threads" && i + 1 < argc) {
+            num_threads = atoi(argv[++i]);
         } else if (arg == "-ofn" && i + 1 < argc) {
             ofn = argv[++i];
         } else {
@@ -101,6 +106,9 @@ int homologs_main(const char* name, int argc, char** argv) {
         cout << "extracting " << num_kmers << " kmers of size " << k 
              << " from " << query_contig << ":" << query_start << "-" << query_end << endl;
         cout << "searching for regions with >= " << threshold << "% kmer coverage" << endl;
+        
+        // create Homologs object with threading support
+        Homologs homologs(num_threads);
         
         vector<ContigRegion> regions = homologs.search_homologs(ifn_fasta, query_contig, query_start, query_end, 
                                                                k, num_kmers, threshold);
