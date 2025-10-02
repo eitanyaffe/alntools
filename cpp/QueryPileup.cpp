@@ -185,7 +185,7 @@ void QueryPileup::generate_output_rows()
 // Private helper function to write output_rows to file
 void QueryPileup::write_rows_to_file(const std::string& ofn_prefix)
 {
-  string filename = ofn_prefix + "_pileup.tsv";
+  string filename = ofn_prefix + "_pileup.txt";
   cout << "writing pileup data to " << filename << endl;
   ofstream ofs(filename);
 

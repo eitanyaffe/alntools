@@ -649,7 +649,7 @@ void QueryBin::generate_output_rows()
 // function to write the generated rows to a file
 void QueryBin::write_to_csv(const std::string& ofn_prefix)
 {
-  string filename = ofn_prefix + "_bins.tsv";
+  string filename = ofn_prefix + "_bins.txt";
   cout << "writing bin data rows to " << filename << endl;
   ofstream ofs(filename);
 

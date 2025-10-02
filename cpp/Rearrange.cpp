@@ -265,7 +265,7 @@ void Rearrange::write_events_file(const string& ofn_prefix)
 
 void Rearrange::write_support_matrix_file(const string& ofn_prefix)
 {
-    string filename = ofn_prefix + "_support_matrix.txt";
+    string filename = ofn_prefix + "_support.txt";
     ofstream ofs(filename);
     
     if (!ofs.is_open()) {
@@ -303,7 +303,7 @@ void Rearrange::write_support_matrix_file(const string& ofn_prefix)
 
 void Rearrange::write_coverage_matrix_file(const string& ofn_prefix)
 {
-    string filename = ofn_prefix + "_coverage_matrix.txt";
+    string filename = ofn_prefix + "_coverage.txt";
     ofstream ofs(filename);
     
     if (!ofs.is_open()) {

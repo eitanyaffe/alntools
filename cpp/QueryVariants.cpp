@@ -404,7 +404,7 @@ void QueryVariants::write_to_csv(const std::string& ofn_prefix)
 
 void QueryVariants::write_variants_file(const std::string& ofn_prefix)
 {
-  string filename = ofn_prefix + "_variants.tsv";
+  string filename = ofn_prefix + "_table.txt";
   cout << "writing variants data to " << filename << endl;
   
   ofstream file;
@@ -433,7 +433,7 @@ void QueryVariants::write_variants_file(const std::string& ofn_prefix)
 
 void QueryVariants::write_support_file(const std::string& ofn_prefix)
 {
-  string filename = ofn_prefix + "_support.tsv";
+  string filename = ofn_prefix + "_support.txt";
   cout << "writing support data to " << filename << endl;
   
   ofstream file;
@@ -476,7 +476,7 @@ void QueryVariants::write_support_file(const std::string& ofn_prefix)
 
 void QueryVariants::write_coverage_file(const std::string& ofn_prefix)
 {
-  string filename = ofn_prefix + "_coverage.tsv";
+  string filename = ofn_prefix + "_coverage.txt";
   cout << "writing coverage data to " << filename << endl;
   
   ofstream file;
@@ -560,7 +560,7 @@ void QueryVariants::write_genic_file(const std::string& ofn_prefix, const std::s
     return;
   }
   
-  string filename = ofn_prefix + "_genic" + suffix + ".tsv";
+  string filename = ofn_prefix + "_genic" + suffix + ".txt";
   cout << "writing genic data to " << filename << endl;
   
   ofstream file;
@@ -591,7 +591,7 @@ void QueryVariants::write_intergenic_file(const std::string& ofn_prefix, const s
     return;
   }
   
-  string filename = ofn_prefix + "_intergenic" + suffix + ".tsv";
+  string filename = ofn_prefix + "_intergenic" + suffix + ".txt";
   cout << "writing intergenic data to " << filename << endl;
   
   ofstream file;

@@ -7,7 +7,7 @@ Detects genome rearrangements (large insertions, deletions, and inversions) from
 ```bash
 alntools rearrange -ifn_aln <input.aln> -ofn_prefix <output_prefix> [options]
 # OR for multi-library analysis:
-alntools rearrange -ifn_libraries <libraries.tsv> -ofn_prefix <output_prefix> [options]
+alntools rearrange -ifn_libraries <libraries.txt> -ofn_prefix <output_prefix> [options]
 ```
 
 ## Parameters
@@ -31,9 +31,9 @@ alntools rearrange -ifn_libraries <libraries.tsv> -ofn_prefix <output_prefix> [o
 alntools rearrange -ifn_aln output/sample.aln -ofn_prefix output/rearrangements
 
 # Multi-library analysis with interval filtering
-echo -e "id\tfn\nlib1\toutput/sample1.aln\nlib2\toutput/sample2.aln" > libraries.tsv
-echo -e "contig\tstart\tend\nchr1\t1000000\t2000000" > intervals.tsv
-alntools rearrange -ifn_libraries libraries.tsv -ifn_intervals intervals.tsv -ofn_prefix output/rearrangements
+echo -e "id\tfn\nlib1\toutput/sample1.aln\nlib2\toutput/sample2.aln" > libraries.txt
+echo -e "contig\tstart\tend\nchr1\t1000000\t2000000" > intervals.txt
+alntools rearrange -ifn_libraries libraries.txt -ifn_intervals intervals.txt -ofn_prefix output/rearrangements
 ```
 
 ## Input File Formats
@@ -141,13 +141,13 @@ This creates population-level events supported by multiple reads across potentia
 ## Output File Formats
 
 **Single Library Mode:**
-- `{prefix}_sample_read_events.tsv`: Individual rearrangement events per read
-- `{prefix}_sample_aggregated_events.tsv`: Aggregated events with read counts and coverage
-- `{prefix}_sample_read_support.tsv`: Reads supporting each event (including coverage reads)
+- `{prefix}_sample_read_events.txt`: Individual rearrangement events per read
+- `{prefix}_sample_aggregated_events.txt`: Aggregated events with read counts and coverage
+- `{prefix}_sample_read_support.txt`: Reads supporting each event (including coverage reads)
 
 **Multi-Library Mode (additional files):**
-- `{prefix}_events.tsv`: Combined events across all libraries with library counts
-- `{prefix}_support.tsv`: Read support matrix (events × libraries)  
-- `{prefix}_coverage.tsv`: Coverage matrix (events × libraries)
+- `{prefix}_events.txt`: Combined events across all libraries with library counts
+- `{prefix}_support.txt`: Read support matrix (events × libraries)  
+- `{prefix}_coverage.txt`: Coverage matrix (events × libraries)
 
 See [File Formats](../file-formats.md) for detailed specifications of output formats.

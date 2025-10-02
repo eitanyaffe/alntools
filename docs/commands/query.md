@@ -109,14 +109,14 @@ alntools query -ifn_aln output/test.aln \
 **Variants Query Mode (Multi-library):**
 ```bash
 # Create libraries table file
-echo -e "id\tfn" > libraries.tsv
-echo -e "lib1\toutput/sample1.aln" >> libraries.tsv
-echo -e "lib2\toutput/sample2.aln" >> libraries.tsv
-echo -e "lib3\toutput/sample3.aln" >> libraries.tsv
+echo -e "id\tfn" > libraries.txt
+echo -e "lib1\toutput/sample1.aln" >> libraries.txt
+echo -e "lib2\toutput/sample2.aln" >> libraries.txt
+echo -e "lib3\toutput/sample3.aln" >> libraries.txt
 
 # Run variants query
 alntools query -mode variants \
-   -ifn_libraries libraries.tsv \
+   -ifn_libraries libraries.txt \
    -ifn_intervals examples/intervals_small.txt \
    -ofn_prefix output/query_variants \
    -min_variants_variant_support 5 \
@@ -147,24 +147,24 @@ alntools query -ifn_aln output/test.aln \
 See [File Formats](../file-formats.md) for detailed specifications of all output formats:
 
 **Full Mode Output:**
-- `{prefix}_alignments.tsv`: Detailed alignment information with heights
-- `{prefix}_mutations.tsv`: Mutation details for each alignment
-- `{prefix}_reads.tsv`: Read statistics and height assignments
-- `{prefix}_chunks.tsv`: Chunk statistics and height assignments
+- `{prefix}_alignments.txt`: Detailed alignment information with heights
+- `{prefix}_mutations.txt`: Mutation details for each alignment
+- `{prefix}_reads.txt`: Read statistics and height assignments
+- `{prefix}_chunks.txt`: Chunk statistics and height assignments
 
 **Pileup Mode Output:**
-- `{prefix}_pileup.tsv`: Position-by-position mutation summaries
+- `{prefix}_pileup.txt`: Position-by-position mutation summaries
 
 **Bin Mode Output:**
-- `{prefix}_bins.tsv`: Binned alignment statistics with segregating sites analysis
+- `{prefix}_bins.txt`: Binned alignment statistics with segregating sites analysis
 
 **Consensus Mode Output:**
-- `{prefix}_consensus.tsv`: High-frequency variant calls
+- `{prefix}_consensus.txt`: High-frequency variant calls
 
 **Variants Mode Output:**
-- `{prefix}_variants.tsv`: Main variant table with library counts
-- `{prefix}_support.tsv`: Read support matrix (variants × libraries)
-- `{prefix}_coverage.tsv`: Coverage matrix (variants × libraries)
+- `{prefix}_table.txt`: Main variant table with library counts
+- `{prefix}_support.txt`: Read support matrix (variants × libraries)
+- `{prefix}_coverage.txt`: Coverage matrix (variants × libraries)
 
 ## Gene Annotation
 
@@ -179,7 +179,7 @@ All query modes support optional gene annotation to classify variants as genic o
 **Example with Gene Annotation:**
 ```bash
 alntools query -mode variants \
-   -ifn_libraries libraries.tsv \
+   -ifn_libraries libraries.txt \
    -ifn_intervals intervals.txt \
    -ofn_prefix output/annotated_variants \
    -ifn_gene_table genes.txt \
@@ -190,8 +190,8 @@ alntools query -mode variants \
 
 **Additional Output Files (when gene annotation is enabled):**
 - Main output files include an additional `is_genic` column (true/false)
-- `{prefix}_genic.tsv`: Detailed annotation for variants within genes
-- `{prefix}_intergenic.tsv`: Information for variants between genes
+- `{prefix}_genic.txt`: Detailed annotation for variants within genes
+- `{prefix}_intergenic.txt`: Information for variants between genes
 
 ## Notes
 

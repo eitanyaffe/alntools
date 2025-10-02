@@ -387,7 +387,7 @@ void QueryConsensus::generate_output_rows()
 // function to write the generated rows to a file
 void QueryConsensus::write_to_csv(const std::string& ofn_prefix)
 {
-  string filename = ofn_prefix + "_consensus.tsv";
+  string filename = ofn_prefix + "_consensus.txt";
   cout << "writing consensus data rows to " << filename << endl;
   ofstream ofs(filename);
 

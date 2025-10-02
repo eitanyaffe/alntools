@@ -111,10 +111,10 @@ void QueryFull::generate_output_data()
 void QueryFull::write_to_csv(const std::string& ofn_prefix)
 {
   // --- Write Alignments ---
-  cout << "writing alignments to " << ofn_prefix + "_alignments.tsv" << endl;
-  ofstream ofs_alignments(ofn_prefix + "_alignments.tsv");
+  cout << "writing alignments to " << ofn_prefix + "_alignments.txt" << endl;
+  ofstream ofs_alignments(ofn_prefix + "_alignments.txt");
   if (!ofs_alignments.is_open()) {
-    cerr << "error: could not open file " << ofn_prefix + "_alignments.tsv" << endl;
+    cerr << "error: could not open file " << ofn_prefix + "_alignments.txt" << endl;
     exit(1);
   }
 
@@ -138,13 +138,13 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
                    << aln_data.chunk_id << "\n";
   }
   ofs_alignments.close();
-  cout << "wrote " << output_alignments.size() << " alignments to " << ofn_prefix + "_alignments.tsv" << endl;
+  cout << "wrote " << output_alignments.size() << " alignments to " << ofn_prefix + "_alignments.txt" << endl;
 
   // --- Write Mutations ---
-  cout << "writing mutations to " << ofn_prefix + "_mutations.tsv" << endl;
-  ofstream ofs_mutations(ofn_prefix + "_mutations.tsv");
+  cout << "writing mutations to " << ofn_prefix + "_mutations.txt" << endl;
+  ofstream ofs_mutations(ofn_prefix + "_mutations.txt");
   if (!ofs_mutations.is_open()) {
-    cerr << "error: could not open file " << ofn_prefix + "_mutations.tsv" << endl;
+    cerr << "error: could not open file " << ofn_prefix + "_mutations.txt" << endl;
     exit(1);
   }
 
@@ -162,13 +162,13 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
                   << mut_data.height << "\n";
   }
   ofs_mutations.close();
-  cout << "wrote " << output_mutations.size() << " mutations to " << ofn_prefix + "_mutations.tsv" << endl;
+  cout << "wrote " << output_mutations.size() << " mutations to " << ofn_prefix + "_mutations.txt" << endl;
 
   // --- Write Reads ---
-  cout << "writing reads to " << ofn_prefix + "_reads.tsv" << endl;
-  ofstream ofs_reads(ofn_prefix + "_reads.tsv");
+  cout << "writing reads to " << ofn_prefix + "_reads.txt" << endl;
+  ofstream ofs_reads(ofn_prefix + "_reads.txt");
   if (!ofs_reads.is_open()) {
-    cerr << "error: could not open file " << ofn_prefix + "_reads.tsv" << endl;
+    cerr << "error: could not open file " << ofn_prefix + "_reads.txt" << endl;
     exit(1);
   }
 
@@ -189,13 +189,13 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
               << (read_data.read_reversed ? "true" : "false") << "\n";
   }
   ofs_reads.close();
-  cout << "wrote " << output_reads.size() << " reads to " << ofn_prefix + "_reads.tsv" << endl;
+  cout << "wrote " << output_reads.size() << " reads to " << ofn_prefix + "_reads.txt" << endl;
 
   // --- Write Chunks ---
-  cout << "writing chunks to " << ofn_prefix + "_chunks.tsv" << endl;
-  ofstream ofs_chunks(ofn_prefix + "_chunks.tsv");
+  cout << "writing chunks to " << ofn_prefix + "_chunks.txt" << endl;
+  ofstream ofs_chunks(ofn_prefix + "_chunks.txt");
   if (!ofs_chunks.is_open()) {
-    cerr << "error: could not open file " << ofn_prefix + "_chunks.tsv" << endl;
+    cerr << "error: could not open file " << ofn_prefix + "_chunks.txt" << endl;
     exit(1);
   }
 
@@ -217,7 +217,7 @@ void QueryFull::write_to_csv(const std::string& ofn_prefix)
                << (chunk_data.read_reversed ? "true" : "false") << "\n";
   }
   ofs_chunks.close();
-  cout << "wrote " << output_chunks.size() << " chunks to " << ofn_prefix + "_chunks.tsv" << endl;
+  cout << "wrote " << output_chunks.size() << " chunks to " << ofn_prefix + "_chunks.txt" << endl;
 }
 
 void QueryFull::execute()

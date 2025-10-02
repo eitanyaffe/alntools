@@ -117,12 +117,12 @@ test_query_variants: $(TARGET)
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	@echo "running QUERY VARIANTS"
 	# create libraries table for testing
-	@echo "lib_id	aln_fn" > $(TEST_OUTPUT_DIR)/libraries.tsv
-	@echo "lib1	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.tsv
-	@echo "lib2	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.tsv
+	@echo "lib_id	aln_fn" > $(TEST_OUTPUT_DIR)/libraries.txt
+	@echo "lib1	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.txt
+	@echo "lib2	$(TEST_OUTPUT_DIR)/test.aln" >> $(TEST_OUTPUT_DIR)/libraries.txt
 	$(TARGET) query \
 		-mode variants \
-		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries.tsv \
+		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries.txt \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
 		-ofn_prefix $(TEST_OUTPUT_DIR)/query_variants \
 		-min_variants_variant_support 1 \
@@ -172,7 +172,7 @@ test_R_plot:
 	@echo "running R PLOT TEST"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	Rscript R/plot.r \
-		$(TEST_OUTPUT_DIR)/R_alignments.tsv \
+		$(TEST_OUTPUT_DIR)/R_alignments.txt \
 		$(TEST_OUTPUT_DIR)/contig_plot.png
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
@@ -195,11 +195,11 @@ test_genes: $(TARGET)
 	@echo "ALN file created, now testing gene annotation..."
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	# Test variants with gene annotation
-	@echo "lib_id	aln_fn" > $(TEST_OUTPUT_DIR)/libraries_genes.tsv
-	@echo "lib1	$(TEST_OUTPUT_DIR)/test_dense.aln" >> $(TEST_OUTPUT_DIR)/libraries_genes.tsv
+	@echo "lib_id	aln_fn" > $(TEST_OUTPUT_DIR)/libraries_genes.txt
+	@echo "lib1	$(TEST_OUTPUT_DIR)/test_dense.aln" >> $(TEST_OUTPUT_DIR)/libraries_genes.txt
 	$(TARGET) query \
 		-mode variants \
-		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries_genes.tsv \
+		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries_genes.txt \
 		-ifn_intervals $(TEST_DENSE_INTERVALS) \
 		-ofn_prefix $(TEST_OUTPUT_DIR)/variants_genes \
 		-ifn_gene_table examples/test_genes.txt \

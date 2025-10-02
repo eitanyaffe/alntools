@@ -5,7 +5,7 @@ Identifies positions with an excessive number of reads that start or end exactly
 ## Syntax
 
 ```bash
-alntools breaks -ifn <input.aln> -ofn <output.tsv> -window <int> -pval <double> [options]
+alntools breaks -ifn <input.aln> -ofn <output.txt> -window <int> -pval <double> [options]
 ```
 
 ## Parameters
@@ -23,10 +23,10 @@ alntools breaks -ifn <input.aln> -ofn <output.tsv> -window <int> -pval <double> 
 
 ```bash
 # Basic usage with default min_reads (1)
-alntools breaks -ifn output/test.aln -ofn output/breaks.tsv -window 1000 -pval 0.05
+alntools breaks -ifn output/test.aln -ofn output/breaks.txt -window 1000 -pval 0.05
 
 # Only test positions with at least 5 supporting reads
-alntools breaks -ifn output/test.aln -ofn output/breaks.tsv -window 1000 -pval 0.05 -min_reads 5
+alntools breaks -ifn output/test.aln -ofn output/breaks.txt -window 1000 -pval 0.05 -min_reads 5
 ```
 
 ## Input File Formats
@@ -35,7 +35,7 @@ alntools breaks -ifn output/test.aln -ofn output/breaks.tsv -window 1000 -pval 0
 
 ## Output File Formats
 
-**Break Positions Table (`output.tsv`):**
+**Break Positions Table (`output.txt`):**
 
 Tab-delimited format with columns (sorted by contig, then position):
 - `contig`: Contig identifier

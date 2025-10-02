@@ -82,7 +82,7 @@ For gene annotation (optional):
 
 #### Full Mode Output
 
-**`{prefix}_alignments.tsv`:**
+**`{prefix}_alignments.txt`:**
 
 | Column         | Description                              | Type    |
 |----------------|------------------------------------------|---------|
@@ -99,7 +99,7 @@ For gene annotation (optional):
 | height         | Vertical position for visualization      | int     |
 | chunk_id       | Chunk identifier for height calculation  | int     |
 
-**`{prefix}_mutations.tsv`:**
+**`{prefix}_mutations.txt`:**
 
 | Column         | Description                              | Type    |
 |----------------|------------------------------------------|---------|
@@ -111,7 +111,7 @@ For gene annotation (optional):
 | desc           | Description of the mutation              | string  |
 | height         | Vertical position for visualization      | int     |
 
-**`{prefix}_reads.tsv`:**
+**`{prefix}_reads.txt`:**
 
 | Column               | Description                              | Type    |
 |----------------------|------------------------------------------|---------|
@@ -125,7 +125,7 @@ For gene annotation (optional):
 | num_mutations        | Total mutations across all alignments   | int     |
 | height               | Vertical position for visualization      | int     |
 
-**`{prefix}_chunks.tsv`:**
+**`{prefix}_chunks.txt`:**
 
 | Column               | Description                              | Type    |
 |----------------------|------------------------------------------|---------|
@@ -140,7 +140,7 @@ For gene annotation (optional):
 
 #### Pileup Mode Output
 
-**`{prefix}_pileup.tsv`:**
+**`{prefix}_pileup.txt`:**
 
 | Column   | Description                                 | Type   |
 |----------|---------------------------------------------|--------|
@@ -153,7 +153,7 @@ For gene annotation (optional):
 
 #### Bin Mode Output
 
-**`{prefix}_bins.tsv`:**
+**`{prefix}_bins.txt`:**
 
 | Column                | Description                               | Type   |
 |-----------------------|-------------------------------------------|--------|
@@ -174,7 +174,7 @@ For gene annotation (optional):
 
 #### Consensus Mode Output
 
-**`{prefix}_consensus.tsv`:**
+**`{prefix}_consensus.txt`:**
 
 | Column       | Description                              | Type   |
 |--------------|------------------------------------------|--------|
@@ -188,7 +188,7 @@ For gene annotation (optional):
 
 #### Variants Mode Output
 
-**`{prefix}_variants.tsv`:**
+**`{prefix}_table.txt`:**
 
 | Column         | Description                              | Type   |
 |----------------|------------------------------------------|--------|
@@ -203,10 +203,10 @@ For gene annotation (optional):
 | total_coverage | Total coverage across libraries          | int    |
 | frequency      | Total support / total coverage ratio     | double |
 
-**`{prefix}_support.tsv`:**
+**`{prefix}_support.txt`:**
 Matrix with variant IDs as rows and library IDs as columns (read support counts)
 
-**`{prefix}_coverage.tsv`:**
+**`{prefix}_coverage.txt`:**
 Matrix with variant IDs as rows and library IDs as columns (coverage counts)
 
 ### Coverage Mode Output
@@ -245,7 +245,7 @@ Matrix with variant IDs as rows and library IDs as columns (coverage counts)
 
 ### Breaks Mode Output
 
-**`{output}.tsv`:**
+**`{output}.txt`:**
 
 | Column      | Description                              | Type   |
 |-------------|------------------------------------------|--------|
@@ -262,7 +262,7 @@ Matrix with variant IDs as rows and library IDs as columns (coverage counts)
 
 **Single Library Mode:**
 
-**`{prefix}_sample_read_events.tsv`:**
+**`{prefix}_sample_read_events.txt`:**
 
 | Column           | Description                              | Type   |
 |------------------|------------------------------------------|--------|
@@ -294,21 +294,21 @@ Seam sequences in both `read_seams` and `assembly_seams` columns use the followi
 - **Overlap seams**: Prefixed with `-` (e.g., `-GCTA` indicates a 4bp overlap with sequence GCTA)
 - **Empty seams**: No prefix, empty string between colons
 
-**`{prefix}_sample_aggregated_events.tsv`:**
+**`{prefix}_sample_aggregated_events.txt`:**
 Aggregated version with read counts and coverage statistics per event.
 
-**`{prefix}_sample_read_support.tsv`:**
+**`{prefix}_sample_read_support.txt`:**
 Reads supporting each aggregated event.
 
 **Multi-Library Mode (additional files):**
 
-**`{prefix}_events.tsv`:**
+**`{prefix}_events.txt`:**
 Combined events across libraries with library counts.
 
-**`{prefix}_support.tsv`:**
+**`{prefix}_support.txt`:**
 Read support matrix (events × libraries).
 
-**`{prefix}_coverage.tsv`:**
+**`{prefix}_coverage.txt`:**
 Coverage matrix (events × libraries).
 
 ### Gene Annotation Output
@@ -318,7 +318,7 @@ When gene annotation is enabled, additional columns and files are generated:
 **Additional columns in main output files:**
 - `is_genic`: Boolean indicating if variant is within a gene
 
-**`{prefix}_genic.tsv`:**
+**`{prefix}_genic.txt`:**
 
 | Column        | Description                              | Type   |
 |---------------|------------------------------------------|--------|
@@ -331,7 +331,7 @@ When gene annotation is enabled, additional columns and files are generated:
 | variant_type  | Mutation type (syn/non-syn)              | string |
 | mutation_desc | Mutation description (S:F, syn, etc.)    | string |
 
-**`{prefix}_intergenic.tsv`:**
+**`{prefix}_intergenic.txt`:**
 
 | Column           | Description                              | Type   |
 |------------------|------------------------------------------|--------|

@@ -200,21 +200,21 @@ full_results <- aln_query_full(aln, intervals, "by_mutations",
 breaks_results <- aln_find_breaks(aln, window_size = 1000, p_threshold = 0.05, min_reads = 3)
 
 # Save results
-write.table(bin_results, file = paste0(output_prefix, "_bins.tsv"), 
+write.table(bin_results, file = paste0(output_prefix, "_bins.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(pileup_results, file = paste0(output_prefix, "_pileup.tsv"), 
+write.table(pileup_results, file = paste0(output_prefix, "_pileup.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(consensus_results, file = paste0(output_prefix, "_consensus.tsv"), 
+write.table(consensus_results, file = paste0(output_prefix, "_consensus.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(full_results$alignments, file = paste0(output_prefix, "_alignments.tsv"), 
+write.table(full_results$alignments, file = paste0(output_prefix, "_alignments.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(full_results$mutations, file = paste0(output_prefix, "_mutations.tsv"), 
+write.table(full_results$mutations, file = paste0(output_prefix, "_mutations.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(full_results$reads, file = paste0(output_prefix, "_reads.tsv"), 
+write.table(full_results$reads, file = paste0(output_prefix, "_reads.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(full_results$chunks, file = paste0(output_prefix, "_chunks.tsv"), 
+write.table(full_results$chunks, file = paste0(output_prefix, "_chunks.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
-write.table(breaks_results, file = paste0(output_prefix, "_breaks.tsv"), 
+write.table(breaks_results, file = paste0(output_prefix, "_breaks.txt"), 
             sep = "\t", row.names = FALSE, quote = FALSE)
 ```
 

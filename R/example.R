@@ -54,7 +54,7 @@ construct <- function(paf_file, fn, max_reads = 0) {
 query_bins <- function() {
   cat("querying bin example\n")
   bin_results <- aln_query_bin(aln, intervals, binsize)
-  ofn <- paste0(ofn_prefix, "_bins.tsv")
+  ofn <- paste0(ofn_prefix, "_bins.txt")
   cat(paste0("saving output to ", ofn, "\n"))
   write.table(bin_results, file = ofn, sep = "\t", row.names = F, quote = F)
 }
@@ -66,7 +66,7 @@ query_bins <- function() {
 query_pileup <- function() {
   cat("querying pileup example\n")
   pileup_results <- aln_query_pileup(aln, intervals, "covered")
-  ofn <- paste0(ofn_prefix, "_pileup.tsv")
+  ofn <- paste0(ofn_prefix, "_pileup.txt")
   cat(paste0("saving output to ", ofn, "\n"))
   write.table(pileup_results, file = ofn, sep = "\t", row.names = F, quote = F)
 }
@@ -78,9 +78,9 @@ query_pileup <- function() {
 query_full <- function() {
   cat("querying full example\n")
   full_results <- aln_query_full(aln, intervals, "by_coord_left")
-  ofn_alignments <- paste0(ofn_prefix, "_alignments.tsv")
-  ofn_mutations <- paste0(ofn_prefix, "_mutations.tsv")
-  ofn_reads <- paste0(ofn_prefix, "_reads.tsv")
+  ofn_alignments <- paste0(ofn_prefix, "_alignments.txt")
+  ofn_mutations <- paste0(ofn_prefix, "_mutations.txt")
+  ofn_reads <- paste0(ofn_prefix, "_reads.txt")
   cat(paste0("saving alignments to ", ofn_alignments, "\n"))
   cat(paste0("saving mutations to ", ofn_mutations, "\n"))
   cat(paste0("saving reads to ", ofn_reads, "\n"))
@@ -91,9 +91,9 @@ query_full <- function() {
   # demonstrate alignment_filter feature with only_multiple
   cat("querying full with alignment_filter = 'only_multiple'\n")
   full_results_multi <- aln_query_full(aln, intervals, "by_coord_left", 0, "only_multiple")
-  ofn_alignments_multi <- paste0(ofn_prefix, "_clean_alignments.tsv")
-  ofn_mutations_multi <- paste0(ofn_prefix, "_clean_mutations.tsv")
-  ofn_reads_multi <- paste0(ofn_prefix, "_clean_reads.tsv")
+  ofn_alignments_multi <- paste0(ofn_prefix, "_clean_alignments.txt")
+  ofn_mutations_multi <- paste0(ofn_prefix, "_clean_mutations.txt")
+  ofn_reads_multi <- paste0(ofn_prefix, "_clean_reads.txt")
   cat(paste0("saving multi-alignment-only alignments to ", ofn_alignments_multi, "\n"))
   cat(paste0("saving multi-alignment-only mutations to ", ofn_mutations_multi, "\n"))
   cat(paste0("saving multi-alignment-only reads to ", ofn_reads_multi, "\n"))
@@ -109,14 +109,14 @@ query_full <- function() {
 query_consensus <- function() {
   cat("querying consensus example\n")
   consensus_results <- aln_query_consensus(aln, intervals, 0.8, 3)
-  ofn <- paste0(ofn_prefix, "_consensus.tsv")
+  ofn <- paste0(ofn_prefix, "_consensus.txt")
   cat(paste0("saving output to ", ofn, "\n"))
   write.table(consensus_results, file = ofn, sep = "\t", row.names = F, quote = F)
   
   # Also test with a lower threshold to show some variants
   cat("querying consensus with lower threshold (0.5) and min coverage 2\n")
   consensus_results_low <- aln_query_consensus(aln, intervals, 0.5, 2)
-  ofn_low <- paste0(ofn_prefix, "_consensus_low.tsv")
+  ofn_low <- paste0(ofn_prefix, "_consensus_low.txt")
   cat(paste0("saving low threshold output to ", ofn_low, "\n"))
   write.table(consensus_results_low, file = ofn_low, sep = "\t", row.names = F, quote = F)
 }
@@ -128,7 +128,7 @@ query_consensus <- function() {
 query_by_read_ids <- function(read_ids) {
   cat("querying by read IDs example\n")
   read_results <- aln_alignments_from_read_ids(aln, read_ids)
-  ofn <- paste0(ofn_prefix, "_read_query.tsv")
+  ofn <- paste0(ofn_prefix, "_read_query.txt")
   cat(paste0("saving output to ", ofn, "\n"))
   write.table(read_results, file = ofn, sep = "\t", row.names = F, quote = F)
 }
@@ -159,15 +159,15 @@ rearrange_analysis <- function() {
   
   # Save results
   if (nrow(rearrange_results$events) > 0) {
-    events_ofn <- paste0(ofn_prefix, "_rearrange_events.tsv")
+    events_ofn <- paste0(ofn_prefix, "_rearrange_events.txt")
     cat(paste0("saving events to ", events_ofn, "\n"))
     write.table(rearrange_results$events, file = events_ofn, sep = "\t", row.names = F, quote = F)
     
-    support_ofn <- paste0(ofn_prefix, "_rearrange_support.tsv")
+    support_ofn <- paste0(ofn_prefix, "_rearrange_support.txt")
     cat(paste0("saving support matrix to ", support_ofn, "\n"))
     write.table(rearrange_results$support, file = support_ofn, sep = "\t", quote = F)
     
-    coverage_ofn <- paste0(ofn_prefix, "_rearrange_coverage.tsv")
+    coverage_ofn <- paste0(ofn_prefix, "_rearrange_coverage.txt")
     cat(paste0("saving coverage matrix to ", coverage_ofn, "\n"))
     write.table(rearrange_results$coverage, file = coverage_ofn, sep = "\t", quote = F)
   }
