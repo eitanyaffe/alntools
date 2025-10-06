@@ -1408,6 +1408,7 @@ List aln_rearrange(
     IntegerVector out_library_count;
     IntegerVector out_total_support;
     IntegerVector out_total_coverage;
+    NumericVector out_frequency;
     CharacterVector out_read_seams;
     CharacterVector out_assembly_seams;
     
@@ -1422,33 +1423,11 @@ List aln_rearrange(
         out_element_start.push_back(event.element_start);
         out_element_end.push_back(event.element_end);
 
-        // calculate totals from matrices
-        int total_support = 0;
-        int total_coverage = 0;
-        int library_count = 0;
-        
-        for (const std::string& lib_id : library_ids) {
-            auto support_it = support_matrix.find(lib_id);
-            if (support_it != support_matrix.end()) {
-                auto event_support_it = support_it->second.find(event.event_id);
-                if (event_support_it != support_it->second.end() && event_support_it->second > 0) {
-                    total_support += event_support_it->second;
-                    library_count++;
-                }
-            }
-            
-            auto coverage_it = coverage_matrix.find(lib_id);
-            if (coverage_it != coverage_matrix.end()) {
-                auto event_coverage_it = coverage_it->second.find(event.event_id);
-                if (event_coverage_it != coverage_it->second.end()) {
-                    total_coverage += event_coverage_it->second;
-                }
-            }
-        }
-        
-        out_library_count.push_back(library_count);
-        out_total_support.push_back(total_support);
-        out_total_coverage.push_back(total_coverage);
+        // use pre-calculated statistics from event
+        out_library_count.push_back(event.library_count);
+        out_total_support.push_back(event.total_support);
+        out_total_coverage.push_back(event.total_coverage);
+        out_frequency.push_back(event.frequency);
         out_read_seams.push_back(event.read_seams);
         out_assembly_seams.push_back(event.assembly_seams);
     }
@@ -1466,6 +1445,7 @@ List aln_rearrange(
         Named("library_count") = out_library_count,
         Named("total_support") = out_total_support,
         Named("total_coverage") = out_total_coverage,
+        Named("frequency") = out_frequency,
         Named("read_seams") = out_read_seams,
         Named("assembly_seams") = out_assembly_seams,
         Named("stringsAsFactors") = false);

@@ -113,6 +113,7 @@ private:
     void group_and_select_representatives();
     void calculate_coverage_matrices();
     void prepare_output_tables();
+    void calculate_event_statistics();
     
     // output file writers
     void write_read_events_file(const std::string& ofn_prefix);

@@ -106,8 +106,13 @@ void read_fasta(const string& filename, const unordered_set<string>& contig_ids,
       if (!id.empty() && (contig_ids.empty() || contig_ids.find(id) != contig_ids.end())) {
         contigs[id] = sequence;
       }
-      id = line.substr(
-          1, line.find_first_of(" ") - 1); // Extract ID before first space/tab
+      // extract ID after '>' and before first space/tab (if any)
+      size_t space_pos = line.find_first_of(" \t");
+      if (space_pos != string::npos) {
+        id = line.substr(1, space_pos - 1);
+      } else {
+        id = line.substr(1); // no space found, take everything after '>'
+      }
       sequence.clear();
     } else {
       sequence += line;

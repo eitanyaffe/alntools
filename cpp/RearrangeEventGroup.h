@@ -20,6 +20,12 @@ struct Event {
     std::string read_seams;      // seams in read coordinates and sequences
     std::string assembly_seams;  // seams in assembly coordinates and sequences
     
+    // summary statistics (calculated from support/coverage matrices)
+    int library_count = 0;       // number of libraries with support > 0
+    int total_support = 0;       // total supporting reads across libraries
+    int total_coverage = 0;      // total coverage across libraries
+    double frequency = 0.0;      // total_support / total_coverage ratio
+    
     Event(const std::string& event_id = "", RearrangementType type = RearrangementType::LARGE_DELETE,
           const std::string& contig_id = "",
           uint32_t out_clip = 0, uint32_t in_clip = 0,

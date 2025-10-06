@@ -2,6 +2,7 @@
 #include "Sequences.h"
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 
@@ -55,7 +56,10 @@ void Rearrange::execute()
     // step 3: calculate coverage matrices
     calculate_coverage_matrices();
     
-    // step 4: prepare output tables
+    // step 4: calculate event statistics
+    calculate_event_statistics();
+    
+    // step 5: prepare output tables
     prepare_output_tables();
     
     cout << "rearrangement detection completed" << endl;
@@ -249,13 +253,16 @@ void Rearrange::write_events_file(const string& ofn_prefix)
     
     // write header
     ofs << "event_id\ttype\tcontig_id\tout_clip\tin_clip\telement_contig"
-        << "\telement_strand\telement_start\telement_end\tread_seams\tassembly_seams" << endl;
+        << "\telement_strand\telement_start\telement_end\tlibrary_count"
+        << "\ttotal_support\ttotal_coverage\tfrequency\tread_seams\tassembly_seams" << endl;
     
     // write data
     for (const Event& event : rep_events) {
         ofs << event.event_id << "\t" << event.type << "\t" << event.contig_id << "\t"
             << event.out_clip << "\t" << event.in_clip << "\t" << event.element_contig << "\t"
             << event.element_strand << "\t" << event.element_start << "\t" << event.element_end << "\t"
+            << event.library_count << "\t" << event.total_support << "\t" << event.total_coverage << "\t"
+            << std::fixed << std::setprecision(6) << event.frequency << "\t"
             << event.read_seams << "\t" << event.assembly_seams << endl;
     }
     
@@ -337,4 +344,43 @@ void Rearrange::write_coverage_matrix_file(const string& ofn_prefix)
     
     ofs.close();
     cout << "wrote coverage matrix to " << filename << endl;
+}
+
+void Rearrange::calculate_event_statistics()
+{
+    cout << "calculating event statistics..." << endl;
+    
+    for (Event& event : rep_events) {
+        // calculate totals from matrices
+        int total_support = 0;
+        int total_coverage = 0;
+        int library_count = 0;
+        
+        for (const std::string& lib_id : library_ids) {
+            auto support_it = support_matrix.find(lib_id);
+            if (support_it != support_matrix.end()) {
+                auto event_support_it = support_it->second.find(event.event_id);
+                if (event_support_it != support_it->second.end() && event_support_it->second > 0) {
+                    total_support += event_support_it->second;
+                    library_count++;
+                }
+            }
+            
+            auto coverage_it = coverage_matrix.find(lib_id);
+            if (coverage_it != coverage_matrix.end()) {
+                auto event_coverage_it = coverage_it->second.find(event.event_id);
+                if (event_coverage_it != coverage_it->second.end()) {
+                    total_coverage += event_coverage_it->second;
+                }
+            }
+        }
+        
+        // store calculated statistics in event
+        event.library_count = library_count;
+        event.total_support = total_support;
+        event.total_coverage = total_coverage;
+        event.frequency = (total_coverage > 0) ? static_cast<double>(total_support) / total_coverage : 0.0;
+    }
+    
+    cout << "calculated statistics for " << rep_events.size() << " events" << endl;
 }

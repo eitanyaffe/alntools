@@ -113,6 +113,7 @@ private:
     // helper functions
     void sort_genes_by_start();
     void build_contig_to_genes_map();
+    void finalize_gene_loading();
     size_t binary_search_gene_with_cache(const std::string& contig, uint32_t position) const;
     size_t binary_search_gene(const std::string& contig, uint32_t position) const;
     GeneAnnotation find_flanking_genes(const std::string& contig, uint32_t position) const;

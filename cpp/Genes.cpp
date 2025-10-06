@@ -140,17 +140,8 @@ bool Genes::load_gene_table(const std::string& filepath) {
         genes.emplace_back(gene_id, contig, start, end, strand, desc);
     }
     
-    // count unique contigs
-    unordered_set<string> contigs_with_genes;
-    for (const auto& gene : genes) {
-        contigs_with_genes.insert(gene.contig);
-    }
-    cout << "loaded " << get_gene_count() << " genes from " << contigs_with_genes.size() << " contigs" << endl;
-    
-    // sort genes by start position for binary search
-    sort_genes_by_start();
-    
-    genes_loaded = true;
+    // finalize gene loading with shared code
+    finalize_gene_loading();
     return true;
 }
 
@@ -168,25 +159,8 @@ bool Genes::load_gene_table_from_vector(const std::vector<Gene>& gene_vector) {
     
     cout << "processing " << genes.size() << " genes from vector" << endl;
     
-    // count unique contigs
-    unordered_set<string> contigs_with_genes;
-    for (const auto& gene : genes) {
-        contigs_with_genes.insert(gene.contig);
-    }
-    
-    // sort genes by contig and position for binary search
-    sort(genes.begin(), genes.end(), [](const Gene& a, const Gene& b) {
-        if (a.contig != b.contig) {
-            return a.contig < b.contig;
-        }
-        return a.start < b.start;
-    });
-    
-    // build contig to gene index map
-    build_contig_to_genes_map();
-    
-    genes_loaded = true;
-    cout << "loaded " << genes.size() << " genes from " << contigs_with_genes.size() << " contigs" << endl;
+    // finalize gene loading with shared code
+    finalize_gene_loading();
     return true;
 }
 
@@ -266,10 +240,7 @@ uint32_t Genes::get_aa_coordinate(uint32_t position, uint32_t gene_start, char s
 GeneAnnotation Genes::annotate_variant(const std::string& contig, uint32_t position,
                                       const std::string& mutation_type, 
                                       const std::string& mutation_sequence) const {
-    if (!is_loaded()) {
-        // return minimal annotation if not loaded
-        return GeneAnnotation("", "", "", "", 0, 0); // intergenic constructor
-    }
+    massert(is_loaded(), "Genes::annotate_variant called before genes loaded");
     
     // use cached binary search to find gene
     size_t gene_idx = binary_search_gene_with_cache(contig, position);
@@ -512,4 +483,21 @@ void Genes::build_contig_to_genes_map() {
         const Gene& gene = genes[i];
         contig_to_genes[gene.contig].push_back(i);
     }
+}
+
+void Genes::finalize_gene_loading() {
+    // count unique contigs
+    unordered_set<string> contigs_with_genes;
+    for (const auto& gene : genes) {
+        contigs_with_genes.insert(gene.contig);
+    }
+    
+    // sort genes by start position for binary search
+    sort_genes_by_start();
+    
+    // build contig to gene index map
+    build_contig_to_genes_map();
+    
+    genes_loaded = true;
+    cout << "loaded " << genes.size() << " genes from " << contigs_with_genes.size() << " contigs" << endl;
 }
