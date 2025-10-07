@@ -322,7 +322,7 @@ When gene annotation is enabled, additional columns and files are generated:
 
 | Column        | Description                              | Type   |
 |---------------|------------------------------------------|--------|
-| row_id        | Row identifier from main output          | int    |
+| variant_id    | Variant identifier from main output      | int    |
 | gene_id       | Gene identifier                          | string |
 | gene_desc     | Gene description                         | string |
 | aa_coord      | Amino acid coordinate                    | int    |
@@ -335,7 +335,7 @@ When gene annotation is enabled, additional columns and files are generated:
 
 | Column           | Description                              | Type   |
 |------------------|------------------------------------------|--------|
-| row_id           | Row identifier from main output          | int    |
+| variant_id       | Variant identifier from main output      | int    |
 | gene_left        | Left flanking gene                       | string |
 | gene_right       | Right flanking gene                      | string |
 | orientation_left | Left gene orientation                    | string |

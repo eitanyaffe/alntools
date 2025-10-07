@@ -567,7 +567,7 @@ void QueryVariants::write_genic_file(const std::string& ofn_prefix, const std::s
   safe_open_file_for_writing(filename, file);
   
   // write header
-  file << "row_id\tgene_id\tgene_desc\taa_coord\tvariant_codon\tref_codon\tvariant_type\tmutation_desc" << endl;
+  file << "variant_id\tgene_id\tgene_desc\taa_coord\tvariant_codon\tref_codon\tvariant_type\tmutation_desc" << endl;
   
   // write data rows
   for (const auto& row : genic_rows) {
@@ -598,7 +598,7 @@ void QueryVariants::write_intergenic_file(const std::string& ofn_prefix, const s
   safe_open_file_for_writing(filename, file);
   
   // write header
-  file << "row_id\tgene_left\tgene_right\torientation_left\torientation_right\tdistance_left\tdistance_right" << endl;
+  file << "variant_id\tgene_left\tgene_right\torientation_left\torientation_right\tdistance_left\tdistance_right" << endl;
   
   // write data rows
   for (const auto& row : intergenic_rows) {
