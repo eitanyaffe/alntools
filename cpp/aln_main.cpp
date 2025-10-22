@@ -23,6 +23,7 @@ int coverage_main(const char* name, int argc, char** argv);
 int breaks_main(const char* name, int argc, char** argv);
 int rearrange_main(const char* name, int argc, char** argv);
 int homologs_main(const char* name, int argc, char** argv);
+int segments_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
@@ -39,6 +40,7 @@ void usage(const char* name)
   fprintf(stderr, "  coverage: generate read and contig alignment coverage statistics\n");
   fprintf(stderr, "  breaks: find positions with excessive read start/end events\n");
   fprintf(stderr, "  rearrange: detect genome rearrangements from read alignments\n");
+  fprintf(stderr, "  segments: detect assembly breakpoints and generate segments\n");
   fprintf(stderr, "  homologs: find homologous regions using kmer-based search\n");
   fprintf(stderr, "\n");
 #ifdef _OPENMP
@@ -74,6 +76,8 @@ int main(int argc, char** argv)
     rc = breaks_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "rearrange") {
     rc = rearrange_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "segments") {
+    rc = segments_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "homologs") {
     rc = homologs_main(name.c_str(), argc - 1, argv + 1);
   } else {

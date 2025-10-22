@@ -1,0 +1,110 @@
+#ifndef SEGMENTATION_MANAGER_H
+#define SEGMENTATION_MANAGER_H
+
+#include "alignment_store.h"
+#include "Segmentation.h"
+#include <map>
+#include <string>
+#include <vector>
+
+// structure to represent an aggregated breakpoint
+struct AggregateBreakpoint {
+    std::string breakpoint_id;
+    std::string contig_id;
+    uint32_t coord;
+    std::string type;
+    int read_support;
+    double frequency;
+    bool selected;
+    std::map<std::string, int> lib_support;
+    std::map<std::string, int> lib_coverage;
+    
+    AggregateBreakpoint(const std::string& id = "", const std::string& contig = "",
+                       uint32_t coord = 0, const std::string& type = "")
+        : breakpoint_id(id), contig_id(contig), coord(coord), type(type),
+          read_support(0), frequency(0.0), selected(false) {}
+};
+
+// structure to represent a segment
+struct Segment {
+    std::string segment_id;
+    std::string contig_id;
+    uint32_t start;
+    uint32_t end;
+    uint32_t length;
+    
+    Segment(const std::string& id = "", const std::string& contig = "",
+           uint32_t start = 0, uint32_t end = 0)
+        : segment_id(id), contig_id(contig), start(start), end(end),
+          length(end - start) {}
+};
+
+// main segmentation manager class
+class SegmentationManager {
+private:
+    const std::map<std::string, AlignmentStore>& stores;
+    std::vector<std::string> library_ids;
+    
+    // parameters
+    int max_margin;
+    int min_anchor_length;
+    int min_dangle_length;
+    double max_anchor_mutations_percent;
+    int min_alignment_distance;
+    int min_breakpoint_read_support;
+    double min_breakpoint_frequency;
+    
+    // results
+    std::map<std::string, std::vector<ReadBreakpoint>> lib_breakpoints;
+    std::vector<AggregateBreakpoint> aggregate_breakpoints;
+    std::vector<Segment> segments;
+
+public:
+    SegmentationManager(const std::map<std::string, AlignmentStore>& stores,
+                       int max_margin = 20,
+                       int min_anchor_length = 1000,
+                       int min_dangle_length = 1000,
+                       double max_anchor_mutations_percent = 0.001,
+                       int min_alignment_distance = 200,
+                       int min_breakpoint_read_support = 2,
+                       double min_breakpoint_frequency = 0.2);
+    
+    // main execution function
+    void execute();
+    
+    // output functions
+    void write_to_csv(const std::string& ofn_prefix);
+    
+    // getters for results
+    const std::map<std::string, std::vector<ReadBreakpoint>>& get_lib_breakpoints() const { 
+        return lib_breakpoints; 
+    }
+    const std::vector<AggregateBreakpoint>& get_aggregate_breakpoints() const { 
+        return aggregate_breakpoints; 
+    }
+    const std::vector<Segment>& get_segments() const { 
+        return segments; 
+    }
+
+private:
+    // workflow steps
+    void detect_breakpoints_per_library();
+    void aggregate_breakpoints_step();
+    void calculate_coverage();
+    void filter_breakpoints();
+    void generate_segments();
+    
+    // helper functions
+    void cluster_breakpoints(std::vector<ReadBreakpoint>& all_breakpoints);
+    int calculate_breakpoint_coverage(const AggregateBreakpoint& bp, const std::string& lib_id) const;
+    
+    // output file writers
+    void write_read_breakpoints_file(const std::string& ofn_prefix);
+    void write_aggregate_breakpoints_file(const std::string& ofn_prefix);
+    void write_support_matrix_file(const std::string& ofn_prefix);
+    void write_coverage_matrix_file(const std::string& ofn_prefix);
+    void write_segments_file(const std::string& ofn_prefix);
+};
+
+#endif // SEGMENTATION_MANAGER_H
+
