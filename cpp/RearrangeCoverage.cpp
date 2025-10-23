@@ -43,15 +43,15 @@ int RearrangeCoverage::calculate_event_coverage(const Event& event) const
     set<string> reads2;
     
     // hardcoded mutation threshold (could be parameterized later)
-    const double max_anchor_mutations_percent = 0.01;
+    const double max_anchor_mutations_percent = 1.0;
     
     // process alignments from first interval
     for (const auto& alignment_ref : alignments1) {
         const Alignment& aln = alignment_ref.get();
         
         // apply mutation filter
-        double mutation_percent = static_cast<double>(aln.get_mutation_count()) / 
-            static_cast<double>(aln.read_end - aln.read_start);
+        double mutation_percent = (static_cast<double>(aln.get_mutation_count()) / 
+            static_cast<double>(aln.read_end - aln.read_start)) * 100.0;
         if (mutation_percent <= max_anchor_mutations_percent) {
             string read_id = store.get_read_id(aln.read_index);
             reads1.insert(read_id);
@@ -63,8 +63,8 @@ int RearrangeCoverage::calculate_event_coverage(const Event& event) const
         const Alignment& aln = alignment_ref.get();
         
         // apply mutation filter
-        double mutation_percent = static_cast<double>(aln.get_mutation_count()) / 
-            static_cast<double>(aln.read_end - aln.read_start);
+        double mutation_percent = (static_cast<double>(aln.get_mutation_count()) / 
+            static_cast<double>(aln.read_end - aln.read_start)) * 100.0;
         if (mutation_percent <= max_anchor_mutations_percent) {
             string read_id = store.get_read_id(aln.read_index);
             reads2.insert(read_id);

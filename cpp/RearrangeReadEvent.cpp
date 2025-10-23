@@ -263,8 +263,8 @@ bool RearrangeReadEvent::is_valid_anchor(const Alignment& aln, bool verbose, siz
     }
     
     // check mutation rate
-    double mutation_percent = static_cast<double>(aln.get_mutation_count()) / 
-        static_cast<double>(alignment_length);
+    double mutation_percent = (static_cast<double>(aln.get_mutation_count()) / 
+        static_cast<double>(alignment_length)) * 100.0;
     if (mutation_percent > max_anchor_mutations_percent) {
         if (verbose) {
             cout << "VERBOSE: alignment [" << index << "] rejected as anchor - too many mutations (rate=" << mutation_percent << ", max=" << max_anchor_mutations_percent << ")" << endl;
@@ -297,8 +297,8 @@ bool RearrangeReadEvent::is_valid_element(const Alignment& aln) const
     }
     
     // check mutation rate
-    double mutation_percent = static_cast<double>(aln.get_mutation_count()) / 
-        static_cast<double>(alignment_length);
+    double mutation_percent = (static_cast<double>(aln.get_mutation_count()) / 
+        static_cast<double>(alignment_length)) * 100.0;
     if (mutation_percent > max_element_mutation_percent) {
         return false;
     }

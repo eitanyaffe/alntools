@@ -213,8 +213,8 @@ int SegmentationManager::calculate_breakpoint_coverage(const AggregateBreakpoint
         const Alignment& aln = alignment_ref.get();
         
         uint32_t alignment_length = aln.read_end - aln.read_start;
-        double mutation_percent = static_cast<double>(aln.get_mutation_count()) / 
-            static_cast<double>(alignment_length);
+        double mutation_percent = (static_cast<double>(aln.get_mutation_count()) / 
+            static_cast<double>(alignment_length)) * 100.0;
         
         if (mutation_percent <= max_anchor_mutations_percent) {
             string read_id = store.get_read_id(aln.read_index);

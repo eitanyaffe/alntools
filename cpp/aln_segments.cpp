@@ -17,7 +17,7 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
     params.add_parser("max_margin", new ParserInteger("maximum margin tolerance for breakpoint clustering (default 20)", 20), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 1000)", 1000), false);
     params.add_parser("min_dangle_length", new ParserInteger("minimum dangle alignment length (default 1000)", 1000), false);
-    params.add_parser("max_anchor_mutations_percent", new ParserDouble("maximum mutations percentage for anchor alignments (default 0.001)", 0.001), false);
+    params.add_parser("max_anchor_mutations_percent", new ParserDouble("maximum mutations percentage for anchor alignments (default 0.1)", 0.1), false);
     params.add_parser("min_alignment_distance", new ParserInteger("minimum distance between anchor and dangle on same contig (default 200)", 200), false);
     params.add_parser("min_breakpoint_read_support", new ParserInteger("minimum read support for selecting breakpoints (default 2)", 2), false);
     params.add_parser("min_breakpoint_frequency", new ParserDouble("minimum frequency for selecting breakpoints (default 0.2)", 0.2), false);

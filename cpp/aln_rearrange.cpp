@@ -21,8 +21,8 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     params.add_parser("max_margin", new ParserInteger("maximum margin tolerance for all geometric constraints (default 10)", 10), false);
     params.add_parser("min_element_length", new ParserInteger("minimum element length for deletions (default 50)", 50), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 200)", 200), false);
-    params.add_parser("max_anchor_mutations_percent", new ParserDouble("maximum mutations percentage for anchor alignments (default 0.01)", 0.01), false);
-    params.add_parser("max_element_mutation_percent", new ParserDouble("maximum mutations percentage for element alignments (default 0.01)", 0.01), false);
+    params.add_parser("max_anchor_mutations_percent", new ParserDouble("maximum mutations percentage for anchor alignments (default 1.0)", 1.0), false);
+    params.add_parser("max_element_mutation_percent", new ParserDouble("maximum mutations percentage for element alignments (default 1.0)", 1.0), false);
     params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
     params.add_parser("should_verify", new ParserBoolean("verify rearrangement events against reference sequences (default false)", false), false);
     params.add_parser("verify_error_mode", new ParserString("verification error handling: exit_on_error, exit_if_error, warning_only (default exit_on_error)", "exit_on_error"), false);

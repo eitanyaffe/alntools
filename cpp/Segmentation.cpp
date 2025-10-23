@@ -74,8 +74,8 @@ bool Segmentation::is_valid_anchor(const Alignment& aln) const
         return false;
     }
     
-    double mutation_percent = static_cast<double>(aln.get_mutation_count()) / 
-        static_cast<double>(alignment_length);
+    double mutation_percent = (static_cast<double>(aln.get_mutation_count()) / 
+        static_cast<double>(alignment_length)) * 100.0;
     if (mutation_percent > max_anchor_mutations_percent) {
         return false;
     }
