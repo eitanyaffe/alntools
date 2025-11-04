@@ -278,8 +278,6 @@ void AlignmentStore::organize_alignments()
           return alignments_[index_a].contig_start < alignments_[index_b].contig_start;
         });
   }
-
-  std::cout << "max alignment length found: " << max_alignment_length_ << std::endl;
 }
 
 void AlignmentStore::export_tab_delimited(const string& prefix)

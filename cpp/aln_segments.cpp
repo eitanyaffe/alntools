@@ -13,7 +13,7 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
 {
     params.add_parser("ifn_aln", new ParserFilename("input ALN file (single library mode)"), false);
     params.add_parser("ifn_libraries", new ParserFilename("input table with library definitions (multi-library mode)"), false);
-    params.add_parser("ofn_prefix", new ParserFilename("output prefix"), false);
+    params.add_parser("odir", new ParserFilename("output directory"), false);
     params.add_parser("max_margin", new ParserInteger("maximum margin tolerance for breakpoint clustering (default 20)", 20), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 1000)", 1000), false);
     params.add_parser("min_dangle_length", new ParserInteger("minimum dangle alignment length (default 1000)", 1000), false);
@@ -21,6 +21,7 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
     params.add_parser("min_alignment_distance", new ParserInteger("minimum distance between anchor and dangle on same contig (default 200)", 200), false);
     params.add_parser("min_breakpoint_read_support", new ParserInteger("minimum read support for selecting breakpoints (default 2)", 2), false);
     params.add_parser("min_breakpoint_frequency", new ParserDouble("minimum frequency for selecting breakpoints (default 0.2)", 0.2), false);
+    params.add_parser("min_segment_length", new ParserInteger("minimum segment length for filtering breakpoints (default 200)", 200), false);
 
     if (argc == 1) {
         params.usage(name);
@@ -101,7 +102,7 @@ int segments_main(const char* name, int argc, char** argv)
 
     string ifn_aln = params.get_string("ifn_aln");
     string ifn_libraries = params.get_string("ifn_libraries");
-    string ofn_prefix = params.get_string("ofn_prefix");
+    string odir = params.get_string("odir");
     int max_margin = params.get_int("max_margin");
     int min_anchor_length = params.get_int("min_anchor_length");
     int min_dangle_length = params.get_int("min_dangle_length");
@@ -109,6 +110,7 @@ int segments_main(const char* name, int argc, char** argv)
     int min_alignment_distance = params.get_int("min_alignment_distance");
     int min_breakpoint_read_support = params.get_int("min_breakpoint_read_support");
     double min_breakpoint_frequency = params.get_double("min_breakpoint_frequency");
+    int min_segment_length = params.get_int("min_segment_length");
 
     cout << "segments command called:" << endl;
     if (!ifn_aln.empty()) {
@@ -118,7 +120,7 @@ int segments_main(const char* name, int argc, char** argv)
         cout << "  mode: multi-library" << endl;
         cout << "  ifn_libraries: " << ifn_libraries << endl;
     }
-    cout << "  ofn_prefix: " << ofn_prefix << endl;
+    cout << "  odir: " << odir << endl;
     cout << "  max_margin: " << max_margin << endl;
     cout << "  min_anchor_length: " << min_anchor_length << endl;
     cout << "  min_dangle_length: " << min_dangle_length << endl;
@@ -126,6 +128,7 @@ int segments_main(const char* name, int argc, char** argv)
     cout << "  min_alignment_distance: " << min_alignment_distance << endl;
     cout << "  min_breakpoint_read_support: " << min_breakpoint_read_support << endl;
     cout << "  min_breakpoint_frequency: " << min_breakpoint_frequency << endl;
+    cout << "  min_segment_length: " << min_segment_length << endl;
 
     // create library files map
     map<string, string> library_files;
@@ -161,11 +164,16 @@ int segments_main(const char* name, int argc, char** argv)
     // create segmentation manager
     SegmentationManager manager(stores, max_margin, min_anchor_length, min_dangle_length,
                                 max_anchor_mutations_percent, min_alignment_distance,
-                                min_breakpoint_read_support, min_breakpoint_frequency);
+                                min_breakpoint_read_support, min_breakpoint_frequency,
+                                min_segment_length);
     
     // execute segmentation analysis
+    if (odir.empty()) {
+        cerr << "error: odir must be provided" << endl;
+        exit(1);
+    }
     manager.execute();
-    manager.write_to_csv(ofn_prefix);
+    manager.write_to_csv(odir);
 
     cout << "segments command completed successfully" << endl;
     return 0;

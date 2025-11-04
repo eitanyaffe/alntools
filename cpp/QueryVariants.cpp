@@ -389,16 +389,17 @@ void QueryVariants::apply_filters_and_generate_rows()
   }
 }
 
-void QueryVariants::write_to_csv(const std::string& ofn_prefix)
+void QueryVariants::write_to_csv(const std::string& odir)
 {
-  write_variants_file(ofn_prefix);
-  write_support_file(ofn_prefix);
-  write_coverage_file(ofn_prefix);
+  const std::string base = odir + "/variant";
+  write_variants_file(base);
+  write_support_file(base);
+  write_coverage_file(base);
   
   // write gene annotation files if genes were used
   if (genes != nullptr) {
-    write_genic_file(ofn_prefix);
-    write_intergenic_file(ofn_prefix);
+    write_genic_file(base);
+    write_intergenic_file(base);
   }
 }
 

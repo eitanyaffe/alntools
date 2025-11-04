@@ -7,6 +7,7 @@
 #include "alignment_store.h"
 #include "utils.h"
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -51,7 +52,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
 {
   params.add_parser("ifn_aln", new ParserFilename("input ALN file"), false);
   params.add_parser("ifn_intervals", new ParserFilename("input table with query contig intervals"), true);
-  params.add_parser("ofn_prefix", new ParserFilename("output tab-delimited table prefix"), true);
+  params.add_parser("odir", new ParserFilename("output directory"), true);
   params.add_parser("mode", new ParserString("query mode (full, pileup, bin, consensus, variants)", "full"), true);
   params.add_parser("pileup_mode", new ParserString("pileup report mode (all, covered, mutated)", "covered"), false);
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
@@ -173,7 +174,7 @@ int query_main(const char* name, int argc, char** argv)
 
   string ifn_aln = params.get_string("ifn_aln");
   string ifn_intervals = params.get_string("ifn_intervals");
-  string ofn_prefix = params.get_string("ofn_prefix");
+  string odir = params.get_string("odir");
   string mode = params.get_string("mode");
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
   double seg_threshold = params.get_double("seg_threshold");
@@ -212,7 +213,7 @@ int query_main(const char* name, int argc, char** argv)
   cout << "query command called:" << endl;
   cout << "  ifn_aln: " << ifn_aln << endl;
   cout << "  ifn_intervals: " << ifn_intervals << endl;
-  cout << "  ofn_prefix: " << ofn_prefix << endl;
+  cout << "  odir: " << odir << endl;
   cout << "  mode: " << mode << endl;
   if (mode == "bin") {
     cout << "  binsize: " << binsize << endl;
@@ -254,6 +255,14 @@ int query_main(const char* name, int argc, char** argv)
   cout << "executing mode: " << mode << endl;
   
   if (mode == "variants") {
+    if (odir.empty()) {
+      cerr << "error: odir must be provided for variants mode" << endl;
+      exit(1);
+    }
+    {
+      std::error_code ec;
+      std::filesystem::create_directories(odir, ec);
+    }
     // for variants mode, load multiple ALN files based on libraries table
     string ifn_libraries = params.get_string("ifn_libraries");
     int min_variants_variant_support = params.get_int("min_variants_variant_support");
@@ -303,7 +312,7 @@ int query_main(const char* name, int argc, char** argv)
                      min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
                      max_mutations_percent, min_alignment_length, max_alignment_length, genes_ptr);
     queryVariants.execute();
-    queryVariants.write_to_csv(ofn_prefix);
+    queryVariants.write_to_csv(odir);
     
   } else {
     // for other modes, load single ALN file
@@ -313,24 +322,29 @@ int query_main(const char* name, int argc, char** argv)
     // count short indels for filtering
     store.count_short_indels(min_indel_length);
     
+    if (odir.empty()) { cerr << "error: odir must be provided" << endl; exit(1); }
+    {
+      std::error_code ec;
+      std::filesystem::create_directories(odir, ec);
+    }
     if (mode == "full") {
       QueryFull queryFull(intervals, store, height_style, max_alignments, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, max_margin, chunk_type);
       queryFull.execute();
-      queryFull.write_to_csv(ofn_prefix);
+      queryFull.write_to_csv(odir);
     } else if (mode == "pileup") {
       QueryPileup queryPileup(intervals, store, pileup_mode, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
       queryPileup.execute();
-      queryPileup.write_to_csv(ofn_prefix);
+      queryPileup.write_to_csv(odir);
     } else if (mode == "bin") {
       int num_threads = params.get_int("num_threads");
       QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
       queryBin.execute();
-      queryBin.write_to_csv(ofn_prefix);
+      queryBin.write_to_csv(odir);
     } else if (mode == "consensus") {
       int num_threads = params.get_int("num_threads");
       QueryConsensus queryConsensus(intervals, store, consensus_threshold, min_consensus_coverage, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
       queryConsensus.execute();
-      queryConsensus.write_to_csv(ofn_prefix);
+      queryConsensus.write_to_csv(odir);
     }
   }
 

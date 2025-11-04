@@ -95,7 +95,7 @@ public:
     void execute();
         
     // output functions
-    void write_to_csv(const std::string& ofn_prefix);
+    void write_to_csv(const std::string& odir);
     
     // getters for R interface
     const std::vector<ReadEventRow>& get_read_event_rows() const { return read_event_rows; }
@@ -116,10 +116,10 @@ private:
     void calculate_event_statistics();
     
     // output file writers
-    void write_read_events_file(const std::string& ofn_prefix);
-    void write_events_file(const std::string& ofn_prefix);
-    void write_support_matrix_file(const std::string& ofn_prefix);
-    void write_coverage_matrix_file(const std::string& ofn_prefix);
+    void write_read_events_file(const std::string& odir);
+    void write_events_file(const std::string& odir);
+    void write_support_matrix_file(const std::string& odir);
+    void write_coverage_matrix_file(const std::string& odir);
 };
 
 #endif // REARRANGE_H

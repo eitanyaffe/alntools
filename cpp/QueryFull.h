@@ -130,8 +130,8 @@ class QueryFull : public QueryBase {
   // execute the query
   void execute();
 
-  // write the output rows to a table
-  void write_to_csv(const std::string& ofn_prefix);
+  // write outputs to directory (create fixed filenames inside odir)
+  void write_to_csv(const std::string& odir);
 
   // getters
   const std::vector<FullOutputAlignments>& get_output_alignments() const;

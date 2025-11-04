@@ -5,7 +5,7 @@ Query the ALN file using different modes for specific contig intervals.
 ## Syntax
 
 ```bash
-alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <output_prefix> -mode <full|pileup|bin|consensus|variants> [options]
+alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -odir <output_dir> -mode <full|pileup|bin|consensus|variants> [options]
 ```
 
 ## Parameters
@@ -13,7 +13,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 **Mandatory Arguments:**
 * `-ifn_aln <fn>`: Input ALN file.
 * `-ifn_intervals <fn>`: Input tab-delimited file with query intervals (format: `contig start end`).
-* `-ofn_prefix <fn>`: Output prefix for result files.
+* `-odir <dir>`: Output directory for result files.
 * `-mode <string>`: Query mode, one of:
   - `full`: Return detailed alignment and mutation data.
   - `pileup`: Return aggregated mutation data for positions.
@@ -81,28 +81,28 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -ofn_prefix <
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_large.txt \
-   -ofn_prefix output/query -mode full
+   -odir output/query -mode full
 ```
 
 **Bin Query Mode:**
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9 -num_threads 4
+   -odir output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9 -num_threads 4
 ```
 
 **Pileup Query Mode:**
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query -mode pileup -pileup_mode mutated
+   -odir output/query -mode pileup -pileup_mode mutated
 ```
 
 **Consensus Query Mode:**
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query -mode consensus \
+   -odir output/query -mode consensus \
    -consensus_threshold 0.9 -min_consensus_coverage 5 -num_threads 4
 ```
 
@@ -118,7 +118,7 @@ echo -e "lib3\toutput/sample3.aln" >> libraries.txt
 alntools query -mode variants \
    -ifn_libraries libraries.txt \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query_variants \
+   -odir output/query_variants \
    -min_variants_variant_support 5 \
    -min_variants_library_support 2 \
    -min_variants_coverage_support 20
@@ -129,7 +129,7 @@ alntools query -mode variants \
 # Filter alignments by length and mutation rate, exclude short indels
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -ofn_prefix output/query_filtered -mode full \
+   -odir output/query_filtered -mode full \
    -min_alignment_length 1000 -max_alignment_length 50000 \
    -min_mutations_percent 0.1 -max_mutations_percent 5.0 \
    -min_indel_length 5 \
@@ -146,25 +146,25 @@ alntools query -ifn_aln output/test.aln \
 
 See [File Formats](../file-formats.md) for detailed specifications of all output formats:
 
-**Full Mode Output:**
-- `{prefix}_alignments.txt`: Detailed alignment information with heights
-- `{prefix}_mutations.txt`: Mutation details for each alignment
-- `{prefix}_reads.txt`: Read statistics and height assignments
-- `{prefix}_chunks.txt`: Chunk statistics and height assignments
+**Full Mode Output (in odir):**
+- `full_alignments.txt`: Detailed alignment information with heights
+- `full_mutations.txt`: Mutation details for each alignment
+- `full_reads.txt`: Read statistics and height assignments
+- `full_chunks.txt`: Chunk statistics and height assignments
 
-**Pileup Mode Output:**
-- `{prefix}_pileup.txt`: Position-by-position mutation summaries
+**Pileup Mode Output (in odir):**
+- `pileup_table.txt`: Position-by-position mutation summaries
 
-**Bin Mode Output:**
-- `{prefix}_bins.txt`: Binned alignment statistics with segregating sites analysis
+**Bin Mode Output (in odir):**
+- `bin_table.txt`: Binned alignment statistics with segregating sites analysis
 
-**Consensus Mode Output:**
-- `{prefix}_consensus.txt`: High-frequency variant calls
+**Consensus Mode Output (in odir):**
+- `consensus_table.txt`: High-frequency variant calls
 
-**Variants Mode Output:**
-- `{prefix}_table.txt`: Main variant table with library counts
-- `{prefix}_support.txt`: Read support matrix (variants × libraries)
-- `{prefix}_coverage.txt`: Coverage matrix (variants × libraries)
+**Variants Mode Output (in odir):**
+- `variant_table.txt`: Main variant table with library counts
+- `variant_support.txt`: Read support matrix (variants × libraries)
+- `variant_coverage.txt`: Coverage matrix (variants × libraries)
 
 ## Gene Annotation
 
@@ -181,7 +181,7 @@ All query modes support optional gene annotation to classify variants as genic o
 alntools query -mode variants \
    -ifn_libraries libraries.txt \
    -ifn_intervals intervals.txt \
-   -ofn_prefix output/annotated_variants \
+   -odir output/annotated_variants \
    -ifn_gene_table genes.txt \
    -ifn_codon_table table11 \
    -ifn_reference_fasta reference.fa \
@@ -190,8 +190,8 @@ alntools query -mode variants \
 
 **Additional Output Files (when gene annotation is enabled):**
 - Main output files include an additional `is_genic` column (true/false)
-- `{prefix}_genic.txt`: Detailed annotation for variants within genes
-- `{prefix}_intergenic.txt`: Information for variants between genes
+- `variant_genic.txt`: Detailed annotation for variants within genes
+- `variant_intergenic.txt`: Information for variants between genes
 
 ## Notes
 

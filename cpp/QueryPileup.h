@@ -62,7 +62,7 @@ class QueryPileup : public QueryBase {
   void execute();
 
   // write the output rows to a table
-  void write_to_csv(const std::string& ofn_prefix);
+  void write_to_csv(const std::string& odir);
 
   // get access to output rows
   const std::vector<PileupOutputRow>& get_output_rows() const

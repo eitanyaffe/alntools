@@ -17,7 +17,7 @@ void rearrange_params(const char* name, int argc, char** argv, Parameters& param
     params.add_parser("ifn_aln", new ParserFilename("input ALN file (single library mode)"), false);
     params.add_parser("ifn_libraries", new ParserFilename("input table with library definitions (multi-library mode)"), false);
     params.add_parser("ifn_intervals", new ParserFilename("input table with query contig intervals"), false);
-    params.add_parser("ofn_prefix", new ParserFilename("output prefix"), false);
+    params.add_parser("odir", new ParserFilename("output directory"), false);
     params.add_parser("max_margin", new ParserInteger("maximum margin tolerance for all geometric constraints (default 10)", 10), false);
     params.add_parser("min_element_length", new ParserInteger("minimum element length for deletions (default 50)", 50), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 200)", 200), false);
@@ -111,7 +111,7 @@ int rearrange_main(const char* name, int argc, char** argv)
     string ifn_aln = params.get_string("ifn_aln");
     string ifn_libraries = params.get_string("ifn_libraries");
     string ifn_intervals = params.get_string("ifn_intervals");
-    string ofn_prefix = params.get_string("ofn_prefix");
+    string odir = params.get_string("odir");
     int max_margin = params.get_int("max_margin");
     int min_element_length = params.get_int("min_element_length");
     int min_anchor_length = params.get_int("min_anchor_length");
@@ -142,7 +142,7 @@ int rearrange_main(const char* name, int argc, char** argv)
         cout << "  ifn_libraries: " << ifn_libraries << endl;
     }
     cout << "  ifn_intervals: " << ifn_intervals << endl;
-    cout << "  ofn_prefix: " << ofn_prefix << endl;
+    cout << "  odir: " << odir << endl;
     cout << "  max_margin: " << max_margin << endl;
     cout << "  min_element_length: " << min_element_length << endl;
     cout << "  min_anchor_length: " << min_anchor_length << endl;
@@ -245,13 +245,17 @@ int rearrange_main(const char* name, int argc, char** argv)
     
     // create rearrangement manager
     Rearrange manager(stores, intervals, verifier, resolve_seams, assembly_sequences.get(), read_sequences.get(), 
-                     max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true, ofn_prefix);
+                     max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true, "");
     
     // Note: read sequences are now loaded directly into sequence objects above
     
     // execute rearrangement analysis
+    if (odir.empty()) {
+        cerr << "error: odir must be provided" << endl;
+        exit(1);
+    }
     manager.execute();
-    manager.write_to_csv(ofn_prefix);
+    manager.write_to_csv(odir);
 
     cout << "rearrange command completed successfully" << endl;
     return 0;

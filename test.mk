@@ -70,7 +70,7 @@ test_query_full: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_LARGE) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
+		-odir $(TEST_OUTPUT_DIR)/query \
 		-mode full
 	@echo "QUERY FULL completed successfully"
 	@echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -81,7 +81,7 @@ test_query_bin: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
+		-odir $(TEST_OUTPUT_DIR)/query \
 		-mode bin \
 		-binsize $(TEST_BIN_SIZE)
 	@echo "QUERY BIN completed successfully"
@@ -93,7 +93,7 @@ test_query_pileup: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
+		-odir $(TEST_OUTPUT_DIR)/query \
 		-mode pileup \
 		-pileup_mode mutated
 	@echo "QUERY PILEUP completed successfully"
@@ -105,7 +105,7 @@ test_query_consensus: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_OUTPUT_DIR)/test.aln \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/query \
+		-odir $(TEST_OUTPUT_DIR)/query \
 		-mode consensus \
 		-consensus_threshold $(TEST_CONSENSUS_THRESHOLD) \
 		-min_consensus_coverage $(TEST_MIN_CONSENSUS_COVERAGE) \
@@ -124,7 +124,7 @@ test_query_variants: $(TARGET)
 		-mode variants \
 		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries.txt \
 		-ifn_intervals $(TEST_INTERVALS_SMALL) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/query_variants \
+		-odir $(TEST_OUTPUT_DIR)/query_variants \
 		-min_variants_variant_support 1 \
 		-min_variants_library_support 1 \
 		-min_variants_coverage_support 1
@@ -201,7 +201,7 @@ test_genes: $(TARGET)
 		-mode variants \
 		-ifn_libraries $(TEST_OUTPUT_DIR)/libraries_genes.txt \
 		-ifn_intervals $(TEST_DENSE_INTERVALS) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/variants_genes \
+		-odir $(TEST_OUTPUT_DIR)/variants_genes \
 		-ifn_gene_table examples/test_genes.txt \
 		-ifn_codon_table table11 \
 		-use_genes T \
@@ -214,7 +214,7 @@ test_genes: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_OUTPUT_DIR)/test_dense.aln \
 		-ifn_intervals $(TEST_DENSE_INTERVALS) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/pileup_genes \
+		-odir $(TEST_OUTPUT_DIR)/pileup_genes \
 		-mode pileup \
 		-ifn_gene_table examples/test_genes.txt \
 		-ifn_codon_table table11 \
@@ -226,7 +226,7 @@ test_genes: $(TARGET)
 	$(TARGET) query \
 		-ifn_aln $(TEST_OUTPUT_DIR)/test_dense.aln \
 		-ifn_intervals $(TEST_DENSE_INTERVALS) \
-		-ofn_prefix $(TEST_OUTPUT_DIR)/full_genes \
+		-odir $(TEST_OUTPUT_DIR)/full_genes \
 		-mode full \
 		-ifn_gene_table examples/test_genes.txt \
 		-ifn_codon_table table11 \

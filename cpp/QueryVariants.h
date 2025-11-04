@@ -143,8 +143,8 @@ class QueryVariants : public QueryBase {
   // execute the query
   void execute();
 
-  // write all output files
-  void write_to_csv(const std::string& ofn_prefix);
+  // write all output files into odir
+  void write_to_csv(const std::string& odir);
 
   // get access to output rows (for R interface)
   const std::vector<VariantOutputRow>& get_variant_rows() const {

@@ -16,13 +16,14 @@ struct AggregateBreakpoint {
     int read_support;
     double frequency;
     bool selected;
+    bool is_segment_break;
     std::map<std::string, int> lib_support;
     std::map<std::string, int> lib_coverage;
     
     AggregateBreakpoint(const std::string& id = "", const std::string& contig = "",
                        uint32_t coord = 0, const std::string& type = "")
         : breakpoint_id(id), contig_id(contig), coord(coord), type(type),
-          read_support(0), frequency(0.0), selected(false) {}
+          read_support(0), frequency(0.0), selected(false), is_segment_break(false) {}
 };
 
 // structure to represent a segment
@@ -53,6 +54,7 @@ private:
     int min_alignment_distance;
     int min_breakpoint_read_support;
     double min_breakpoint_frequency;
+    int min_segment_length;
     
     // results
     std::map<std::string, std::vector<ReadBreakpoint>> lib_breakpoints;
@@ -67,13 +69,14 @@ public:
                        double max_anchor_mutations_percent = 0.001,
                        int min_alignment_distance = 200,
                        int min_breakpoint_read_support = 2,
-                       double min_breakpoint_frequency = 0.2);
+                       double min_breakpoint_frequency = 0.2,
+                       int min_segment_length = 200);
     
     // main execution function
     void execute();
     
     // output functions
-    void write_to_csv(const std::string& ofn_prefix);
+    void write_to_csv(const std::string& odir);
     
     // getters for results
     const std::map<std::string, std::vector<ReadBreakpoint>>& get_lib_breakpoints() const { 
@@ -99,11 +102,11 @@ private:
     int calculate_breakpoint_coverage(const AggregateBreakpoint& bp, const std::string& lib_id) const;
     
     // output file writers
-    void write_read_breakpoints_file(const std::string& ofn_prefix);
-    void write_aggregate_breakpoints_file(const std::string& ofn_prefix);
-    void write_support_matrix_file(const std::string& ofn_prefix);
-    void write_coverage_matrix_file(const std::string& ofn_prefix);
-    void write_segments_file(const std::string& ofn_prefix);
+    void write_read_breakpoints_file(const std::string& odir);
+    void write_aggregate_breakpoints_file(const std::string& odir);
+    void write_support_matrix_file(const std::string& odir);
+    void write_coverage_matrix_file(const std::string& odir);
+    void write_segments_file(const std::string& odir);
 };
 
 #endif // SEGMENTATION_MANAGER_H

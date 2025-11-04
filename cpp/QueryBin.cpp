@@ -647,23 +647,15 @@ void QueryBin::generate_output_rows()
 }
 
 // function to write the generated rows to a file
-void QueryBin::write_to_csv(const std::string& ofn_prefix)
+void QueryBin::write_to_csv(const std::string& odir)
 {
-  string filename = ofn_prefix + "_bins.txt";
+  string filename = odir + "/bin_table.txt";
   cout << "writing bin data rows to " << filename << endl;
   ofstream ofs(filename);
-
-  if (!ofs.is_open()) {
-    // Consider throwing an exception instead of exiting
-    cerr << "error: could not open file " << filename << endl;
-    exit(1);
-  }
-
-  // Write header with columns
+  if (!ofs.is_open()) { cerr << "error: could not open file " << filename << endl; exit(1); }
   ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
       << "median_mutation_density\tseg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
       << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\n";
-
   for (const auto& row : output_rows) {
     ofs << row.contig << "\t"
         << row.bin_start << "\t"
@@ -684,8 +676,6 @@ void QueryBin::write_to_csv(const std::string& ofn_prefix)
         << row.dist_2 << "\t"
         << row.dist_1_plus << "\n";
   }
-
-  ofs.close();
 }
 
 void QueryBin::execute()

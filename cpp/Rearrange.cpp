@@ -199,21 +199,21 @@ map<string, size_t> Rearrange::get_rejection_counts() const
     return total_rejections;
 }
 
-void Rearrange::write_to_csv(const string& ofn_prefix)
+void Rearrange::write_to_csv(const string& odir)
 {
-    cout << "writing results to CSV files with prefix: " << ofn_prefix << endl;
+    cout << "writing results to directory: " << odir << endl;
     
-    write_read_events_file(ofn_prefix);
-    write_events_file(ofn_prefix);
-    write_support_matrix_file(ofn_prefix);
-    write_coverage_matrix_file(ofn_prefix);
+    write_read_events_file(odir);
+    write_events_file(odir);
+    write_support_matrix_file(odir);
+    write_coverage_matrix_file(odir);
     
     cout << "CSV output completed" << endl;
 }
 
-void Rearrange::write_read_events_file(const string& ofn_prefix)
+void Rearrange::write_read_events_file(const string& odir)
 {
-    string filename = ofn_prefix + "_read_events.txt";
+    string filename = odir + "/read_events.txt";
     ofstream ofs(filename);
     
     if (!ofs.is_open()) {
@@ -241,9 +241,9 @@ void Rearrange::write_read_events_file(const string& ofn_prefix)
     cout << "wrote " << read_event_rows.size() << " read events to " << filename << endl;
 }
 
-void Rearrange::write_events_file(const string& ofn_prefix)
+void Rearrange::write_events_file(const string& odir)
 {
-    string filename = ofn_prefix + "_events.txt";
+    string filename = odir + "/events.txt";
     ofstream ofs(filename);
     
     if (!ofs.is_open()) {
@@ -270,9 +270,9 @@ void Rearrange::write_events_file(const string& ofn_prefix)
     cout << "wrote " << rep_events.size() << " events to " << filename << endl;
 }
 
-void Rearrange::write_support_matrix_file(const string& ofn_prefix)
+void Rearrange::write_support_matrix_file(const string& odir)
 {
-    string filename = ofn_prefix + "_support.txt";
+    string filename = odir + "/support.txt";
     ofstream ofs(filename);
     
     if (!ofs.is_open()) {
@@ -308,9 +308,9 @@ void Rearrange::write_support_matrix_file(const string& ofn_prefix)
     cout << "wrote support matrix to " << filename << endl;
 }
 
-void Rearrange::write_coverage_matrix_file(const string& ofn_prefix)
+void Rearrange::write_coverage_matrix_file(const string& odir)
 {
-    string filename = ofn_prefix + "_coverage.txt";
+    string filename = odir + "/coverage.txt";
     ofstream ofs(filename);
     
     if (!ofs.is_open()) {

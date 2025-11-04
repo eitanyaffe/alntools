@@ -385,20 +385,13 @@ void QueryConsensus::generate_output_rows()
 }
 
 // function to write the generated rows to a file
-void QueryConsensus::write_to_csv(const std::string& ofn_prefix)
+void QueryConsensus::write_to_csv(const std::string& odir)
 {
-  string filename = ofn_prefix + "_consensus.txt";
+  string filename = odir + "/consensus_table.txt";
   cout << "writing consensus data rows to " << filename << endl;
   ofstream ofs(filename);
-
-  if (!ofs.is_open()) {
-    cerr << "error: could not open file " << filename << endl;
-    exit(1);
-  }
-
-  // write header with columns
+  if (!ofs.is_open()) { cerr << "error: could not open file " << filename << endl; exit(1); }
   ofs << "contig\tposition\tvariant_type\tvariant_desc\tcount\tcoverage\tfrequency\n";
-
   for (const auto& row : output_rows) {
     ofs << row.contig << "\t"
         << row.position << "\t"
@@ -408,8 +401,6 @@ void QueryConsensus::write_to_csv(const std::string& ofn_prefix)
         << row.coverage << "\t"
         << std::fixed << std::setprecision(4) << row.frequency << "\n";
   }
-
-  ofs.close();
 }
 
 void QueryConsensus::execute()

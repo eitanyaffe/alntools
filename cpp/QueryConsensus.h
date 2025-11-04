@@ -75,8 +75,8 @@ class QueryConsensus : public QueryBase {
   // execute data aggregation
   void aggregate_data();
 
-  // write the output rows to a table
-  void write_to_csv(const std::string& ofn_prefix);
+  // write the output rows to files inside odir
+  void write_to_csv(const std::string& odir);
 
   // Getter for R interface
   const std::vector<ConsensusOutputRow>& get_output_rows() const { return output_rows; }

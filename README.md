@@ -4,6 +4,7 @@
 
 - **Fast binary storage** of read alignments from PAF format with mutation encoding
 - **Genome rearrangement detection** for identifying large insertions, deletions, and inversions from read alignment patterns
+- **Segmentation analysis** for detecting breakpoints and generating genomic segments based on read alignment patterns across multiple libraries
 - **Five query modes** for flexible analysis:
   - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
@@ -11,6 +12,7 @@
   - **Consensus mode**: Identifies high-frequency variants above a consensus threshold for variant calling
   - **Variants mode**: Multi-library variant calling across multiple ALN files with comprehensive variant filtering
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
+- **Coverage matrix generation** for computing per-base coverage across multiple libraries and genomic segments
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **R interface** for seamless integration with analysis workflows in R
 
@@ -67,6 +69,8 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [coverage](docs/commands/coverage.md) | Generate alignment coverage statistics | [→](docs/commands/coverage.md) |
 | [breaks](docs/commands/breaks.md) | Find positions with excessive read start/end clustering | [→](docs/commands/breaks.md) |
 | [rearrange](docs/commands/rearrange.md) | Detect genome rearrangements from read alignments | [→](docs/commands/rearrange.md) |
+| [segments](docs/commands/segments.md) | Perform segmentation analysis from breakpoint detection | [→](docs/commands/segments.md) |
+| [cov_matrix](docs/commands/cov_matrix.md) | Compute per-base coverage matrix for segments across libraries | [→](docs/commands/cov_matrix.md) |
 | [homologs](docs/commands/homologs.md) | Find homologous regions using kmer-based search | [→](docs/commands/homologs.md) |
 
 ## Documentation
@@ -86,13 +90,16 @@ alntools info -ifn output/test.aln
 # 3. Query specific intervals
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_large.txt \
-   -ofn_prefix output/query -mode full
+   -odir output/query -mode full
 
 # 4. Generate coverage statistics
 alntools coverage -ifn output/test.aln -ofn_prefix output/coverage
 
 # 5. Detect structural variations
-alntools rearrange -ifn_aln output/test.aln -ofn_prefix output/rearrangements
+alntools rearrange -ifn_aln output/test.aln -odir output/rearrangements
+
+# 6. Perform segmentation analysis
+alntools segments -ifn_aln output/test.aln -odir output/segments
 
 ```
 
