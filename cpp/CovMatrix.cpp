@@ -100,17 +100,23 @@ void CovMatrix::calculate_coverage(const SegmentInfo& segment,
     Interval interval(segment.contig, start_0based, end_0based);
     auto alignments = store.get_alignments_intersecting_interval(interval);
     
-    // count unique reads
-    set<uint32_t> unique_reads;
+    // sum intersection lengths
+    uint32_t total_bp = 0;
     for (const auto& alignment_ref : alignments) {
         const Alignment& aln = alignment_ref.get();
-        unique_reads.insert(aln.read_index);
+        
+        // calculate intersection length
+        uint32_t intersection_start = max(start_0based, aln.contig_start);
+        uint32_t intersection_end = min(end_0based, aln.contig_end);
+        
+        if (intersection_end > intersection_start) {
+            total_bp += (intersection_end - intersection_start);
+        }
     }
     
-    int read_count = static_cast<int>(unique_reads.size());
     double length = static_cast<double>(segment.length);
-    coverage = read_count / length;
-    variance = read_count / (length * length);
+    coverage = total_bp / length;
+    variance = total_bp / (length * length);
 }
 
 void CovMatrix::write_fasta(const string& ofn_fasta) const
