@@ -22,6 +22,7 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
     params.add_parser("min_breakpoint_read_support", new ParserInteger("minimum read support for selecting breakpoints (default 2)", 2), false);
     params.add_parser("min_breakpoint_frequency", new ParserDouble("minimum frequency for selecting breakpoints (default 0.2)", 0.2), false);
     params.add_parser("min_segment_length", new ParserInteger("minimum segment length for filtering breakpoints (default 200)", 200), false);
+    params.add_parser("max_segment_length", new ParserInteger("maximum segment length before splitting, 0 to disable (default 500000)", 500000), false);
 
     if (argc == 1) {
         params.usage(name);
@@ -56,6 +57,8 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
     int min_alignment_distance = params.get_int("min_alignment_distance");
     int min_breakpoint_read_support = params.get_int("min_breakpoint_read_support");
     double min_breakpoint_frequency = params.get_double("min_breakpoint_frequency");
+    int min_segment_length = params.get_int("min_segment_length");
+    int max_segment_length = params.get_int("max_segment_length");
 
     if (max_margin < 0) {
         cerr << "error: max_margin must be non-negative" << endl;
@@ -92,6 +95,21 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
         exit(1);
     }
 
+    if (min_segment_length <= 0) {
+        cerr << "error: min_segment_length must be positive" << endl;
+        exit(1);
+    }
+
+    if (max_segment_length < 0) {
+        cerr << "error: max_segment_length must be non-negative (0 to disable splitting)" << endl;
+        exit(1);
+    }
+
+    if (max_segment_length > 0 && max_segment_length < min_segment_length) {
+        cerr << "error: max_segment_length must be >= min_segment_length or 0 to disable" << endl;
+        exit(1);
+    }
+
     params.print(cout);
 }
 
@@ -111,6 +129,7 @@ int segments_main(const char* name, int argc, char** argv)
     int min_breakpoint_read_support = params.get_int("min_breakpoint_read_support");
     double min_breakpoint_frequency = params.get_double("min_breakpoint_frequency");
     int min_segment_length = params.get_int("min_segment_length");
+    int max_segment_length = params.get_int("max_segment_length");
 
     cout << "segments command called:" << endl;
     if (!ifn_aln.empty()) {
@@ -129,6 +148,7 @@ int segments_main(const char* name, int argc, char** argv)
     cout << "  min_breakpoint_read_support: " << min_breakpoint_read_support << endl;
     cout << "  min_breakpoint_frequency: " << min_breakpoint_frequency << endl;
     cout << "  min_segment_length: " << min_segment_length << endl;
+    cout << "  max_segment_length: " << max_segment_length << endl;
 
     // create library files map
     map<string, string> library_files;
@@ -165,7 +185,7 @@ int segments_main(const char* name, int argc, char** argv)
     SegmentationManager manager(stores, max_margin, min_anchor_length, min_dangle_length,
                                 max_anchor_mutations_percent, min_alignment_distance,
                                 min_breakpoint_read_support, min_breakpoint_frequency,
-                                min_segment_length);
+                                min_segment_length, max_segment_length);
     
     // execute segmentation analysis
     if (odir.empty()) {

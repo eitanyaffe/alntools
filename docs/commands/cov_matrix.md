@@ -9,7 +9,15 @@ alntools cov_matrix -ifn_libraries <library_table> \
                     -ifn_segments <segment_table> \
                     -ifn_fasta <contigs.fasta> \
                     -ofn_mat <coverage_matrix.txt> \
-                    -ofn_fasta <segments.fasta>
+                    -ofn_fasta <segments.fasta> \
+                    [-min_segment_length <int>] \
+                    [-clip_mode <mode>] \
+                    [-clip_margin <int>] \
+                    [-min_mutations_percent <double>] \
+                    [-max_mutations_percent <double>] \
+                    [-min_alignment_length <int>] \
+                    [-max_alignment_length <int>] \
+                    [-min_indel_length <int>]
 ```
 
 ## Parameters
@@ -21,7 +29,28 @@ alntools cov_matrix -ifn_libraries <library_table> \
 * `-ofn_mat <fn>`: Output coverage matrix file.
 * `-ofn_fasta <fn>`: Output segment fasta file.
 
-## Example
+**Optional Arguments - Segment Filtering:**
+* `-min_segment_length <int>`: Minimum segment length for filtering (default: 1000). Segments shorter than this threshold will be excluded from both output files.
+
+**Optional Arguments - Alignment Filtering:**
+* `-clip_mode <mode>`: Clipping mode for alignment filtering (default: complete). Options:
+  * `all`: Allow all alignments
+  * `complete`: Alignment must cover all read from start to end
+  * `allow_one_side_clip`: Allow clipped on one side (start at read start or read end)
+  * `only_one_side_clipped`: Show only alignments clipped on one side
+  * `only_two_side_clipped`: Show only alignments clipped on both sides
+  * `only_clipped`: Show alignments clipped on one or both sides
+  * `local_align`: Show only locally aligned reads (first/last alignments on same contig)
+* `-clip_margin <int>`: Clipping margin in bases (default: 10). Used to determine if alignment covers read start/end.
+* `-min_mutations_percent <double>`: Minimum mutations percentage (default: 0.0). Alignments with fewer mutations are excluded.
+* `-max_mutations_percent <double>`: Maximum mutations percentage (default: 0.1). Alignments with more mutations are excluded.
+* `-min_alignment_length <int>`: Minimum alignment length in read coordinates (default: 1000). Shorter alignments are excluded.
+* `-max_alignment_length <int>`: Maximum alignment length in read coordinates (default: 0, no limit). Longer alignments are excluded when > 0.
+* `-min_indel_length <int>`: Minimum indel length to include in mutation density calculations (default: 3). Smaller indels are excluded from mutation counts.
+
+## Examples
+
+**Basic usage with default filtering:**
 
 ```bash
 alntools cov_matrix -ifn_libraries libraries.txt \
@@ -29,6 +58,31 @@ alntools cov_matrix -ifn_libraries libraries.txt \
                     -ifn_fasta contigs.fa \
                     -ofn_mat coverage_matrix.txt \
                     -ofn_fasta segments.fa
+```
+
+**Custom filtering for high-quality alignments:**
+
+```bash
+alntools cov_matrix -ifn_libraries libraries.txt \
+                    -ifn_segments segments.txt \
+                    -ifn_fasta contigs.fa \
+                    -ofn_mat coverage_matrix.txt \
+                    -ofn_fasta segments.fa \
+                    -clip_mode complete \
+                    -max_mutations_percent 0.05 \
+                    -min_alignment_length 2000
+```
+
+**Include all alignments without filtering:**
+
+```bash
+alntools cov_matrix -ifn_libraries libraries.txt \
+                    -ifn_segments segments.txt \
+                    -ifn_fasta contigs.fa \
+                    -ofn_mat coverage_matrix.txt \
+                    -ofn_fasta segments.fa \
+                    -clip_mode all \
+                    -min_alignment_length 0
 ```
 
 ## Input File Formats
@@ -104,9 +158,12 @@ TTAATTAATTAA...
 
 For each segment and library:
 1. Load alignments from the library's ALN file
-2. Query alignments intersecting the segment interval (1-based coordinates converted to 0-based half-open internally)
-3. Count unique reads overlapping the segment
-4. Calculate per-base coverage: `coverage = read_count / segment_length`
+2. Initialize short indel counting for mutation density calculations
+3. Initialize read alignment index if using LOCAL_ALIGN clip mode
+4. Query alignments intersecting the segment interval (1-based coordinates converted to 0-based half-open internally)
+5. Filter alignments based on specified criteria (clip mode, mutation percent, alignment length)
+6. Count unique reads overlapping the segment
+7. Calculate per-base coverage: `coverage = read_count / segment_length`
 
 The command processes all segments for each library before moving to the next library to minimize file I/O.
 
@@ -123,4 +180,9 @@ The command processes all segments for each library before moving to the next li
 - Coverage values represent per-base coverage (reads per base position)
 - Progress messages are printed every 1000 segments processed
 - The output maintains the same segment order as the input segment table
+- Segments shorter than `min_segment_length` are filtered out during loading and excluded from both output files
+- Filtering statistics are reported showing how many segments were excluded
+- Alignment filtering uses the same filtering logic as the `query` command, allowing precise control over which alignments contribute to coverage calculations
+- Default alignment filters focus on complete, high-quality alignments (clip_mode=complete, max_mutations_percent=0.1, min_alignment_length=1000) suitable for binning workflows
+- Use `-clip_mode all -max_mutations_percent -1 -min_alignment_length 0` to disable all alignment filtering and include all alignments
 

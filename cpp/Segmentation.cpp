@@ -170,7 +170,7 @@ void Segmentation::process_read(uint32_t read_idx,
             uint32_t anchor_mutations = anchor.get_mutation_count();
             uint32_t dangle_length = dangle.read_end - dangle.read_start;
             
-            ReadBreakpoint bp(read_id, contig_id, coord, breakpoint_type,
+            ReadBreakpoint bp(current_lib_id, read_id, contig_id, coord, breakpoint_type,
                             anchor_length, anchor_mutations, dangle_length);
             output_breakpoints.push_back(bp);
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "alignment_store.h"
+#include "utils.h"
 #include <string>
 #include <vector>
 #include <map>
@@ -24,6 +25,15 @@ private:
     vector<SegmentInfo> segments;
     map<string, string> library_files;
     unordered_map<string, string> contig_sequences;
+    uint32_t min_segment_length;
+    
+    ClipMode clip_mode;
+    int clip_margin;
+    double min_mutations_percent;
+    double max_mutations_percent;
+    int min_alignment_length;
+    int max_alignment_length;
+    int min_indel_length;
     
     void load_segments(const string& ifn_segments);
     void load_libraries(const string& ifn_libraries);
@@ -44,6 +54,14 @@ public:
                 const string& ifn_segments,
                 const string& ifn_fasta,
                 const string& ofn_mat,
-                const string& ofn_fasta);
+                const string& ofn_fasta,
+                uint32_t min_segment_length,
+                ClipMode clip_mode,
+                int clip_margin,
+                double min_mutations_percent,
+                double max_mutations_percent,
+                int min_alignment_length,
+                int max_alignment_length,
+                int min_indel_length);
 };
 

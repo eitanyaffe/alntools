@@ -9,6 +9,7 @@
 
 // structure to represent a read breakpoint
 struct ReadBreakpoint {
+    std::string lib_id;
     std::string read_id;
     std::string contig_id;
     uint32_t coord;
@@ -17,11 +18,12 @@ struct ReadBreakpoint {
     uint32_t anchor_mutations;
     uint32_t dangle_length;
     
-    ReadBreakpoint(const std::string& read_id = "", const std::string& contig_id = "",
+    ReadBreakpoint(const std::string& lib_id = "", const std::string& read_id = "", 
+                   const std::string& contig_id = "",
                    uint32_t coord = 0, const std::string& type = "",
                    uint32_t anchor_length = 0, uint32_t anchor_mutations = 0,
                    uint32_t dangle_length = 0)
-        : read_id(read_id), contig_id(contig_id), coord(coord), type(type),
+        : lib_id(lib_id), read_id(read_id), contig_id(contig_id), coord(coord), type(type),
           anchor_length(anchor_length), anchor_mutations(anchor_mutations),
           dangle_length(dangle_length) {}
 };

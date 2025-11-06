@@ -39,6 +39,9 @@ void CovMatrix::load_segments(const string& ifn_segments)
         massert(end_ind >= 0, "column 'end' not found in %s", ifn_segments.c_str());
     }
     
+    int total_count = 0;
+    int filtered_count = 0;
+    
     // parse data rows
     while (getline(file, line)) {
         if (line.empty()) continue;
@@ -59,10 +62,21 @@ void CovMatrix::load_segments(const string& ifn_segments)
         seg.end = atoi(fields[end_ind].c_str());
         seg.length = seg.end - seg.start + 1;
         
+        total_count++;
+        
+        // filter by minimum segment length
+        if (seg.length < min_segment_length) {
+            filtered_count++;
+            continue;
+        }
+        
         segments.push_back(seg);
     }
     
     cout << "loaded " << segments.size() << " segments" << endl;
+    if (filtered_count > 0) {
+        cout << "filtered " << filtered_count << " segments shorter than " << min_segment_length << " bp" << endl;
+    }
 }
 
 void CovMatrix::load_libraries(const string& ifn_libraries)
@@ -100,10 +114,17 @@ void CovMatrix::calculate_coverage(const SegmentInfo& segment,
     Interval interval(segment.contig, start_0based, end_0based);
     auto alignments = store.get_alignments_intersecting_interval(interval);
     
-    // sum intersection lengths
+    // sum intersection lengths with filtering
     uint32_t total_bp = 0;
     for (const auto& alignment_ref : alignments) {
         const Alignment& aln = alignment_ref.get();
+        
+        // apply alignment filter
+        if (!passes_alignment_filter(aln, store, clip_mode, clip_margin, 
+                                     min_mutations_percent, max_mutations_percent,
+                                     min_alignment_length, max_alignment_length)) {
+            continue;
+        }
         
         // calculate intersection length
         uint32_t intersection_start = max(start_0based, aln.contig_start);
@@ -188,6 +209,12 @@ void CovMatrix::write_matrix(const string& ofn_mat)
         AlignmentStore store;
         store.load(aln_fn);
         
+        // initialize short indel counting for mutation density calculations
+        store.count_short_indels(min_indel_length);
+        
+        // initialize read alignment index if LOCAL_ALIGN mode is used
+        init_local_align_if_needed(store, clip_mode);
+        
         for (size_t seg_idx = 0; seg_idx < segments.size(); ++seg_idx) {
             const auto& seg = segments[seg_idx];
             
@@ -235,8 +262,25 @@ void CovMatrix::compute(const string& ifn_libraries,
                        const string& ifn_segments,
                        const string& ifn_fasta,
                        const string& ofn_mat,
-                       const string& ofn_fasta)
+                       const string& ofn_fasta,
+                       uint32_t min_seg_len,
+                       ClipMode clip_mode_param,
+                       int clip_margin_param,
+                       double min_mutations_percent_param,
+                       double max_mutations_percent_param,
+                       int min_alignment_length_param,
+                       int max_alignment_length_param,
+                       int min_indel_length_param)
 {
+    min_segment_length = min_seg_len;
+    clip_mode = clip_mode_param;
+    clip_margin = clip_margin_param;
+    min_mutations_percent = min_mutations_percent_param;
+    max_mutations_percent = max_mutations_percent_param;
+    min_alignment_length = min_alignment_length_param;
+    max_alignment_length = max_alignment_length_param;
+    min_indel_length = min_indel_length_param;
+    
     load_segments(ifn_segments);
     load_libraries(ifn_libraries);
     load_fasta(ifn_fasta);

@@ -55,6 +55,7 @@ private:
     int min_breakpoint_read_support;
     double min_breakpoint_frequency;
     int min_segment_length;
+    int max_segment_length;
     
     // results
     std::map<std::string, std::vector<ReadBreakpoint>> lib_breakpoints;
@@ -70,7 +71,8 @@ public:
                        int min_alignment_distance = 200,
                        int min_breakpoint_read_support = 2,
                        double min_breakpoint_frequency = 0.2,
-                       int min_segment_length = 200);
+                       int min_segment_length = 200,
+                       int max_segment_length = 500000);
     
     // main execution function
     void execute();
@@ -100,6 +102,13 @@ private:
     // helper functions
     void cluster_breakpoints(std::vector<ReadBreakpoint>& all_breakpoints);
     int calculate_breakpoint_coverage(const AggregateBreakpoint& bp, const std::string& lib_id) const;
+    
+    // segment generation helpers
+    void add_artificial_coords(std::vector<uint32_t>& coords, uint32_t contig_length);
+    void create_segments_from_coords(const std::vector<uint32_t>& coords, 
+                                     const std::string& contig_id,
+                                     uint32_t contig_length,
+                                     int& segment_counter);
     
     // output file writers
     void write_read_breakpoints_file(const std::string& odir);
