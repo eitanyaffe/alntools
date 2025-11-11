@@ -5,8 +5,25 @@
 #include <iostream>
 #include <set>
 #include <sstream>
+#include <random>
 
 using namespace std;
+
+namespace {
+string generate_random_nts(uint32_t length)
+{
+    static thread_local std::mt19937 rng(std::random_device{}());
+    static const char bases[] = {'A', 'C', 'G', 'T'};
+    std::uniform_int_distribution<int> dist(0, 3);
+
+    string nts;
+    nts.reserve(length);
+    for (uint32_t i = 0; i < length; ++i) {
+        nts.push_back(bases[dist(rng)]);
+    }
+    return nts;
+}
+}
 
 CovMatrix::CovMatrix() {}
 
@@ -140,7 +157,7 @@ void CovMatrix::calculate_coverage(const SegmentInfo& segment,
     variance = total_bp / (length * length);
 }
 
-void CovMatrix::write_fasta(const string& ofn_fasta) const
+void CovMatrix::write_fasta(const string& ofn_fasta, bool actual_nts) const
 {
     cout << "writing segment fasta: " << ofn_fasta << endl;
     ofstream out(ofn_fasta.c_str());
@@ -167,22 +184,29 @@ void CovMatrix::write_fasta(const string& ofn_fasta) const
             exit(1);
         }
         
-        massert(contig_sequences.find(seg.contig) != contig_sequences.end(),
+        out << ">" << seg.id << endl;
+
+        if (!actual_nts) {
+            out << generate_random_nts(seg.length) << endl;
+            continue;
+        }
+
+        auto contig_it = contig_sequences.find(seg.contig);
+        massert(contig_it != contig_sequences.end(),
                "contig %s not found in fasta file", seg.contig.c_str());
-        
-        const string& contig_seq = contig_sequences.at(seg.contig);
-        
+
+        const string& contig_seq = contig_it->second;
+
         // extract subsequence (1-based coordinates, inclusive)
         uint32_t start_0based = seg.start - 1;
         uint32_t length = seg.length;
-        
+
         massert(start_0based + length <= contig_seq.length(),
                "segment %s coordinates out of range for contig %s",
                seg.id.c_str(), seg.contig.c_str());
-        
+
         string seg_seq = contig_seq.substr(start_0based, length);
-        
-        out << ">" << seg.id << endl;
+
         out << seg_seq << endl;
     }
     
@@ -263,6 +287,8 @@ void CovMatrix::compute(const string& ifn_libraries,
                        const string& ifn_fasta,
                        const string& ofn_mat,
                        const string& ofn_fasta,
+                       bool actual_nts,
+                       bool should_create_fasta,
                        uint32_t min_seg_len,
                        ClipMode clip_mode_param,
                        int clip_margin_param,
@@ -283,9 +309,15 @@ void CovMatrix::compute(const string& ifn_libraries,
     
     load_segments(ifn_segments);
     load_libraries(ifn_libraries);
-    load_fasta(ifn_fasta);
+
+    if (should_create_fasta && actual_nts) {
+        load_fasta(ifn_fasta);
+    }
+
+    if (should_create_fasta) {
+        write_fasta(ofn_fasta, actual_nts);
+    }
     
-    write_fasta(ofn_fasta);
     write_matrix(ofn_mat);
     
     cout << "coverage matrix computation complete" << endl;

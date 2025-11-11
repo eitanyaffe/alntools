@@ -10,6 +10,8 @@ alntools cov_matrix -ifn_libraries <library_table> \
                     -ifn_fasta <contigs.fasta> \
                     -ofn_mat <coverage_matrix.txt> \
                     -ofn_fasta <segments.fasta> \
+                    [-actual_nts <T|F>] \
+                    [-should_create_fasta <T|F>] \
                     [-min_segment_length <int>] \
                     [-clip_mode <mode>] \
                     [-clip_margin <int>] \
@@ -28,6 +30,10 @@ alntools cov_matrix -ifn_libraries <library_table> \
 * `-ifn_fasta <fn>`: Contig fasta file.
 * `-ofn_mat <fn>`: Output coverage matrix file.
 * `-ofn_fasta <fn>`: Output segment fasta file.
+
+**Optional Arguments - Output Control:**
+* `-actual_nts <boolean>`: When `T` (default), write actual segment sequences to the fasta. When `F`, random nucleotides are emitted instead.
+* `-should_create_fasta <boolean>`: When `T` (default), generate the segment fasta file. Set to `F` to skip fasta generation entirely.
 
 **Optional Arguments - Segment Filtering:**
 * `-min_segment_length <int>`: Minimum segment length for filtering (default: 1000). Segments shorter than this threshold will be excluded from both output files.

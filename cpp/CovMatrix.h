@@ -44,7 +44,7 @@ private:
                           double& coverage, 
                           double& variance) const;
     
-    void write_fasta(const string& ofn_fasta) const;
+    void write_fasta(const string& ofn_fasta, bool actual_nts) const;
     void write_matrix(const string& ofn_mat);
 
 public:
@@ -55,6 +55,8 @@ public:
                 const string& ifn_fasta,
                 const string& ofn_mat,
                 const string& ofn_fasta,
+                bool actual_nts,
+                bool should_create_fasta,
                 uint32_t min_segment_length,
                 ClipMode clip_mode,
                 int clip_margin,
