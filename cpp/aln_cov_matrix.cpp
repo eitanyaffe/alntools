@@ -22,6 +22,7 @@ void cov_matrix_params(const char* name, int argc, char** argv, Parameters& para
     params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 1000)", 1000), false);
     params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
     params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
+    params.add_parser("ofn_lib_map", new ParserFilename("output library index to library ID mapping file"), false);
 
     if (argc == 1) {
         params.usage(name);
@@ -55,13 +56,15 @@ int cov_matrix_main(const char* name, int argc, char** argv)
     int min_alignment_length = params.get_int("min_alignment_length");
     int max_alignment_length = params.get_int("max_alignment_length");
     int min_indel_length = params.get_int("min_indel_length");
+    string ofn_lib_map = params.get_string("ofn_lib_map");
 
     CovMatrix cov_matrix;
     cov_matrix.compute(ifn_libraries, ifn_segments, ifn_fasta, ofn_mat, ofn_fasta,
                       actual_nts, should_create_fasta,
                       min_segment_length, clip_mode, clip_margin,
                       min_mutations_percent, max_mutations_percent,
-                      min_alignment_length, max_alignment_length, min_indel_length);
+                      min_alignment_length, max_alignment_length, min_indel_length,
+                      ofn_lib_map);
 
     return 0;
 }

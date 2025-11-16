@@ -160,7 +160,8 @@ int segments_main(const char* name, int argc, char** argv)
     } else {
         // multi-library mode
         cout << "loading libraries from " << ifn_libraries << endl;
-        library_files = read_library_table(ifn_libraries);
+        vector<string> library_ids;  // not used but required by function signature
+        read_library_table(ifn_libraries, library_files, library_ids);
     }
     
     // load all ALN stores

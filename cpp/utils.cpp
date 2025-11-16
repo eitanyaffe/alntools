@@ -588,9 +588,12 @@ void safe_open_file_for_writing(const std::string& filename, std::ofstream& file
   }
 }
 
-std::map<std::string, std::string> read_library_table(const std::string& filename)
+void read_library_table(const std::string& filename,
+                        std::map<std::string, std::string>& library_files,
+                        std::vector<std::string>& library_ids)
 {
-    std::map<std::string, std::string> library_files;
+    library_files.clear();
+    library_ids.clear();
     
     std::ifstream lib_file(filename);
     if (!lib_file.is_open()) {
@@ -628,7 +631,7 @@ std::map<std::string, std::string> read_library_table(const std::string& filenam
         }
     }
     
-    // parse data rows
+    // parse data rows in file order
     while (std::getline(lib_file, line)) {
         if (line.empty()) continue;
         
@@ -641,18 +644,27 @@ std::map<std::string, std::string> read_library_table(const std::string& filenam
         
         // extract required fields if they exist
         if (lib_id_col < static_cast<int>(fields.size()) && aln_fn_col < static_cast<int>(fields.size())) {
-            library_files[fields[lib_id_col]] = fields[aln_fn_col];
+            std::string lib_id = fields[lib_id_col];
+            std::string aln_file = fields[aln_fn_col];
+            
+            // only add if not already added (avoid duplicates)
+            if (library_files.find(lib_id) == library_files.end()) {
+                library_files[lib_id] = aln_file;
+                library_ids.push_back(lib_id);
+            }
         }
     }
     lib_file.close();
     
     std::cout << "found " << library_files.size() << " libraries in " << filename << std::endl;
-    return library_files;
 }
 
-std::map<std::string, LibraryInfo> read_library_table_extended(const std::string& filename)
+void read_library_table_extended(const std::string& filename,
+                                  std::map<std::string, LibraryInfo>& library_info,
+                                  std::vector<std::string>& library_ids)
 {
-    std::map<std::string, LibraryInfo> library_info;
+    library_info.clear();
+    library_ids.clear();
     
     std::ifstream lib_file(filename);
     if (!lib_file.is_open()) {
@@ -693,7 +705,7 @@ std::map<std::string, LibraryInfo> read_library_table_extended(const std::string
         // read_fn_col is optional
     }
     
-    // parse data rows
+    // parse data rows in file order
     while (std::getline(lib_file, line)) {
         if (line.empty()) continue;
         
@@ -715,7 +727,11 @@ std::map<std::string, LibraryInfo> read_library_table_extended(const std::string
                 read_file = fields[read_fn_col];
             }
             
-            library_info[lib_id] = LibraryInfo(lib_id, aln_file, read_file);
+            // only add if not already added (avoid duplicates)
+            if (library_info.find(lib_id) == library_info.end()) {
+                library_info[lib_id] = LibraryInfo(lib_id, aln_file, read_file);
+                library_ids.push_back(lib_id);
+            }
         }
     }
     lib_file.close();
@@ -730,8 +746,6 @@ std::map<std::string, LibraryInfo> read_library_table_extended(const std::string
         }
     }
     std::cout << "  " << with_reads << " libraries have read files specified" << std::endl;
-    
-    return library_info;
 }
 
 // returns substring from [start, end), handling out-of-bounds gracefully

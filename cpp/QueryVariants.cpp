@@ -38,6 +38,7 @@ std::string SetVariantData::create_key() const
 QueryVariants::QueryVariants(
     const std::vector<Interval>& intervals,
     const std::map<std::string, AlignmentStore>& stores,
+    const std::vector<std::string>& library_ids_param,
     int min_variants_variant_support,
     int min_variants_library_support,
     int min_variants_coverage_support,
@@ -55,12 +56,8 @@ QueryVariants::QueryVariants(
     , min_variants_library_support(min_variants_library_support)
     , min_variants_coverage_support(min_variants_coverage_support)
     , genes(genes)
+    , library_ids(library_ids_param)
 {
-  // extract ordered library IDs
-  for (const auto& entry : stores) {
-    library_ids.push_back(entry.first);
-  }
-  std::sort(library_ids.begin(), library_ids.end());
 }
 
 void QueryVariants::build_contig_to_intervals_map(const AlignmentStore& store)

@@ -78,6 +78,7 @@ private:
 
 public:
     Rearrange(const std::map<std::string, AlignmentStore>& stores,
+              const std::vector<std::string>& library_ids,
               const std::vector<Interval>& intervals,
               RearrangeVerify* verifier = nullptr,
               ResolveSeams resolve_seams = ResolveSeams::NO,

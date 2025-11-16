@@ -270,17 +270,21 @@ int query_main(const char* name, int argc, char** argv)
     int min_variants_coverage_support = params.get_int("min_variants_coverage_support");
     
     // read libraries table
-    map<string, string> library_files = read_library_table(ifn_libraries);
+    map<string, string> library_files;
+    vector<string> library_ids;
+    read_library_table(ifn_libraries, library_files, library_ids);
     
-    // load all ALN stores
+    // load all ALN stores in library_ids order
     map<string, AlignmentStore> stores;
-    for (const auto& entry : library_files) {
-      const string& lib_id = entry.first;
-      const string& aln_file = entry.second;
-      
-      cout << "loading library " << lib_id << " from " << aln_file << endl;
-      stores[lib_id].load(aln_file);
-      stores[lib_id].count_short_indels(min_indel_length);
+    for (const string& lib_id : library_ids) {
+      auto it = library_files.find(lib_id);
+      if (it != library_files.end()) {
+        const string& aln_file = it->second;
+        
+        cout << "loading library " << lib_id << " from " << aln_file << endl;
+        stores[lib_id].load(aln_file);
+        stores[lib_id].count_short_indels(min_indel_length);
+      }
     }
     
     // create genes object if gene annotation is requested
@@ -308,7 +312,7 @@ int query_main(const char* name, int argc, char** argv)
       genes_ptr = &genes;
     }
     
-    QueryVariants queryVariants(intervals, stores, min_variants_variant_support, min_variants_library_support, 
+    QueryVariants queryVariants(intervals, stores, library_ids, min_variants_variant_support, min_variants_library_support, 
                      min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
                      max_mutations_percent, min_alignment_length, max_alignment_length, genes_ptr);
     queryVariants.execute();

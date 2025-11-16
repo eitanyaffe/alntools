@@ -72,12 +72,13 @@ void CovMatrix::load_segments(const string& ifn_segments)
         
         if (fields.size() == 0) continue;
             
-        SegmentInfo seg;
+        CovSegment seg;
         seg.id = fields[seg_ind];
         seg.contig = fields[contig_ind];
         seg.start = atoi(fields[start_ind].c_str());
         seg.end = atoi(fields[end_ind].c_str());
         seg.length = seg.end - seg.start + 1;
+        seg.index = segments.size();
         
         total_count++;
         
@@ -99,7 +100,7 @@ void CovMatrix::load_segments(const string& ifn_segments)
 void CovMatrix::load_libraries(const string& ifn_libraries)
 {
     cout << "reading library table: " << ifn_libraries << endl;
-    library_files = read_library_table(ifn_libraries);
+    read_library_table(ifn_libraries, library_files, library_ids);
 }
 
 void CovMatrix::load_fasta(const string& ifn_fasta)
@@ -112,7 +113,7 @@ void CovMatrix::load_fasta(const string& ifn_fasta)
     cout << "loaded " << contig_sequences.size() << " contigs" << endl;
 }
 
-void CovMatrix::calculate_coverage(const SegmentInfo& segment, 
+void CovMatrix::calculate_coverage(const CovSegment& segment, 
                                    const AlignmentStore& store,
                                    double& coverage, 
                                    double& variance) const
@@ -220,16 +221,19 @@ void CovMatrix::write_matrix(const string& ofn_mat)
     // store coverage matrix in memory: segment_index -> library_index -> (cov, var)
     vector<vector<pair<double, double>>> coverage_matrix(segments.size());
     for (auto& row : coverage_matrix) {
-        row.resize(library_files.size(), {0.0, 0.0});
+        row.resize(library_ids.size(), {0.0, 0.0});
     }
     
-    // load each library once and process all segments
-    size_t lib_idx = 0;
-    for (const auto& lib_entry : library_files) {
-        const string& lib_id = lib_entry.first;
-        const string& aln_fn = lib_entry.second;
+    // load each library once and process all segments in library_ids order
+    for (size_t lib_idx = 0; lib_idx < library_ids.size(); ++lib_idx) {
+        const string& lib_id = library_ids[lib_idx];
+        auto it = library_files.find(lib_id);
+        if (it == library_files.end()) {
+            continue;
+        }
+        const string& aln_fn = it->second;
         
-        cout << "loading library " << lib_id << " (" << (lib_idx+1) << "/" << library_files.size() << ")" << endl;
+        cout << "loading library " << lib_id << " (" << (lib_idx+1) << "/" << library_ids.size() << ")" << endl;
         AlignmentStore store;
         store.load(aln_fn);
         
@@ -251,8 +255,6 @@ void CovMatrix::write_matrix(const string& ofn_mat)
                 cout << "processed " << (seg_idx+1) << "/" << segments.size() << " segments" << endl;
             }
         }
-        
-        lib_idx++;
     }
     
     // write output file
@@ -264,7 +266,7 @@ void CovMatrix::write_matrix(const string& ofn_mat)
     
     // header
     out << "segment";
-    for (size_t i = 0; i < library_files.size(); ++i) {
+    for (size_t i = 0; i < library_ids.size(); ++i) {
         out << "\tcov_" << (i+1) << "\tvar_" << (i+1);
     }
     out << endl;
@@ -272,11 +274,25 @@ void CovMatrix::write_matrix(const string& ofn_mat)
     // write data rows
     for (size_t seg_idx = 0; seg_idx < segments.size(); ++seg_idx) {
         out << segments[seg_idx].id;
-        for (size_t lib_idx = 0; lib_idx < library_files.size(); ++lib_idx) {
+        for (size_t lib_idx = 0; lib_idx < library_ids.size(); ++lib_idx) {
             out << "\t" << coverage_matrix[seg_idx][lib_idx].first 
                 << "\t" << coverage_matrix[seg_idx][lib_idx].second;
         }
         out << endl;
+    }
+    
+    out.close();
+}
+
+void CovMatrix::write_lib_map(const string& ofn_lib_map) const
+{
+    cout << "writing library mapping to " << ofn_lib_map << endl;
+    ofstream out(ofn_lib_map.c_str());
+    massert(out.is_open(), "could not open file %s", ofn_lib_map.c_str());
+    
+    out << "lib_index\tlib_id" << endl;
+    for (size_t i = 0; i < library_ids.size(); ++i) {
+        out << "lib_" << (i+1) << "\t" << library_ids[i] << endl;
     }
     
     out.close();
@@ -296,7 +312,8 @@ void CovMatrix::compute(const string& ifn_libraries,
                        double max_mutations_percent_param,
                        int min_alignment_length_param,
                        int max_alignment_length_param,
-                       int min_indel_length_param)
+                       int min_indel_length_param,
+                       const string& ofn_lib_map)
 {
     min_segment_length = min_seg_len;
     clip_mode = clip_mode_param;
@@ -319,6 +336,10 @@ void CovMatrix::compute(const string& ifn_libraries,
     }
     
     write_matrix(ofn_mat);
+    
+    if (!ofn_lib_map.empty()) {
+        write_lib_map(ofn_lib_map);
+    }
     
     cout << "coverage matrix computation complete" << endl;
 }

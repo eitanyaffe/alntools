@@ -170,48 +170,54 @@ int rearrange_main(const char* name, int argc, char** argv)
     // Always use Rearrange - create single library for ifn_aln mode
     map<string, string> library_files;
     map<string, string> library_read_files;  // lib_id -> read_file
+    vector<string> library_ids;  // ordered list of library IDs
     
     if (!ifn_aln.empty()) {
         // Single file mode - create single library with id "sample"
         library_files["sample"] = ifn_aln;
+        library_ids.push_back("sample");
         // Note: read files will be handled by library table for multi-library mode
         // For single library mode, read sequences would need to be loaded separately
         cout << "single library mode: using " << ifn_aln << " as library 'sample'" << endl;
     } else {
         // Multi-library mode - read libraries table with extended format
         cout << "loading libraries from " << ifn_libraries << endl;
-        map<string, LibraryInfo> library_info = read_library_table_extended(ifn_libraries);
+        map<string, LibraryInfo> library_info;
+        read_library_table_extended(ifn_libraries, library_info, library_ids);
         
-        for (const auto& entry : library_info) {
-            const string& lib_id = entry.first;
-            const LibraryInfo& info = entry.second;
-            
-            library_files[lib_id] = info.aln_file;
-            if (!info.read_file.empty()) {
-                library_read_files[lib_id] = info.read_file;
+        for (const string& lib_id : library_ids) {
+            auto it = library_info.find(lib_id);
+            if (it != library_info.end()) {
+                const LibraryInfo& info = it->second;
+                library_files[lib_id] = info.aln_file;
+                if (!info.read_file.empty()) {
+                    library_read_files[lib_id] = info.read_file;
+                }
             }
         }
     }
     
-    // load all ALN stores
+    // load all ALN stores in library_ids order
     map<string, AlignmentStore> stores;
-    for (const auto& entry : library_files) {
-        const string& lib_id = entry.first;
-        const string& aln_file = entry.second;
-        
-        cout << "loading library " << lib_id << " from " << aln_file << endl;
-        AlignmentStore store;
-        store.load(aln_file);
-        
-        // count short indels for this store
-        store.count_short_indels(min_indel_length);
-        
-        // build read-to-alignment index
-        if (!store.is_read_alignment_index_built()) {
-            store.init_read_alignment_index();
+    for (const string& lib_id : library_ids) {
+        auto it = library_files.find(lib_id);
+        if (it != library_files.end()) {
+            const string& aln_file = it->second;
+            
+            cout << "loading library " << lib_id << " from " << aln_file << endl;
+            AlignmentStore store;
+            store.load(aln_file);
+            
+            // count short indels for this store
+            store.count_short_indels(min_indel_length);
+            
+            // build read-to-alignment index
+            if (!store.is_read_alignment_index_built()) {
+                store.init_read_alignment_index();
+            }
+            
+            stores[lib_id] = std::move(store);
         }
-        
-        stores[lib_id] = std::move(store);
     }
     
     // create sequence objects and verifier if needed
@@ -244,7 +250,7 @@ int rearrange_main(const char* name, int argc, char** argv)
     }
     
     // create rearrangement manager
-    Rearrange manager(stores, intervals, verifier, resolve_seams, assembly_sequences.get(), read_sequences.get(), 
+    Rearrange manager(stores, library_ids, intervals, verifier, resolve_seams, assembly_sequences.get(), read_sequences.get(), 
                      max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, true, "");
     
     // Note: read sequences are now loaded directly into sequence objects above

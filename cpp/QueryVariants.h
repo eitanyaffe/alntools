@@ -129,6 +129,7 @@ class QueryVariants : public QueryBase {
   public:
   QueryVariants(const std::vector<Interval>& intervals,
            const std::map<std::string, AlignmentStore>& stores,
+           const std::vector<std::string>& library_ids,
            int min_variants_variant_support = 3,
            int min_variants_library_support = 1,
            int min_variants_coverage_support = 10,

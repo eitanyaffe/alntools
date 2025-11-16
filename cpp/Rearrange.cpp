@@ -9,6 +9,7 @@
 using namespace std;
 
 Rearrange::Rearrange(const map<string, AlignmentStore>& stores,
+                     const vector<string>& library_ids_param,
                      const vector<Interval>& intervals,
                      RearrangeVerify* verifier,
                      ResolveSeams resolve_seams,
@@ -22,6 +23,7 @@ Rearrange::Rearrange(const map<string, AlignmentStore>& stores,
                      bool write_per_library_files,
                      const string& output_prefix)
     : stores(stores)
+    , library_ids(library_ids_param)
     , intervals(intervals)
     , max_margin(max_margin)
     , min_element_length(min_element_length)
@@ -36,10 +38,6 @@ Rearrange::Rearrange(const map<string, AlignmentStore>& stores,
     , output_prefix(output_prefix)
     , event_grouper(max_margin)
 {
-    // extract ordered library IDs
-    for (const auto& entry : stores) {
-        library_ids.push_back(entry.first);
-    }
 }
 
 void Rearrange::execute()

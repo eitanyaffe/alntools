@@ -1052,10 +1052,16 @@ List aln_query_variants(
       stop("store_list must contain at least one AlignmentStore");
     }
     
-    // extract library names
+    // extract library names (preserves order from R)
     CharacterVector lib_names = store_list.names();
     if (lib_names.size() != store_list.size()) {
       stop("all elements in store_list must be named");
+    }
+    
+    // build ordered library_ids vector
+    std::vector<std::string> library_ids;
+    for (int i = 0; i < lib_names.size(); ++i) {
+      library_ids.push_back(as<std::string>(lib_names[i]));
     }
     
     // convert to C++ stores map
@@ -1082,14 +1088,14 @@ List aln_query_variants(
     ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
     
     // execute QueryVariants
-    QueryVariants queryVariants(intervals, stores, min_variants_variant_support, min_variants_library_support, 
+    QueryVariants queryVariants(intervals, stores, library_ids, min_variants_variant_support, min_variants_library_support, 
                      min_variants_coverage_support, clip_mode, clip_margin, min_mutations_percent, 
                      max_mutations_percent, min_alignment_length, max_alignment_length, genes_ptr);
     queryVariants.execute();
     
     // get results
     const std::vector<VariantOutputRow>& variant_rows = queryVariants.get_variant_rows();
-    const std::vector<std::string>& library_ids = queryVariants.get_library_ids();
+    const std::vector<std::string>& library_ids_result = queryVariants.get_library_ids();
     const std::map<std::string, SetVariantData>& variant_data = queryVariants.get_variant_data();
     
     // convert variants table to R DataFrame
@@ -1143,15 +1149,15 @@ List aln_query_variants(
       std::string variant_key = row.contig + ":" + std::to_string(row.coord) + ":" + row.type + ":" + row.sequence;
       auto variant_it = variant_data.find(variant_key);
       
-      for (size_t j = 0; j < library_ids.size(); ++j) {
+      for (size_t j = 0; j < library_ids_result.size(); ++j) {
         if (i == 0) {
-          support_colnames.push_back(library_ids[j]);
+          support_colnames.push_back(library_ids_result[j]);
         }
         
         int support = 0;
         if (variant_it != variant_data.end()) {
           const SetVariantData& variant = variant_it->second;
-          auto support_it = variant.lib_support.find(library_ids[j]);
+          auto support_it = variant.lib_support.find(library_ids_result[j]);
           if (support_it != variant.lib_support.end()) {
             support = support_it->second;
           }
@@ -1164,7 +1170,7 @@ List aln_query_variants(
     colnames(support_matrix) = support_colnames;
     
     // create coverage matrix
-    IntegerMatrix coverage_matrix(variant_rows.size(), library_ids.size());
+    IntegerMatrix coverage_matrix(variant_rows.size(), library_ids_result.size());
     
     for (size_t i = 0; i < variant_rows.size(); ++i) {
       const VariantOutputRow& row = variant_rows[i];
@@ -1173,11 +1179,11 @@ List aln_query_variants(
       std::string variant_key = row.contig + ":" + std::to_string(row.coord) + ":" + row.type + ":" + row.sequence;
       auto variant_it = variant_data.find(variant_key);
       
-      for (size_t j = 0; j < library_ids.size(); ++j) {
+      for (size_t j = 0; j < library_ids_result.size(); ++j) {
         int coverage = 0;
         if (variant_it != variant_data.end()) {
           const SetVariantData& variant = variant_it->second;
-          auto coverage_it = variant.lib_coverage.find(library_ids[j]);
+          auto coverage_it = variant.lib_coverage.find(library_ids_result[j]);
           if (coverage_it != variant.lib_coverage.end()) {
             coverage = coverage_it->second;
           }
@@ -1307,10 +1313,16 @@ List aln_rearrange(
         stop("store_list must contain at least one AlignmentStore");
     }
     
-    // extract library names
+    // extract library names (preserves order from R)
     CharacterVector lib_names = store_list.names();
     if (lib_names.size() != store_list.size()) {
         stop("all elements in store_list must be named");
+    }
+    
+    // build ordered library_ids vector
+    std::vector<std::string> library_ids;
+    for (int i = 0; i < lib_names.size(); ++i) {
+        library_ids.push_back(as<std::string>(lib_names[i]));
     }
     
     // prepare stores map - modify original stores in-place to avoid copying
@@ -1382,7 +1394,7 @@ List aln_rearrange(
     }
     
     // create Rearrange (disable file writing for R interface, no caching)
-    Rearrange manager(stores_map, intervals, verifier, resolve_seams_mode, assembly_sequences.get(), read_sequences_obj.get(),
+    Rearrange manager(stores_map, library_ids, intervals, verifier, resolve_seams_mode, assembly_sequences.get(), read_sequences_obj.get(),
                      max_margin, min_element_length, min_anchor_length, max_anchor_mutations_percent, max_element_mutation_percent, false, "");
     
     // execute Rearrange
@@ -1391,7 +1403,7 @@ List aln_rearrange(
     // get results
     const std::vector<Event>& events = manager.get_events();
     const std::vector<ReadEventRow>& read_event_rows = manager.get_read_event_rows();
-    const std::vector<std::string>& library_ids = manager.get_library_ids();
+    const std::vector<std::string>& library_ids_result = manager.get_library_ids();
     const std::map<std::string, std::map<std::string, int>>& support_matrix = manager.get_support_matrix();
     const std::map<std::string, std::map<std::string, int>>& coverage_matrix = manager.get_coverage_matrix();
     
@@ -1527,13 +1539,13 @@ List aln_rearrange(
         const Event& event = events[i];
         support_rownames.push_back(event.event_id);
         
-        for (size_t j = 0; j < library_ids.size(); ++j) {
+        for (size_t j = 0; j < library_ids_result.size(); ++j) {
             if (i == 0) {
-                support_colnames.push_back(library_ids[j]);
+                support_colnames.push_back(library_ids_result[j]);
             }
             
             int support = 0;
-            auto lib_it = support_matrix.find(library_ids[j]);
+            auto lib_it = support_matrix.find(library_ids_result[j]);
             if (lib_it != support_matrix.end()) {
                 auto event_it = lib_it->second.find(event.event_id);
                 if (event_it != lib_it->second.end()) {
@@ -1548,14 +1560,14 @@ List aln_rearrange(
     colnames(support_matrix_r) = support_colnames;
     
     // create coverage matrix
-    IntegerMatrix coverage_matrix_r(events.size(), library_ids.size());
+    IntegerMatrix coverage_matrix_r(events.size(), library_ids_result.size());
     
     for (size_t i = 0; i < events.size(); ++i) {
         const Event& event = events[i];
         
-        for (size_t j = 0; j < library_ids.size(); ++j) {
+        for (size_t j = 0; j < library_ids_result.size(); ++j) {
             int coverage = 0;
-            auto lib_it = coverage_matrix.find(library_ids[j]);
+            auto lib_it = coverage_matrix.find(library_ids_result[j]);
             if (lib_it != coverage_matrix.end()) {
                 auto event_it = lib_it->second.find(event.event_id);
                 if (event_it != lib_it->second.end()) {

@@ -111,8 +111,12 @@ struct LibraryInfo {
         : lib_id(id), aln_file(aln), read_file(reads) {}
 };
 
-std::map<std::string, std::string> read_library_table(const std::string& filename);
-std::map<std::string, LibraryInfo> read_library_table_extended(const std::string& filename);
+void read_library_table(const std::string& filename,
+                        std::map<std::string, std::string>& library_files,
+                        std::vector<std::string>& library_ids);
+void read_library_table_extended(const std::string& filename,
+                                  std::map<std::string, LibraryInfo>& library_info,
+                                  std::vector<std::string>& library_ids);
 
 template<typename T, typename GetPval, typename GetQval>
 void apply_bh_correction(std::vector<T>& results, 
