@@ -142,6 +142,9 @@ private:
     bool is_pointing_in(const ReadInterval& interval) const;
     bool is_within_adjacency_distance(const ReadInterval& interval1, const ReadInterval& interval2) const;
     bool read_covers_seam(const std::vector<const Alignment*>& alignments) const;
+    std::tuple<std::string, std::string, std::string, std::string> 
+        canonize_key(const std::string& seg_src, const std::string& seg_tgt,
+                     const std::string& side_src, const std::string& side_tgt) const;
 
     void print_read_debug_info(uint32_t read_index, const std::string& read_id,
                                const std::vector<const Alignment*>& alignments_before,

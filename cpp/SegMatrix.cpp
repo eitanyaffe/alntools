@@ -120,43 +120,66 @@ void SegMatrix::write_matrix(const map<tuple<string, string, string, string>, ui
     ofstream out(filename);
     massert(out.is_open(), "could not open file %s", filename.c_str());
     
-    out << "seg1\tseg2\tside1\tside2\tcontig1\tstart1\tend1\tcontig2\tstart2\tend2\ttotal_read_count_1\tassociated_read_count_1\ttotal_read_count_2\tassociated_read_count_2\tcount" << endl;
+    out << "seg_src\tseg_tgt\tside_src\tside_tgt\tcontig_src\tstart_src\tend_src\tcontig_tgt\tstart_tgt\tend_tgt\ttotal_read_count\tassociated_read_count\tcount" << endl;
     
     for (const auto& entry : matrix) {
         const auto& key = entry.first;
         uint32_t count = entry.second;
-        const string& seg1 = get<0>(key);
-        const string& seg2 = get<1>(key);
-        const string& side1 = get<2>(key);
-        const string& side2 = get<3>(key);
-        auto idx1_it = segment_index_map.find(seg1);
-        auto idx2_it = segment_index_map.find(seg2);
-        massert(idx1_it != segment_index_map.end(), "segment %s not found", seg1.c_str());
-        massert(idx2_it != segment_index_map.end(), "segment %s not found", seg2.c_str());
-        const SegMatrixSegment& seg_info1 = segments[idx1_it->second];
-        const SegMatrixSegment& seg_info2 = segments[idx2_it->second];
-        uint64_t total1 = 0;
-        uint64_t assoc1 = 0;
-        uint64_t total2 = 0;
-        uint64_t assoc2 = 0;
-        auto stats1_it = segment_stats.find(seg1);
-        if (stats1_it != segment_stats.end()) {
-            const SegmentStats& stats1 = stats1_it->second;
-            total1 = (side1 == "left") ? stats1.total_read_count_left : stats1.total_read_count_right;
-            assoc1 = (side1 == "left") ? stats1.associated_read_count_left : stats1.associated_read_count_right;
+        const string& seg_src = get<0>(key);
+        const string& seg_tgt = get<1>(key);
+        const string& side_src = get<2>(key);
+        const string& side_tgt = get<3>(key);
+        auto idx_src_it = segment_index_map.find(seg_src);
+        auto idx_tgt_it = segment_index_map.find(seg_tgt);
+        massert(idx_src_it != segment_index_map.end(), "segment %s not found", seg_src.c_str());
+        massert(idx_tgt_it != segment_index_map.end(), "segment %s not found", seg_tgt.c_str());
+        const SegMatrixSegment& seg_info_src = segments[idx_src_it->second];
+        const SegMatrixSegment& seg_info_tgt = segments[idx_tgt_it->second];
+        uint64_t total = 0;
+        uint64_t assoc = 0;
+        auto stats_it = segment_stats.find(seg_src);
+        if (stats_it != segment_stats.end()) {
+            const SegmentStats& stats = stats_it->second;
+            total = (side_src == "left") ? stats.total_read_count_left : stats.total_read_count_right;
+            assoc = (side_src == "left") ? stats.associated_read_count_left : stats.associated_read_count_right;
         }
-        auto stats2_it = segment_stats.find(seg2);
-        if (stats2_it != segment_stats.end()) {
-            const SegmentStats& stats2 = stats2_it->second;
-            total2 = (side2 == "left") ? stats2.total_read_count_left : stats2.total_read_count_right;
-            assoc2 = (side2 == "left") ? stats2.associated_read_count_left : stats2.associated_read_count_right;
+        out << seg_src << "\t" << seg_tgt << "\t"
+            << side_src << "\t" << side_tgt << "\t"
+            << seg_info_src.contig << "\t" << seg_info_src.start << "\t" << seg_info_src.end << "\t"
+            << seg_info_tgt.contig << "\t" << seg_info_tgt.start << "\t" << seg_info_tgt.end << "\t"
+            << total << "\t" << assoc << "\t"
+            << count << endl;
+    }
+    
+    for (const auto& entry : matrix) {
+        const auto& key = entry.first;
+        uint32_t count = entry.second;
+        const string& seg_src = get<0>(key);
+        const string& seg_tgt = get<1>(key);
+        if (seg_src == seg_tgt) {
+            continue;
         }
-        out << seg1 << "\t" << seg2 << "\t"
-            << side1 << "\t" << side2 << "\t"
-            << seg_info1.contig << "\t" << seg_info1.start << "\t" << seg_info1.end << "\t"
-            << seg_info2.contig << "\t" << seg_info2.start << "\t" << seg_info2.end << "\t"
-            << total1 << "\t" << assoc1 << "\t"
-            << total2 << "\t" << assoc2 << "\t"
+        const string& side_src = get<2>(key);
+        const string& side_tgt = get<3>(key);
+        auto idx_src_it = segment_index_map.find(seg_src);
+        auto idx_tgt_it = segment_index_map.find(seg_tgt);
+        massert(idx_src_it != segment_index_map.end(), "segment %s not found", seg_src.c_str());
+        massert(idx_tgt_it != segment_index_map.end(), "segment %s not found", seg_tgt.c_str());
+        const SegMatrixSegment& seg_info_src = segments[idx_src_it->second];
+        const SegMatrixSegment& seg_info_tgt = segments[idx_tgt_it->second];
+        uint64_t total = 0;
+        uint64_t assoc = 0;
+        auto stats_it = segment_stats.find(seg_tgt);
+        if (stats_it != segment_stats.end()) {
+            const SegmentStats& stats = stats_it->second;
+            total = (side_tgt == "left") ? stats.total_read_count_left : stats.total_read_count_right;
+            assoc = (side_tgt == "left") ? stats.associated_read_count_left : stats.associated_read_count_right;
+        }
+        out << seg_tgt << "\t" << seg_src << "\t"
+            << side_tgt << "\t" << side_src << "\t"
+            << seg_info_tgt.contig << "\t" << seg_info_tgt.start << "\t" << seg_info_tgt.end << "\t"
+            << seg_info_src.contig << "\t" << seg_info_src.start << "\t" << seg_info_src.end << "\t"
+            << total << "\t" << assoc << "\t"
             << count << endl;
     }
     
@@ -604,19 +627,12 @@ void SegMatrix::create_association(const ReadInterval& exit_interval, const Read
         entry_contrib.associated_right = true;
     }
 
-    size_t idx_a = exit_interval.segment_index;
-    size_t idx_b = entry_interval.segment_index;
-    std::string seg_a = exit_interval.segment_id;
-    std::string seg_b = entry_interval.segment_id;
-    std::string side_a = exit_side;
-    std::string side_b = entry_side;
-    if (idx_b < idx_a || (idx_b == idx_a && seg_b < seg_a)) {
-        std::swap(idx_a, idx_b);
-        std::swap(seg_a, seg_b);
-        std::swap(side_a, side_b);
-    }
+    std::string seg_src = exit_interval.segment_id;
+    std::string seg_tgt = entry_interval.segment_id;
+    std::string side_src = exit_side;
+    std::string side_tgt = entry_side;
 
-    auto key = make_tuple(seg_a, seg_b, side_a, side_b);
+    auto key = canonize_key(seg_src, seg_tgt, side_src, side_tgt);
 
     bool is_adjacent = is_within_adjacency_distance(exit_interval, entry_interval);
     if (debug_mode) {
@@ -880,5 +896,16 @@ bool SegMatrix::read_covers_seam(const vector<const Alignment*>& alignments) con
     }
 
     return has_start_cover && has_end_cover;
+}
+
+std::tuple<std::string, std::string, std::string, std::string> 
+SegMatrix::canonize_key(const std::string& seg_src, const std::string& seg_tgt,
+                       const std::string& side_src, const std::string& side_tgt) const
+{
+    // compare pairs lexicographically
+    if (std::make_pair(seg_src, side_src) > std::make_pair(seg_tgt, side_tgt)) {
+        return std::make_tuple(seg_tgt, seg_src, side_tgt, side_src);
+    }
+    return std::make_tuple(seg_src, seg_tgt, side_src, side_tgt);
 }
 
