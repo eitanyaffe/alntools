@@ -32,9 +32,28 @@ void QueryFull::generate_output_data()
   output_reads.clear();
 
   cout << "number of intervals: " << intervals.size() << endl;
+  
+  // calculate total interval length for proportional max_alignments distribution
+  uint64_t total_length = 0;
   for (const auto& interval : intervals) {
-    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_intersecting_interval(interval, max_alignments);
-    cout << "interval: " << interval.to_string() << endl;
+    total_length += (interval.end - interval.start);
+  }
+  
+  for (const auto& interval : intervals) {
+    // calculate interval-specific max_alignments based on relative length
+    int interval_max_alignments = max_alignments;
+    if (max_alignments > 0 && total_length > 0) {
+      uint64_t interval_length = interval.end - interval.start;
+      double weight = static_cast<double>(interval_length) / static_cast<double>(total_length);
+      interval_max_alignments = static_cast<int>(max_alignments * weight);
+      // ensure at least 1 if max_alignments > 0 and interval has length
+      if (interval_max_alignments == 0 && interval_length > 0) {
+        interval_max_alignments = 1;
+      }
+    }
+    
+    std::vector<std::reference_wrapper<const Alignment>> alignments = store.get_alignments_intersecting_interval(interval, interval_max_alignments);
+    cout << "interval: " << interval.to_string() << " (max_alignments: " << interval_max_alignments << ")" << endl;
     cout << "number of alignments: " << alignments.size() << endl;
 
     for (const auto& alignment_ref : alignments) {
