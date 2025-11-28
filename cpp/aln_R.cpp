@@ -16,6 +16,7 @@
 #include "Homologs.h"
 #include "alignment_store.h"
 #include "paf_reader.h"
+#include "utils.h"
 #include <Rcpp.h>
 #include <sstream>
 #include <stdexcept>
@@ -223,38 +224,59 @@ std::vector<Interval> Rcpp_DataFrame_to_Intervals(DataFrame df)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// QueryByReadIds function
+// QueryByReadId function - returns alignments and mutations for a single read
 ////////////////////////////////////////////////////////////////////////////////
 
 // [[Rcpp::export]]
-DataFrame aln_alignments_from_read_ids(
+List aln_alignments_from_read_id(
     XPtr<AlignmentStore> store_ptr,
-    CharacterVector read_ids)
+    std::string read_id,
+    int min_indel_length = 3)
 {
-  // Validate the external pointer
   if (!store_ptr) {
-    stop("Invalid AlignmentStore pointer provided.");
+    stop("invalid AlignmentStore pointer provided");
   }
 
-  // Get reference to the AlignmentStore object (non-const since get_read_index isn't const)
   AlignmentStore& store = *store_ptr;
 
-  // Get alignments
-  const std::vector<Alignment>& all_alignments = store.get_alignments();
+  // count short indels for filtering (same as QueryFull)
+  store.count_short_indels(min_indel_length);
 
-  // Collect read indices
-  std::unordered_set<uint32_t> target_read_indices;
-  for (int i = 0; i < read_ids.length(); ++i) {
-    std::string read_id = as<std::string>(read_ids[i]);
-    if (!store.has_read_id(read_id)) {
-      cout << "Read ID '" << read_id << "' not found in alignment store" << endl;
-      continue;
-    }
-    size_t read_index = store.get_read_index(read_id);
-    target_read_indices.insert(read_index);
+  if (!store.has_read_id(read_id)) {
+    stop("read ID '%s' not found in alignment store", read_id.c_str());
   }
 
-  // Output vectors for DataFrame
+  size_t read_index = store.get_read_index(read_id);
+  uint32_t read_length = store.get_reads()[read_index].length;
+
+  const std::vector<Alignment>& all_alignments = store.get_alignments();
+
+  // collect alignments for this read
+  struct AlignmentData {
+    size_t index;
+    const Alignment* aln;
+  };
+  std::vector<AlignmentData> read_alignments;
+
+  for (size_t i = 0; i < all_alignments.size(); ++i) {
+    const Alignment& aln = all_alignments[i];
+    if (aln.read_index == read_index) {
+      read_alignments.push_back({i, &aln});
+    }
+  }
+
+  // build intervals for height calculation
+  std::vector<std::pair<int, int>> intervals;
+  intervals.reserve(read_alignments.size());
+  for (const auto& ad : read_alignments) {
+    intervals.emplace_back(static_cast<int>(ad.aln->read_start), 
+                           static_cast<int>(ad.aln->read_end));
+  }
+
+  // calculate heights using utility function
+  std::vector<int> heights = calculate_stacking_heights(intervals);
+
+  // build alignment output vectors
   NumericVector out_aln_idx;
   CharacterVector out_aln_read_id;
   IntegerVector out_aln_read_length;
@@ -265,27 +287,82 @@ DataFrame aln_alignments_from_read_ids(
   IntegerVector out_aln_contig_end;
   LogicalVector out_aln_is_reverse;
   IntegerVector out_aln_num_mutations;
+  IntegerVector out_aln_height;
 
-  // Collect alignments for target reads
-  for (size_t i = 0; i < all_alignments.size(); ++i) {
-    const Alignment& aln = all_alignments[i];
+  // build mutation output vectors
+  NumericVector out_mut_aln_idx;
+  CharacterVector out_mut_type;
+  IntegerVector out_mut_contig_coord;
+  IntegerVector out_mut_read_coord;
+  CharacterVector out_mut_desc;
+  IntegerVector out_mut_height;
 
-    if (target_read_indices.find(aln.read_index) != target_read_indices.end()) {
-      // This alignment belongs to one of our target reads
-      out_aln_idx.push_back(i);
-      out_aln_read_id.push_back(store.get_read_id(aln.read_index));
-      out_aln_read_length.push_back(store.get_reads()[aln.read_index].length);
-      out_aln_contig_id.push_back(store.get_contig_id(aln.contig_index));
-      out_aln_read_start.push_back(aln.read_start);
-      out_aln_read_end.push_back(aln.read_end);
-      out_aln_contig_start.push_back(aln.contig_start);
-      out_aln_contig_end.push_back(aln.contig_end);
-      out_aln_is_reverse.push_back(aln.is_reverse);
-      out_aln_num_mutations.push_back(aln.get_mutation_count());
+  for (size_t i = 0; i < read_alignments.size(); ++i) {
+    size_t aln_index = read_alignments[i].index;
+    const Alignment* aln = read_alignments[i].aln;
+    int height = heights[i];
+
+    out_aln_idx.push_back(static_cast<double>(aln_index));
+    out_aln_read_id.push_back(read_id);
+    out_aln_read_length.push_back(static_cast<int>(read_length));
+    out_aln_contig_id.push_back(store.get_contig_id(aln->contig_index));
+    // convert to 1-based coordinates for R output
+    out_aln_read_start.push_back(static_cast<int>(aln->read_start + 1));
+    out_aln_read_end.push_back(static_cast<int>(aln->read_end));
+    out_aln_contig_start.push_back(static_cast<int>(aln->contig_start + 1));
+    out_aln_contig_end.push_back(static_cast<int>(aln->contig_end));
+    out_aln_is_reverse.push_back(aln->is_reverse);
+    out_aln_num_mutations.push_back(aln->get_mutation_count());
+    out_aln_height.push_back(height);
+
+    // process mutations for this alignment
+    int contig_start = static_cast<int>(aln->contig_start);
+    int contig_end = static_cast<int>(aln->contig_end);
+    int r_start = static_cast<int>(aln->read_start);
+    int r_end = static_cast<int>(aln->read_end);
+
+    for (uint32_t mut_idx : aln->mutations) {
+      // skip short indels (same logic as QueryFull)
+      if (should_skip_short_indel(store, aln->contig_index, mut_idx)) {
+        continue;
+      }
+
+      const Mutation& mut = store.get_mutation(aln->contig_index, mut_idx);
+      int contig_coord = static_cast<int>(mut.position);
+
+      // linear extrapolation to read space
+      int read_coord;
+      if (aln->is_reverse) {
+        // reverse strand: read_coord decreases as contig_coord increases
+        double frac = static_cast<double>(contig_coord - contig_start) / 
+                      static_cast<double>(contig_end - contig_start);
+        read_coord = r_end - static_cast<int>(frac * (r_end - r_start));
+      } else {
+        // forward strand: read_coord increases with contig_coord
+        double frac = static_cast<double>(contig_coord - contig_start) / 
+                      static_cast<double>(contig_end - contig_start);
+        read_coord = r_start + static_cast<int>(frac * (r_end - r_start));
+      }
+
+      // mutation type as string
+      std::string type_str;
+      switch (mut.type) {
+        case MutationType::SUBSTITUTION: type_str = "SUB"; break;
+        case MutationType::INSERTION: type_str = "INS"; break;
+        case MutationType::DELETION: type_str = "DEL"; break;
+        default: type_str = "UNK"; break;
+      }
+
+      out_mut_aln_idx.push_back(static_cast<double>(aln_index));
+      out_mut_type.push_back(type_str);
+      out_mut_contig_coord.push_back(contig_coord + 1); // 1-based for R
+      out_mut_read_coord.push_back(read_coord);
+      out_mut_desc.push_back(mut.to_string());
+      out_mut_height.push_back(height);
     }
   }
 
-  return DataFrame::create(
+  DataFrame alignments_df = DataFrame::create(
       Named("alignment_index") = out_aln_idx,
       Named("read_id") = out_aln_read_id,
       Named("read_length") = out_aln_read_length,
@@ -296,7 +373,22 @@ DataFrame aln_alignments_from_read_ids(
       Named("contig_end") = out_aln_contig_end,
       Named("is_reverse") = out_aln_is_reverse,
       Named("num_mutations") = out_aln_num_mutations,
+      Named("height") = out_aln_height,
       Named("stringsAsFactors") = false);
+
+  DataFrame mutations_df = DataFrame::create(
+      Named("alignment_index") = out_mut_aln_idx,
+      Named("type") = out_mut_type,
+      Named("contig_coord") = out_mut_contig_coord,
+      Named("read_coord") = out_mut_read_coord,
+      Named("desc") = out_mut_desc,
+      Named("height") = out_mut_height,
+      Named("stringsAsFactors") = false);
+
+  return List::create(
+      Named("alignments") = alignments_df,
+      Named("mutations") = mutations_df,
+      Named("read_length") = static_cast<int>(read_length));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

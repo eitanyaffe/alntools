@@ -1026,23 +1026,23 @@ ReadEvent RearrangeReadEvent::create_event(const Alignment& A, const Alignment& 
     // anchor contig information
     event.contig_id = store.get_contig_id(A.contig_index);
     
-    // determine clip positions (breakpoints)
+    // determine clip positions (breakpoints), convert to 1-based for output
     event.out_clip = min(A.contig_end, B.contig_end);
-    event.in_clip = max(A.contig_start, B.contig_start);
+    event.in_clip = max(A.contig_start, B.contig_start) + 1;
     event.read_clip_out = min(A.read_end, B.read_end);
-    event.read_clip_in = max(A.read_start, B.read_start);
+    event.read_clip_in = max(A.read_start, B.read_start) + 1;
     
-    // span coordinates
-    event.span_start = A.contig_start;
+    // span coordinates, convert to 1-based for output
+    event.span_start = A.contig_start + 1;
     event.span_end = B.contig_end;
-    event.read_span_start = A.read_start;
+    event.read_span_start = A.read_start + 1;
     event.read_span_end = B.read_end;
     
-    // element information
+    // element information, convert to 1-based for output
     if (X) {
         event.element_contig = store.get_contig_id(X->contig_index);
         event.element_strand = alignment_to_strand_string(X->is_reverse);
-        event.element_start = X->contig_start;
+        event.element_start = X->contig_start + 1;
         event.element_end = X->contig_end;
         
     } else {

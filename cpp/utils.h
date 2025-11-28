@@ -144,3 +144,8 @@ void apply_bh_correction(std::vector<T>& results,
 
 // safely extract substring from [start, end)
 string safe_substr(const string& s, uint32_t start, uint32_t end);
+
+// calculate heights for non-overlapping stacking of intervals
+// intervals: vector of (start, end) pairs
+// returns: vector of heights (0-based) for each interval
+std::vector<int> calculate_stacking_heights(const std::vector<std::pair<int, int>>& intervals);

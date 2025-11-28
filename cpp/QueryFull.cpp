@@ -75,13 +75,14 @@ void QueryFull::generate_output_data()
       int num_mutations = aln.get_mutation_count();
 
       // initialize height to 0, will be set later
+      // convert to 1-based coordinates for output
       output_alignments.push_back({ current_alignment_index,
           read_id,
           static_cast<int>(read_length),
           contig_id,
-          static_cast<int>(aln.read_start),
+          static_cast<int>(aln.read_start + 1),
           static_cast<int>(aln.read_end),
-          static_cast<int>(aln.contig_start),
+          static_cast<int>(aln.contig_start + 1),
           static_cast<int>(aln.contig_end),
           aln.is_reverse,
           cs_string,

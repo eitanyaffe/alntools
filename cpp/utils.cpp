@@ -757,3 +757,49 @@ string safe_substr(const string& s, uint32_t start, uint32_t end)
     uint32_t real_end = std::min(end, static_cast<uint32_t>(s.size()));
     return s.substr(start, real_end - start);
 }
+
+// calculate heights for non-overlapping stacking of intervals
+// intervals are sorted by start position, then assigned lowest available height
+std::vector<int> calculate_stacking_heights(const std::vector<std::pair<int, int>>& intervals)
+{
+    std::vector<int> heights(intervals.size());
+    if (intervals.empty()) {
+        return heights;
+    }
+
+    // create sorted indices by start position
+    std::vector<size_t> sorted_indices(intervals.size());
+    for (size_t i = 0; i < intervals.size(); ++i) {
+        sorted_indices[i] = i;
+    }
+    std::sort(sorted_indices.begin(), sorted_indices.end(),
+        [&intervals](size_t a, size_t b) {
+            return intervals[a].first < intervals[b].first;
+        });
+
+    // track end position at each height level
+    std::vector<int> height_ends;
+
+    for (size_t idx : sorted_indices) {
+        int start = intervals[idx].first;
+        int end = intervals[idx].second;
+
+        // find lowest available height where start >= height_end
+        int height = 0;
+        while (height < static_cast<int>(height_ends.size())) {
+            if (start >= height_ends[height]) {
+                break;
+            }
+            height++;
+        }
+
+        if (height >= static_cast<int>(height_ends.size())) {
+            height_ends.push_back(0);
+        }
+
+        heights[idx] = height;
+        height_ends[height] = end;
+    }
+
+    return heights;
+}
