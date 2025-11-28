@@ -356,69 +356,64 @@ void QueryFull::assign_alignment_heights_from_reads()
 
 void QueryFull::calculate_heights_by_coord(bool sort_by_start)
 {
-  // group reads by contig_id
-  std::map<std::string, std::vector<FullOutputReads*>> reads_by_contig;
+  // process all reads globally (no per-contig grouping)
   cout << "calculating heights by coord (" << (sort_by_start ? "left" : "right") << "), number of reads: " << output_reads.size() << endl;
 
+  // collect all read pointers
+  std::vector<FullOutputReads*> reads;
   int max_coord = 0;
   for (auto& read : output_reads) {
-    reads_by_contig[read.contig_id].push_back(&read);
+    reads.push_back(&read);
     max_coord = std::max(max_coord, read.span_end);
   }
 
-  // process each contig separately
-  cout << "number of contigs: " << reads_by_contig.size() << endl;
-  for (auto& contig_pair : reads_by_contig) {
-    auto& reads = contig_pair.second;
+  // sort reads by start or end position globally
+  if (sort_by_start) {
+    std::sort(reads.begin(), reads.end(),
+        [](const FullOutputReads* a, const FullOutputReads* b) {
+          return a->span_start < b->span_start;
+        });
+  } else {
+    std::sort(reads.begin(), reads.end(),
+        [](const FullOutputReads* a, const FullOutputReads* b) {
+          return a->span_end > b->span_end;
+        });
+  }
 
-    // sort reads by start or end position
-    if (sort_by_start) {
-      std::sort(reads.begin(), reads.end(),
-          [](const FullOutputReads* a, const FullOutputReads* b) {
-            return a->span_start < b->span_start;
-          });
-    } else {
-      std::sort(reads.begin(), reads.end(),
-          [](const FullOutputReads* a, const FullOutputReads* b) {
-            return a->span_end > b->span_end;
-          });
-    }
+  // assign heights to avoid overlaps globally
+  std::vector<int> height_coord; // tracks the current position at each height
 
-    // assign heights to avoid overlaps
-    std::vector<int> height_coord; // tracks the current position at each height
-
-    for (auto read_ptr : reads) {
-      // find the lowest available height
-      int height = 0;
-      while (height < static_cast<int>(height_coord.size())) {
-        if (sort_by_start) {
-          if (read_ptr->span_start >= height_coord[height]) {
+  for (auto read_ptr : reads) {
+    // find the lowest available height
+    int height = 0;
+    while (height < static_cast<int>(height_coord.size())) {
+      if (sort_by_start) {
+        if (read_ptr->span_start >= height_coord[height]) {
+          break;
+        }
+       } else {
+          if (read_ptr->span_end <= height_coord[height]) {
             break;
           }
-         } else {
-            if (read_ptr->span_end <= height_coord[height]) {
-              break;
-            }
-        }
-        height++;
       }
+      height++;
+    }
 
-      // if we need a new height level
-      if (height >= static_cast<int>(height_coord.size())) {
-        if (sort_by_start) {
-          height_coord.push_back(0);
-        } else {
-          height_coord.push_back(max_coord);
-        }
-      }
-
-      // assign the height and update the end position
-      read_ptr->height = height;
+    // if we need a new height level
+    if (height >= static_cast<int>(height_coord.size())) {
       if (sort_by_start) {
-        height_coord[height] = read_ptr->span_end;
+        height_coord.push_back(0);
       } else {
-        height_coord[height] = read_ptr->span_start;
+        height_coord.push_back(max_coord);
       }
+    }
+
+    // assign the height and update the end position
+    read_ptr->height = height;
+    if (sort_by_start) {
+      height_coord[height] = read_ptr->span_end;
+    } else {
+      height_coord[height] = read_ptr->span_start;
     }
   }
 }
@@ -452,30 +447,27 @@ void QueryFull::calculate_heights_by_mutations()
         return std::get<2>(a) > std::get<2>(b);
       });
 
-  // group reads by contig_id for overlap prevention
-  std::map<std::string, std::vector<std::vector<std::pair<int, int>>>> contig_heights;
+  // use global heights (no per-contig grouping)
+  std::vector<std::vector<std::pair<int, int>>> global_heights;
 
-  // assign heights in sorted order while preventing overlaps
+  // assign heights in sorted order while preventing overlaps globally
   cout << "assigning heights, number of reads: " << read_data.size() << endl;
   for (const auto& read_entry : read_data) {
     int read_idx = std::get<0>(read_entry);
     FullOutputReads& read = output_reads[read_idx];
 
-    // get or create the heights vector for this contig
-    auto& heights = contig_heights[read.contig_id];
-
-    // find the minimum height with no overlap
+    // find the minimum height with no overlap globally
     int height = 0;
     bool overlap = true;
 
     while (overlap) {
       // add a new height level if needed
-      if (height >= static_cast<int>(heights.size())) {
-        heights.push_back(std::vector<std::pair<int, int>>());
+      if (height >= static_cast<int>(global_heights.size())) {
+        global_heights.push_back(std::vector<std::pair<int, int>>());
         overlap = false;
       } else {
         // check for overlaps at the current height using binary search
-        const auto& intervals_at_height = heights[height];
+        const auto& intervals_at_height = global_heights[height];
 
         if (intervals_at_height.empty()) {
           // no intervals at this height yet
@@ -494,7 +486,7 @@ void QueryFull::calculate_heights_by_mutations()
     read.height = height;
 
     // add the new interval and maintain sorted order
-    add_sorted_interval(heights[height], read.span_start, read.span_end);
+    add_sorted_interval(global_heights[height], read.span_start, read.span_end);
   }
 }
 
