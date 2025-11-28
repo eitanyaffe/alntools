@@ -4,10 +4,12 @@
 #include <iomanip>
 #include <iostream>
 #include <set>
+#include <sstream>
 
 using namespace std;
 
 SegmentationManager::SegmentationManager(const map<string, AlignmentStore>& stores,
+                                       const string& ifn_contig_table,
                                        int max_margin,
                                        int min_anchor_length,
                                        int min_dangle_length,
@@ -18,6 +20,7 @@ SegmentationManager::SegmentationManager(const map<string, AlignmentStore>& stor
                                        int min_segment_length,
                                        int max_segment_length)
     : stores(stores)
+    , ifn_contig_table(ifn_contig_table)
     , max_margin(max_margin)
     , min_anchor_length(min_anchor_length)
     , min_dangle_length(min_dangle_length)
@@ -37,6 +40,7 @@ void SegmentationManager::execute()
 {
     cout << "executing segmentation analysis across " << library_ids.size() << " libraries..." << endl;
     
+    load_contig_table();
     detect_breakpoints_per_library();
     aggregate_breakpoints_step();
     calculate_coverage();
@@ -44,6 +48,69 @@ void SegmentationManager::execute()
     generate_segments();
     
     cout << "segmentation analysis completed" << endl;
+}
+
+void SegmentationManager::load_contig_table()
+{
+    cout << "loading contig table from " << ifn_contig_table << endl;
+    
+    ifstream file(ifn_contig_table);
+    if (!file.is_open()) {
+        cerr << "error: cannot open contig table file " << ifn_contig_table << endl;
+        exit(1);
+    }
+    
+    string line;
+    int contig_col = -1, length_col = -1;
+    
+    // parse header
+    if (getline(file, line)) {
+        istringstream header_iss(line);
+        string header;
+        int col_index = 0;
+        while (getline(header_iss, header, '\t')) {
+            if (header == "contig") {
+                contig_col = col_index;
+            } else if (header == "length") {
+                length_col = col_index;
+            }
+            col_index++;
+        }
+        
+        if (contig_col == -1) {
+            cerr << "error: column 'contig' not found in " << ifn_contig_table << endl;
+            exit(1);
+        }
+        if (length_col == -1) {
+            cerr << "error: column 'length' not found in " << ifn_contig_table << endl;
+            exit(1);
+        }
+    }
+    
+    // parse data rows
+    contig_lengths.clear();
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        istringstream iss(line);
+        string field;
+        vector<string> fields;
+        while (getline(iss, field, '\t')) {
+            fields.push_back(field);
+        }
+        
+        if (static_cast<int>(fields.size()) <= max(contig_col, length_col)) {
+            cerr << "error: insufficient columns in line: " << line << endl;
+            exit(1);
+        }
+        
+        string contig_id = fields[contig_col];
+        uint32_t length = static_cast<uint32_t>(stoul(fields[length_col]));
+        contig_lengths[contig_id] = length;
+    }
+    
+    file.close();
+    cout << "loaded " << contig_lengths.size() << " contigs from table" << endl;
 }
 
 void SegmentationManager::detect_breakpoints_per_library()
@@ -375,12 +442,7 @@ void SegmentationManager::generate_segments()
         }
     }
     
-    if (selected_bps.empty()) {
-        cout << "no selected breakpoints - no segments to generate" << endl;
-        return;
-    }
-    
-    // group by contig
+    // group selected breakpoints by contig
     map<string, vector<AggregateBreakpoint*>> contig_breakpoints;
     for (AggregateBreakpoint* bp : selected_bps) {
         contig_breakpoints[bp->contig_id].push_back(bp);
@@ -388,30 +450,30 @@ void SegmentationManager::generate_segments()
     
     int segment_counter = 1;
     
-    for (auto& entry : contig_breakpoints) {
+    // process each contig from loaded contig table
+    for (const auto& entry : contig_lengths) {
         const string& contig_id = entry.first;
-        vector<AggregateBreakpoint*>& bps = entry.second;
+        uint32_t contig_length = entry.second;
+        
+        // check if this contig has selected breakpoints
+        auto bp_it = contig_breakpoints.find(contig_id);
+        
+        if (bp_it == contig_breakpoints.end()) {
+            // no selected breakpoints for this contig - create single segment
+            string seg_id = "s" + to_string(segment_counter++);
+            Segment seg(seg_id, contig_id, 1, contig_length);
+            segments.push_back(seg);
+            continue;
+        }
+        
+        // contig has selected breakpoints - process them
+        vector<AggregateBreakpoint*>& bps = bp_it->second;
         
         // sort by coordinate
         sort(bps.begin(), bps.end(),
              [](const AggregateBreakpoint* a, const AggregateBreakpoint* b) {
                  return a->coord < b->coord;
              });
-        
-        // get contig length from first store that has it
-        uint32_t contig_length = 0;
-        for (const auto& store_entry : stores) {
-            const AlignmentStore& store = store_entry.second;
-            if (store.has_contig_id(contig_id)) {
-                size_t contig_idx = store.get_contig_index(contig_id);
-                contig_length = store.get_contigs()[contig_idx].length;
-                break;
-            }
-        }
-        
-        if (contig_length == 0) {
-            continue;
-        }
         
         // filter breakpoints based on min_segment_length
         vector<AggregateBreakpoint*> filtered_bps;

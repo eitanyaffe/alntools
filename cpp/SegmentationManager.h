@@ -46,6 +46,10 @@ private:
     const std::map<std::string, AlignmentStore>& stores;
     std::vector<std::string> library_ids;
     
+    // contig table
+    std::string ifn_contig_table;
+    std::map<std::string, uint32_t> contig_lengths;
+    
     // parameters
     int max_margin;
     int min_anchor_length;
@@ -64,6 +68,7 @@ private:
 
 public:
     SegmentationManager(const std::map<std::string, AlignmentStore>& stores,
+                       const std::string& ifn_contig_table,
                        int max_margin = 20,
                        int min_anchor_length = 1000,
                        int min_dangle_length = 1000,
@@ -93,6 +98,7 @@ public:
 
 private:
     // workflow steps
+    void load_contig_table();
     void detect_breakpoints_per_library();
     void aggregate_breakpoints_step();
     void calculate_coverage();

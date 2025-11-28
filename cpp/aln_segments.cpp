@@ -13,6 +13,7 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
 {
     params.add_parser("ifn_aln", new ParserFilename("input ALN file (single library mode)"), false);
     params.add_parser("ifn_libraries", new ParserFilename("input table with library definitions (multi-library mode)"), false);
+    params.add_parser("ifn_contig_table", new ParserFilename("contig table with contig and length columns"), true);
     params.add_parser("odir", new ParserFilename("output directory"), false);
     params.add_parser("max_margin", new ParserInteger("maximum margin tolerance for breakpoint clustering (default 20)", 20), false);
     params.add_parser("min_anchor_length", new ParserInteger("minimum anchor alignment length (default 1000)", 1000), false);
@@ -120,6 +121,7 @@ int segments_main(const char* name, int argc, char** argv)
 
     string ifn_aln = params.get_string("ifn_aln");
     string ifn_libraries = params.get_string("ifn_libraries");
+    string ifn_contig_table = params.get_string("ifn_contig_table");
     string odir = params.get_string("odir");
     int max_margin = params.get_int("max_margin");
     int min_anchor_length = params.get_int("min_anchor_length");
@@ -139,6 +141,7 @@ int segments_main(const char* name, int argc, char** argv)
         cout << "  mode: multi-library" << endl;
         cout << "  ifn_libraries: " << ifn_libraries << endl;
     }
+    cout << "  ifn_contig_table: " << ifn_contig_table << endl;
     cout << "  odir: " << odir << endl;
     cout << "  max_margin: " << max_margin << endl;
     cout << "  min_anchor_length: " << min_anchor_length << endl;
@@ -183,10 +186,10 @@ int segments_main(const char* name, int argc, char** argv)
     }
     
     // create segmentation manager
-    SegmentationManager manager(stores, max_margin, min_anchor_length, min_dangle_length,
-                                max_anchor_mutations_percent, min_alignment_distance,
-                                min_breakpoint_read_support, min_breakpoint_frequency,
-                                min_segment_length, max_segment_length);
+    SegmentationManager manager(stores, ifn_contig_table, max_margin, min_anchor_length,
+                                min_dangle_length, max_anchor_mutations_percent,
+                                min_alignment_distance, min_breakpoint_read_support,
+                                min_breakpoint_frequency, min_segment_length, max_segment_length);
     
     // execute segmentation analysis
     if (odir.empty()) {
