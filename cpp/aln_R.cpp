@@ -725,34 +725,37 @@ List aln_query_full(
 
   // --- Create Alignments DataFrame ---
   const std::vector<FullOutputAlignments>& alignments = queryFull.get_output_alignments();
-  NumericVector out_aln_idx;
-  CharacterVector out_aln_read_id;
-  IntegerVector out_aln_read_length;
-  CharacterVector out_aln_contig_id;
-  IntegerVector out_aln_read_start;
-  IntegerVector out_aln_read_end;
-  IntegerVector out_aln_contig_start;
-  IntegerVector out_aln_contig_end;
-  LogicalVector out_aln_is_reverse;
-  CharacterVector out_aln_cs_tag;
-  IntegerVector out_aln_height;
-  IntegerVector out_aln_num_mutations;
-  CharacterVector out_aln_chunk_id;
+  
+  size_t n_alignments = alignments.size();
+  NumericVector out_aln_idx(n_alignments);
+  CharacterVector out_aln_read_id(n_alignments);
+  IntegerVector out_aln_read_length(n_alignments);
+  CharacterVector out_aln_contig_id(n_alignments);
+  IntegerVector out_aln_read_start(n_alignments);
+  IntegerVector out_aln_read_end(n_alignments);
+  IntegerVector out_aln_contig_start(n_alignments);
+  IntegerVector out_aln_contig_end(n_alignments);
+  LogicalVector out_aln_is_reverse(n_alignments);
+  CharacterVector out_aln_cs_tag(n_alignments);
+  IntegerVector out_aln_height(n_alignments);
+  IntegerVector out_aln_num_mutations(n_alignments);
+  CharacterVector out_aln_chunk_id(n_alignments);
 
-  for (const auto& aln : alignments) {
-    out_aln_idx.push_back(static_cast<double>(aln.alignment_index + 1)); // R numeric can hold uint64_t
-    out_aln_read_id.push_back(aln.read_id);
-    out_aln_read_length.push_back(aln.read_length);
-    out_aln_contig_id.push_back(aln.contig_id);
-    out_aln_read_start.push_back(aln.read_start);
-    out_aln_read_end.push_back(aln.read_end);
-    out_aln_contig_start.push_back(aln.contig_start);
-    out_aln_contig_end.push_back(aln.contig_end);
-    out_aln_is_reverse.push_back(aln.is_reverse);
-    out_aln_cs_tag.push_back(aln.cs_tag);
-    out_aln_height.push_back(aln.height);
-    out_aln_num_mutations.push_back(aln.num_mutations);
-    out_aln_chunk_id.push_back(aln.chunk_id);
+  for (size_t i = 0; i < n_alignments; i++) {
+    const auto& aln = alignments[i];
+    out_aln_idx[i] = static_cast<double>(aln.alignment_index + 1);
+    out_aln_read_id[i] = aln.read_id;
+    out_aln_read_length[i] = aln.read_length;
+    out_aln_contig_id[i] = aln.contig_id;
+    out_aln_read_start[i] = aln.read_start;
+    out_aln_read_end[i] = aln.read_end;
+    out_aln_contig_start[i] = aln.contig_start;
+    out_aln_contig_end[i] = aln.contig_end;
+    out_aln_is_reverse[i] = aln.is_reverse;
+    out_aln_cs_tag[i] = aln.cs_tag;
+    out_aln_height[i] = aln.height;
+    out_aln_num_mutations[i] = aln.num_mutations;
+    out_aln_chunk_id[i] = aln.chunk_id;
   }
 
   DataFrame alignments_df = DataFrame::create(
@@ -773,26 +776,28 @@ List aln_query_full(
 
   // --- Create Mutations DataFrame ---
   const std::vector<FullOutputMutations>& mutations = queryFull.get_output_mutations();
-  NumericVector out_mut_aln_idx;
-  CharacterVector out_mut_read_id;
-  CharacterVector out_mut_contig_id;
-  CharacterVector out_mut_type; // Convert enum to string
-  IntegerVector out_mut_position;
-  CharacterVector out_mut_desc;
-  IntegerVector out_mut_height;
+  
+  size_t n_mutations = mutations.size();
+  NumericVector out_mut_aln_idx(n_mutations);
+  CharacterVector out_mut_read_id(n_mutations);
+  CharacterVector out_mut_contig_id(n_mutations);
+  CharacterVector out_mut_type(n_mutations);
+  IntegerVector out_mut_position(n_mutations);
+  CharacterVector out_mut_desc(n_mutations);
+  IntegerVector out_mut_height(n_mutations);
 
   // lookup table for mutation types to avoid stringstream overhead
   static const std::vector<std::string> mutation_type_lookup = {"SUB", "INS", "DEL"};
 
-  for (const auto& mut : mutations) {
-    out_mut_aln_idx.push_back(static_cast<double>(mut.alignment_index + 1)); // R numeric can hold uint64_t
-    out_mut_read_id.push_back(mut.read_id);
-    out_mut_contig_id.push_back(mut.contig_id);
-    // convert MutationType enum to string using lookup table
-    out_mut_type.push_back(mutation_type_lookup[static_cast<int>(mut.type)]);
-    out_mut_position.push_back(mut.position);
-    out_mut_desc.push_back(mut.desc);
-    out_mut_height.push_back(mut.height);
+  for (size_t i = 0; i < n_mutations; i++) {
+    const auto& mut = mutations[i];
+    out_mut_aln_idx[i] = static_cast<double>(mut.alignment_index + 1);
+    out_mut_read_id[i] = mut.read_id;
+    out_mut_contig_id[i] = mut.contig_id;
+    out_mut_type[i] = mutation_type_lookup[static_cast<int>(mut.type)];
+    out_mut_position[i] = mut.position;
+    out_mut_desc[i] = mut.desc;
+    out_mut_height[i] = mut.height;
   }
 
   DataFrame mutations_df = DataFrame::create(
@@ -807,28 +812,31 @@ List aln_query_full(
 
   // --- Create Reads DataFrame ---
   const std::vector<FullOutputReads>& reads = queryFull.get_output_reads();
-  CharacterVector out_read_id;
-  CharacterVector out_read_contig_id;
-  IntegerVector out_read_length;
-  IntegerVector out_span_start;
-  IntegerVector out_span_end;
-  IntegerVector out_total_aligned_length;
-  IntegerVector out_num_alignments;
-  IntegerVector out_read_num_mutations;
-  IntegerVector out_read_height;
-  LogicalVector out_read_reversed;
+  
+  size_t n_reads = reads.size();
+  CharacterVector out_read_id(n_reads);
+  CharacterVector out_read_contig_id(n_reads);
+  IntegerVector out_read_length(n_reads);
+  IntegerVector out_span_start(n_reads);
+  IntegerVector out_span_end(n_reads);
+  IntegerVector out_total_aligned_length(n_reads);
+  IntegerVector out_num_alignments(n_reads);
+  IntegerVector out_read_num_mutations(n_reads);
+  IntegerVector out_read_height(n_reads);
+  LogicalVector out_read_reversed(n_reads);
 
-  for (const auto& read : reads) {
-    out_read_id.push_back(read.read_id);
-    out_read_contig_id.push_back(read.contig_id);
-    out_read_length.push_back(read.read_length);
-    out_span_start.push_back(read.span_start);
-    out_span_end.push_back(read.span_end);
-    out_total_aligned_length.push_back(read.total_aligned_length);
-    out_num_alignments.push_back(read.num_alignments);
-    out_read_num_mutations.push_back(read.num_mutations);
-    out_read_height.push_back(read.height);
-    out_read_reversed.push_back(read.read_reversed);
+  for (size_t i = 0; i < n_reads; i++) {
+    const auto& read = reads[i];
+    out_read_id[i] = read.read_id;
+    out_read_contig_id[i] = read.contig_id;
+    out_read_length[i] = read.read_length;
+    out_span_start[i] = read.span_start;
+    out_span_end[i] = read.span_end;
+    out_total_aligned_length[i] = read.total_aligned_length;
+    out_num_alignments[i] = read.num_alignments;
+    out_read_num_mutations[i] = read.num_mutations;
+    out_read_height[i] = read.height;
+    out_read_reversed[i] = read.read_reversed;
   }
 
   DataFrame reads_df = DataFrame::create(
@@ -846,30 +854,33 @@ List aln_query_full(
 
   // --- Create Chunks DataFrame ---
   const std::vector<FullOutputChunk>& chunks = queryFull.get_output_chunks();
-  CharacterVector out_chunk_id;
-  CharacterVector out_chunk_read_id;
-  CharacterVector out_chunk_contig_id;
-  IntegerVector out_chunk_read_length;
-  IntegerVector out_chunk_span_start;
-  IntegerVector out_chunk_span_end;
-  IntegerVector out_chunk_total_aligned_length;
-  IntegerVector out_chunk_num_alignments;
-  IntegerVector out_chunk_num_mutations;
-  IntegerVector out_chunk_height;
-  LogicalVector out_chunk_read_reversed;
+  
+  size_t n_chunks = chunks.size();
+  CharacterVector out_chunk_id(n_chunks);
+  CharacterVector out_chunk_read_id(n_chunks);
+  CharacterVector out_chunk_contig_id(n_chunks);
+  IntegerVector out_chunk_read_length(n_chunks);
+  IntegerVector out_chunk_span_start(n_chunks);
+  IntegerVector out_chunk_span_end(n_chunks);
+  IntegerVector out_chunk_total_aligned_length(n_chunks);
+  IntegerVector out_chunk_num_alignments(n_chunks);
+  IntegerVector out_chunk_num_mutations(n_chunks);
+  IntegerVector out_chunk_height(n_chunks);
+  LogicalVector out_chunk_read_reversed(n_chunks);
 
-  for (const auto& chunk : chunks) {
-    out_chunk_id.push_back(chunk.chunk_id);
-    out_chunk_read_id.push_back(chunk.read_id);
-    out_chunk_contig_id.push_back(chunk.contig_id);
-    out_chunk_read_length.push_back(chunk.read_length);
-    out_chunk_span_start.push_back(chunk.span_start);
-    out_chunk_span_end.push_back(chunk.span_end);
-    out_chunk_total_aligned_length.push_back(chunk.total_aligned_length);
-    out_chunk_num_alignments.push_back(chunk.num_alignments);
-    out_chunk_num_mutations.push_back(chunk.num_mutations);
-    out_chunk_height.push_back(chunk.height);
-    out_chunk_read_reversed.push_back(chunk.read_reversed);
+  for (size_t i = 0; i < n_chunks; i++) {
+    const auto& chunk = chunks[i];
+    out_chunk_id[i] = chunk.chunk_id;
+    out_chunk_read_id[i] = chunk.read_id;
+    out_chunk_contig_id[i] = chunk.contig_id;
+    out_chunk_read_length[i] = chunk.read_length;
+    out_chunk_span_start[i] = chunk.span_start;
+    out_chunk_span_end[i] = chunk.span_end;
+    out_chunk_total_aligned_length[i] = chunk.total_aligned_length;
+    out_chunk_num_alignments[i] = chunk.num_alignments;
+    out_chunk_num_mutations[i] = chunk.num_mutations;
+    out_chunk_height[i] = chunk.height;
+    out_chunk_read_reversed[i] = chunk.read_reversed;
   }
 
   DataFrame chunks_df = DataFrame::create(
