@@ -265,17 +265,6 @@ List aln_alignments_from_read_id(
     }
   }
 
-  // build intervals for height calculation
-  std::vector<std::pair<int, int>> intervals;
-  intervals.reserve(read_alignments.size());
-  for (const auto& ad : read_alignments) {
-    intervals.emplace_back(static_cast<int>(ad.aln->read_start), 
-                           static_cast<int>(ad.aln->read_end));
-  }
-
-  // calculate heights using utility function
-  std::vector<int> heights = calculate_stacking_heights(intervals);
-
   // build alignment output vectors
   NumericVector out_aln_idx;
   CharacterVector out_aln_read_id;
@@ -287,7 +276,6 @@ List aln_alignments_from_read_id(
   IntegerVector out_aln_contig_end;
   LogicalVector out_aln_is_reverse;
   IntegerVector out_aln_num_mutations;
-  IntegerVector out_aln_height;
 
   // build mutation output vectors
   NumericVector out_mut_aln_idx;
@@ -295,12 +283,10 @@ List aln_alignments_from_read_id(
   IntegerVector out_mut_contig_coord;
   IntegerVector out_mut_read_coord;
   CharacterVector out_mut_desc;
-  IntegerVector out_mut_height;
 
   for (size_t i = 0; i < read_alignments.size(); ++i) {
     size_t aln_index = read_alignments[i].index;
     const Alignment* aln = read_alignments[i].aln;
-    int height = heights[i];
 
     out_aln_idx.push_back(static_cast<double>(aln_index));
     out_aln_read_id.push_back(read_id);
@@ -313,7 +299,6 @@ List aln_alignments_from_read_id(
     out_aln_contig_end.push_back(static_cast<int>(aln->contig_end));
     out_aln_is_reverse.push_back(aln->is_reverse);
     out_aln_num_mutations.push_back(aln->get_mutation_count());
-    out_aln_height.push_back(height);
 
     // process mutations for this alignment
     int contig_start = static_cast<int>(aln->contig_start);
@@ -358,7 +343,6 @@ List aln_alignments_from_read_id(
       out_mut_contig_coord.push_back(contig_coord + 1); // 1-based for R
       out_mut_read_coord.push_back(read_coord);
       out_mut_desc.push_back(mut.to_string());
-      out_mut_height.push_back(height);
     }
   }
 
@@ -373,7 +357,6 @@ List aln_alignments_from_read_id(
       Named("contig_end") = out_aln_contig_end,
       Named("is_reverse") = out_aln_is_reverse,
       Named("num_mutations") = out_aln_num_mutations,
-      Named("height") = out_aln_height,
       Named("stringsAsFactors") = false);
 
   DataFrame mutations_df = DataFrame::create(
@@ -382,7 +365,6 @@ List aln_alignments_from_read_id(
       Named("contig_coord") = out_mut_contig_coord,
       Named("read_coord") = out_mut_read_coord,
       Named("desc") = out_mut_desc,
-      Named("height") = out_mut_height,
       Named("stringsAsFactors") = false);
 
   return List::create(
