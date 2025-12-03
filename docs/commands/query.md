@@ -149,7 +149,6 @@ See [File Formats](../file-formats.md) for detailed specifications of all output
 **Full Mode Output (in odir):**
 - `full_alignments.txt`: Detailed alignment information with heights
 - `full_mutations.txt`: Mutation details for each alignment
-- `full_reads.txt`: Read statistics and height assignments
 - `full_chunks.txt`: Chunk statistics and height assignments
 
 **Pileup Mode Output (in odir):**

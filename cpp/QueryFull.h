@@ -35,6 +35,11 @@ struct FullOutputAlignments {
   int num_mutations;
   int height;
   std::string chunk_id;
+  bool strand_flipped;  // true if same contig as first alignment in chunk AND different strand
+  int64_t vstart;  // view coordinate start (clipped to interval)
+  int64_t vend;    // view coordinate end (clipped to interval)
+  bool clip_start; // true if vstart corresponds to a clipped position
+  bool clip_end;   // true if vend corresponds to a clipped position
 };
 
 struct FullOutputMutations {
@@ -47,31 +52,17 @@ struct FullOutputMutations {
   int height;
 };
 
-struct FullOutputReads {
-  std::string read_id;
-  std::string contig_id;
-  int read_length;
-  int span_start;
-  int span_end;
-  int total_aligned_length;
-  int num_alignments;
-  int num_mutations;
-  int height;
-  bool read_reversed;
-};
-
 struct FullOutputChunk {
   std::string chunk_id;
   std::string read_id;
-  std::string contig_id;
   int read_length;
-  int span_start; // contig coordinates for height calculation
-  int span_end;   // contig coordinates for height calculation
   int total_aligned_length;
   int num_alignments;
   int num_mutations;
   int height;
   bool read_reversed;
+  int64_t vstart;  // view coordinates for height calculation (spans contigs)
+  int64_t vend;
 };
 
 class QueryFull : public QueryBase {
@@ -84,34 +75,37 @@ class QueryFull : public QueryBase {
 
   std::vector<FullOutputAlignments> output_alignments;
   std::vector<FullOutputMutations> output_mutations;
-  std::vector<FullOutputReads> output_reads;
   std::vector<FullOutputChunk> output_chunks;
   std::vector<int> alignment_to_chunk_index;
 
-  void generate_output_data();
+  // map from contig_id to intervals for efficient vcoord lookup
+  std::map<std::string, std::vector<const Interval*>> contig_id_to_intervals_map;
 
-  // calculate heights for alignments based on selected style
-  void calculate_heights();
+  void collect_alignments_from_intervals();
+  void build_contig_id_to_intervals_map();
 
-  // helper methods for different height calculation styles
-  void calculate_heights_by_coord(bool sort_by_start);
-  void calculate_heights_by_mutations();
-
-  // helper methods for read processing
-  void collect_reads_from_alignments();
-  void calculate_read_heights();
-  void assign_alignment_heights_from_reads();
 
   // helper methods for chunk processing
   void collect_chunks_from_alignments();
+  std::vector<std::vector<FullOutputAlignments*>> group_alignments_into_chunks(const std::vector<FullOutputAlignments*>& alignments);
+  void build_chunk_objects(const std::string& read_id, const std::vector<std::vector<FullOutputAlignments*>>& chunks);
   void calculate_chunk_heights();
   void assign_alignment_heights_from_chunks();
   void calculate_chunk_heights_by_coord(bool sort_by_start);
   void calculate_chunk_heights_by_mutations();
 
   // helper methods for binary search in mutation-based height calculation
-  bool has_overlap(const std::vector<std::pair<int, int>>& intervals, int start, int end);
-  void add_sorted_interval(std::vector<std::pair<int, int>>& intervals, int start, int end);
+  bool has_overlap(const std::vector<std::pair<int64_t, int64_t>>& intervals, int64_t start, int64_t end);
+  void add_sorted_interval(std::vector<std::pair<int64_t, int64_t>>& intervals, int64_t start, int64_t end);
+  
+  // clip alignment to interval and compute vcoords
+  // returns false if alignment is completely outside interval (warning logged, skip alignment)
+  bool clip_alignment_to_interval(const Alignment& aln, const Interval& interval,
+                                  int64_t& vstart, int64_t& vend,
+                                  bool& clip_start, bool& clip_end) const;
+
+  // verification: check that chunks and alignments are properly matched
+  void verify_chunks_and_alignments() const;
 
   public:
   QueryFull(const std::vector<Interval>& intervals,
@@ -136,7 +130,6 @@ class QueryFull : public QueryBase {
   // getters
   const std::vector<FullOutputAlignments>& get_output_alignments() const;
   const std::vector<FullOutputMutations>& get_output_mutations() const;
-  const std::vector<FullOutputReads>& get_output_reads() const;
   const std::vector<FullOutputChunk>& get_output_chunks() const;
 
   // set height calculation style

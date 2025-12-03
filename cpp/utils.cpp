@@ -337,27 +337,67 @@ void read_intervals(const std::string& filename,
   }
 
   std::string line;
+  bool has_vcoords = false;
+  bool has_strand = false;
   if (getline(file, line)) {
-    // Verify header
-    if (line != "contig\tstart\tend") {
+    // check for optional vstart/vend/strand columns
+    if (line == "contig\tstart\tend\tvstart\tvend\tstrand") {
+      has_vcoords = true;
+      has_strand = true;
+    } else if (line == "contig\tstart\tend\tvstart\tvend") {
+      has_vcoords = true;
+    } else if (line != "contig\tstart\tend") {
       cerr << "error: invalid header in intervals file. Expected "
-              "'contig\\tstart\\tend'"
+              "'contig\\tstart\\tend' or 'contig\\tstart\\tend\\tvstart\\tvend' or "
+              "'contig\\tstart\\tend\\tvstart\\tvend\\tstrand'"
            << endl;
       exit(EXIT_FAILURE);
     }
   }
-  // read
+  
+  // read intervals
   while (getline(file, line)) {
     std::istringstream iss(line);
     std::string contig;
     uint32_t start, end;
+    int64_t vstart = 0, vend = 0;
+    char strand = '+';
+    
     if (!(iss >> contig >> start >> end)) {
       cerr << "error: malformed line in intervals file: " << line << endl;
       exit(EXIT_FAILURE);
     }
-    intervals.emplace_back(contig, start, end);
+    
+    if (has_vcoords) {
+      if (!(iss >> vstart >> vend)) {
+        cerr << "error: malformed line in intervals file (missing vstart/vend): " << line << endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+    
+    if (has_strand) {
+      std::string strand_str;
+      if (!(iss >> strand_str) || strand_str.empty()) {
+        cerr << "error: malformed line in intervals file (missing strand): " << line << endl;
+        exit(EXIT_FAILURE);
+      }
+      strand = strand_str[0];
+    }
+    
+    intervals.emplace_back(contig, start, end, vstart, vend, strand);
   }
   file.close();
+  
+  // auto-calculate vcoords if not provided (all zeros)
+  if (!has_vcoords && !intervals.empty()) {
+    int64_t cumulative_vcoord = 0;
+    for (auto& interval : intervals) {
+      interval.vstart = cumulative_vcoord;
+      int64_t interval_length = static_cast<int64_t>(interval.end) - static_cast<int64_t>(interval.start);
+      interval.vend = cumulative_vcoord + interval_length;
+      cumulative_vcoord = interval.vend;
+    }
+  }
 }
 
 // Note: Needs update to work with mutation indices and AlignmentStore
