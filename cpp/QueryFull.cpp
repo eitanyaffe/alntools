@@ -315,8 +315,18 @@ void QueryFull::collect_alignments_from_intervals()
       // clip alignment to interval and compute vcoords
       int64_t vstart, vend;
       bool clip_start, clip_end;
+      
       if (!clip_alignment_to_interval(aln, interval, vstart, vend, clip_start, clip_end)) {
         // alignment completely outside interval, skip it
+        continue;
+      }
+      
+      // filter based on clipped alignment length
+      uint32_t clipped_start = std::max(aln.contig_start, interval.start);
+      uint32_t clipped_end = std::min(aln.contig_end, interval.end);
+      uint32_t clipped_length = clipped_end - clipped_start;
+      
+      if (min_alignment_length > 0 && clipped_length < static_cast<uint32_t>(min_alignment_length)) {
         continue;
       }
 
@@ -475,9 +485,11 @@ void QueryFull::build_chunk_objects(const std::string& read_id,
         int64_t aln_vend = aln->vend;
         
         if (aln_vstart >= 0 && aln_vend >= 0) {
+          int64_t aln_min = std::min(aln_vstart, aln_vend);
+          int64_t aln_max = std::max(aln_vstart, aln_vend);
           // take min/max of both vcoords (handles minus strand where vstart > vend)
-          chunk_vstart = std::min(chunk_vstart, std::min(aln_vstart, aln_vend));
-          chunk_vend = std::max(chunk_vend, std::max(aln_vstart, aln_vend));
+          chunk_vstart = std::min(chunk_vstart, aln_min);
+          chunk_vend = std::max(chunk_vend, aln_max);
         }
         
         total_aligned_length += (aln->contig_end - aln->contig_start);
