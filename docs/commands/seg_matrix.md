@@ -115,18 +115,35 @@ Counts reads supporting connections between segment sides without adjacency cons
 
 2. **Read Processing**:
    * For each read, get all alignments sorted by read start
-   * Filter alignments with overlap > `max_margin`
+   * Apply parsimony filtering to select non-overlapping alignments:
+     * Filter out alignments shorter than `side_length` (in contig coordinates)
+     * Filter out alignments with mutation percentage > `max_mutation_percent` (over full alignment span)
+     * Select parsimony subset: iteratively choose alignments prioritizing contigs with most selected read coverage, taking longest alignments (in read coordinates) that don't overlap previously selected alignments by more than `max_margin` (in read coordinates)
    * Intersect each alignment with segments to create intervals
    * For each interval, compute:
      * Side coverage (whether the read fully covers the shifted left/right side regions)
      * Mutations within each covered side (excluding short indels)
 
-3. **Interval Sequence Analysis**:
+3. **Parsimony Alignment Selection**:
+   * Quality filtering: remove alignments with contig span < `side_length` or mutation percentage > `max_mutation_percent`
+   * Maintain selected alignments and track total read span per contig
+   * Iteratively select alignments:
+     * Choose top alignment from contigs with highest total selected read coverage (longest alignment in read coordinates per contig)
+     * If no candidates remain for selected contigs, choose globally longest alignment (in read coordinates)
+     * Accept alignment if read-coordinate overlap with all previously selected alignments ≤ `max_margin`
+     * Update contig read coverage tracking
+   * Tie-breaking for equally long alignments (in read coordinates):
+     1. Prefer longer contig span
+     2. Prefer fewer mutations
+     3. Prefer lower read start coordinate
+     4. Prefer lower contig index
+
+4. **Interval Sequence Analysis**:
    * Traverse the interval sequence in read order
    * For every interval pointing in (left side covered on plus strand, or right side on minus strand) with mutation percentage ≤ `max_mutation_percent`, create reach/adjacency associations with all previously observed exit intervals
    * After processing entries, record new exit intervals (right side covered on plus strand, or left side on minus strand) whose mutation percentage is ≤ `max_mutation_percent`
 
-4. **Adjacency Check**:
+5. **Adjacency Check**:
    * Associations are considered adjacent when the estimated gap between their read coordinates is ≤ `max_adjacency_distance` bp.
 
 ## Examples

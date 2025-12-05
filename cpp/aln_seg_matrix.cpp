@@ -18,6 +18,7 @@ void seg_matrix_params(const char* name, int argc, char** argv, Parameters& para
     params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
     params.add_parser("side_length", new ParserInteger("side length in bp for segment coverage analysis (default 1000)", 1000), false);
     params.add_parser("side_margin", new ParserInteger("margin in bp between segment edge and side region (default 200)", 200), false);
+    params.add_parser("output_read_details", new ParserBoolean("output detailed read association files (default F)", false), false);
 
     if (argc == 1) {
         params.usage(name);
@@ -44,6 +45,7 @@ int seg_matrix_main(const char* name, int argc, char** argv)
     int min_indel_length = params.get_int("min_indel_length");
     int side_length = params.get_int("side_length");
     int side_margin = params.get_int("side_margin");
+    bool output_read_details = params.get_bool("output_read_details");
 
     // create output directory
     {
@@ -66,7 +68,7 @@ int seg_matrix_main(const char* name, int argc, char** argv)
     seg_matrix.compute(ifn_segments, odir,
                       max_mutation_percent, max_adjacency_distance,
                       max_margin, min_indel_length,
-                      side_length, side_margin);
+                      side_length, side_margin, output_read_details);
 
     cout << "seg_matrix command completed successfully" << endl;
     return 0;

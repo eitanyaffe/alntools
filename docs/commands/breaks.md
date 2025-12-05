@@ -58,21 +58,13 @@ chr2	2800000	left	18	7.2	2.50	0.008	0.040
 
 ## Algorithm
 
-The break detection algorithm works as follows:
+The algorithm detects positions with excessive read start/end clustering:
 
-1. **Filter alignments**: Only counts alignments where the contig boundary corresponds to the actual read start (`read_start == 0`) or read end (`read_end == read_length`)
-
-2. **Position filtering**: Only tests positions with at least `min_reads` supporting reads
-
-3. **Background calculation**: For each position, calculates expected counts using a sliding window of size `window`
-
-4. **Statistical testing**: Compares observed counts to expected counts using a binomial test
-
-5. **Enrichment calculation**: Computes observed/expected ratio (t/e)
-
-6. **Multiple testing correction**: Applies Benjamini-Hochberg correction for multiple testing
-
-7. **Output filtering**: Reports positions with q-value ≤ threshold, sorted by contig and position
+1. Counts read boundaries where the alignment edge matches the actual read start/end
+2. Filters to positions with at least `min_reads` supporting reads
+3. Calculates expected counts using a sliding window of size `window` for background estimation
+4. Tests significance using a binomial test comparing observed vs expected counts
+5. Applies Benjamini-Hochberg correction and reports positions with q-value ≤ `pval`
 
 ## Use Cases
 

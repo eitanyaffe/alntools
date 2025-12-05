@@ -33,11 +33,14 @@ struct Segment {
     uint32_t start;
     uint32_t end;
     uint32_t length;
+    std::string start_breakpoint_id;
+    std::string end_breakpoint_id;
     
     Segment(const std::string& id = "", const std::string& contig = "",
-           uint32_t start = 0, uint32_t end = 0)
+           uint32_t start = 0, uint32_t end = 0,
+           const std::string& start_bp_id = "", const std::string& end_bp_id = "")
         : segment_id(id), contig_id(contig), start(start), end(end),
-          length(end - start) {}
+          length(end - start), start_breakpoint_id(start_bp_id), end_breakpoint_id(end_bp_id) {}
 };
 
 // main segmentation manager class
@@ -112,6 +115,7 @@ private:
     // segment generation helpers
     void add_artificial_coords(std::vector<uint32_t>& coords, uint32_t contig_length);
     void create_segments_from_coords(const std::vector<uint32_t>& coords, 
+                                     const std::map<uint32_t, std::string>& coord_to_bp_id,
                                      const std::string& contig_id,
                                      uint32_t contig_length,
                                      int& segment_counter);

@@ -75,6 +75,10 @@ private:
 
     std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t> adjacency_matrix;
     std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t> reach_matrix;
+    
+    std::vector<std::tuple<std::string, std::string, std::string, std::string, std::string>> adjacency_reads;
+    std::vector<std::tuple<std::string, std::string, std::string, std::string, std::string>> reach_reads;
+    bool output_read_details_flag;
 
     struct SegmentStats {
         uint64_t total_read_count_left;
@@ -120,16 +124,24 @@ private:
     void process_read(uint32_t read_index);
     std::vector<const Alignment*> get_sorted_alignments_for_read(uint32_t read_index);
     std::vector<const Alignment*> filter_overlapping_alignments(const std::vector<const Alignment*>& alignments, bool debug_mode);
+    std::vector<const Alignment*> get_parsimony_read_alignments(const std::vector<const Alignment*>& alignments);
+    
+    std::vector<const Alignment*> filter_candidates_by_quality(const std::vector<const Alignment*>& alignments);
+    const Alignment* find_top_alignment(const std::vector<const Alignment*>& candidates,
+                                        const std::map<uint32_t, uint32_t>& contig_to_read_length);
+    bool has_excessive_overlap(const Alignment* aln, const std::vector<const Alignment*>& selected);
+    bool is_better_alignment(const Alignment* a, const Alignment* b);
 
     std::vector<ReadInterval> intersect_alignment_with_segments(const Alignment& aln);
     void compute_side_coverage_and_mutations(ReadInterval& interval, const Alignment& aln);
     double compute_mutation_percent(const Alignment& aln, uint32_t contig_start, uint32_t contig_end);
 
-    void process_interval_sequence(const std::vector<ReadInterval>& intervals, bool debug_mode);
+    void process_interval_sequence(const std::vector<ReadInterval>& intervals, bool debug_mode, const std::string& read_id);
     void create_association(const ReadInterval& exit_interval,
                             const ReadInterval& entry_interval,
                             bool debug_mode,
-                            std::unordered_map<std::string, SegmentReadContribution>& read_contrib);
+                            std::unordered_map<std::string, SegmentReadContribution>& read_contrib,
+                            const std::string& read_id);
     bool process_interval_side(const ReadInterval& interval,
                                const std::string& direction,
                                bool debug_mode,
@@ -163,6 +175,7 @@ private:
     void write_matrix(const std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t>& matrix,
                       const std::string& filename,
                       const std::string& matrix_name) const;
+    void write_read_details(const std::string& odir);
 
 public:
     SegMatrix(AlignmentStore& store_ref);
@@ -174,5 +187,6 @@ public:
                  uint32_t max_margin,
                  int min_indel_length,
                  uint32_t side_length,
-                 uint32_t side_margin);
+                 uint32_t side_margin,
+                 bool output_read_details);
 };

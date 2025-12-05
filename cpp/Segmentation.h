@@ -5,7 +5,6 @@
 #include "utils.h"
 #include <string>
 #include <vector>
-#include <map>
 
 // structure to represent a read breakpoint
 struct ReadBreakpoint {
@@ -17,15 +16,16 @@ struct ReadBreakpoint {
     uint32_t anchor_length;
     uint32_t anchor_mutations;
     uint32_t dangle_length;
+    std::string aggregate_breakpoint_id;
     
     ReadBreakpoint(const std::string& lib_id = "", const std::string& read_id = "", 
                    const std::string& contig_id = "",
                    uint32_t coord = 0, const std::string& type = "",
                    uint32_t anchor_length = 0, uint32_t anchor_mutations = 0,
-                   uint32_t dangle_length = 0)
+                   uint32_t dangle_length = 0, const std::string& aggregate_breakpoint_id = "")
         : lib_id(lib_id), read_id(read_id), contig_id(contig_id), coord(coord), type(type),
           anchor_length(anchor_length), anchor_mutations(anchor_mutations),
-          dangle_length(dangle_length) {}
+          dangle_length(dangle_length), aggregate_breakpoint_id(aggregate_breakpoint_id) {}
 };
 
 // worker class for detecting breakpoints in a single library
@@ -43,7 +43,6 @@ private:
 
 public:
     Segmentation(const AlignmentStore& store,
-                int max_margin = 20,
                 int min_anchor_length = 1000,
                 int min_dangle_length = 1000,
                 double max_anchor_mutations_percent = 0.001,
@@ -57,9 +56,6 @@ private:
     // check if alignment is valid anchor
     bool is_valid_anchor(const Alignment& aln) const;
     
-    // check if alignment is valid dangle
-    bool is_valid_dangle(const Alignment& dangle, const Alignment& anchor) const;
-    
     // determine breakpoint type based on strand and end position
     std::string get_breakpoint_type(bool is_reverse, bool is_end) const;
     
@@ -72,8 +68,15 @@ private:
                      const std::vector<Alignment>& alignments,
                      std::vector<ReadBreakpoint>& output_breakpoints);
     
-    // check if two alignments are on different contigs or far apart
-    bool is_valid_dangle_position(const Alignment& anchor, const Alignment& dangle) const;
+    // check if anchor is too close to read boundary (condition 1)
+    bool is_too_close_to_read_boundary(const Alignment& anchor, uint32_t read_length, bool check_next) const;
+    
+    // check if there's a nearby alignment on same contig/same strand that would reject breakpoint (condition 2)
+    bool has_nearby_same_contig_alignment(const Alignment& anchor, 
+                                          size_t anchor_idx,
+                                          bool check_next,
+                                          const vector<size_t>& alignment_indices,
+                                          const vector<Alignment>& alignments) const;
 };
 
 #endif // SEGMENTATION_H

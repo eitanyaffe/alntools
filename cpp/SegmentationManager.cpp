@@ -121,8 +121,9 @@ void SegmentationManager::detect_breakpoints_per_library()
         cout << "--------------------------------" << endl;
         cout << "processing library: " << lib_id << endl;
         
-        Segmentation detector(stores.at(lib_id), max_margin, min_anchor_length,
-                            min_dangle_length, max_anchor_mutations_percent,
+        Segmentation detector(stores.at(lib_id), min_anchor_length,
+                            min_dangle_length,
+                            max_anchor_mutations_percent,
                             min_alignment_distance);
         
         vector<ReadBreakpoint>& breakpoints = lib_breakpoints[lib_id];
@@ -164,6 +165,10 @@ void SegmentationManager::aggregate_breakpoints_step()
     // cluster breakpoints within margin
     aggregate_breakpoints.clear();
     int breakpoint_counter = 1;
+    
+    // map to store aggregate ID for each read breakpoint
+    // key: lib_id + read_id + contig_id + coord + type (as string)
+    map<string, string> read_bp_to_agg_id;
     
     size_t i = 0;
     while (i < all_breakpoints.size()) {
@@ -212,13 +217,29 @@ void SegmentationManager::aggregate_breakpoints_step()
         AggregateBreakpoint agg_bp(bp_id, first_bp.contig_id, best_coord, first_bp.type);
         agg_bp.read_support = cluster.size();
         
-        // count support per library
+        // count support per library and map read breakpoints to aggregate ID
         for (const ReadBreakpoint& bp : cluster) {
             agg_bp.lib_support[bp.lib_id]++;
+            string key = bp.lib_id + "\t" + bp.read_id + "\t" + bp.contig_id + "\t" + 
+                        to_string(bp.coord) + "\t" + bp.type;
+            read_bp_to_agg_id[key] = bp_id;
         }
         
         aggregate_breakpoints.push_back(agg_bp);
         i = j;
+    }
+    
+    // update original read breakpoints with aggregate IDs
+    for (auto& entry : lib_breakpoints) {
+        vector<ReadBreakpoint>& lib_bps = entry.second;
+        for (ReadBreakpoint& bp : lib_bps) {
+            string key = bp.lib_id + "\t" + bp.read_id + "\t" + bp.contig_id + "\t" + 
+                        to_string(bp.coord) + "\t" + bp.type;
+            auto it = read_bp_to_agg_id.find(key);
+            if (it != read_bp_to_agg_id.end()) {
+                bp.aggregate_breakpoint_id = it->second;
+            }
+        }
     }
     
     cout << "created " << aggregate_breakpoints.size() << " aggregated breakpoints" << endl;
@@ -388,6 +409,7 @@ void SegmentationManager::add_artificial_coords(vector<uint32_t>& coords, uint32
 }
 
 void SegmentationManager::create_segments_from_coords(const vector<uint32_t>& coords,
+                                                      const map<uint32_t, string>& coord_to_bp_id,
                                                       const string& contig_id,
                                                       uint32_t contig_length,
                                                       int& segment_counter)
@@ -395,7 +417,7 @@ void SegmentationManager::create_segments_from_coords(const vector<uint32_t>& co
     if (coords.empty()) {
         // no breakpoints, create single segment for entire contig
         string seg_id = "s" + to_string(segment_counter++);
-        Segment seg(seg_id, contig_id, 1, contig_length);
+        Segment seg(seg_id, contig_id, 1, contig_length, "", "");
         segments.push_back(seg);
         return;
     }
@@ -403,7 +425,13 @@ void SegmentationManager::create_segments_from_coords(const vector<uint32_t>& co
     // create segment from start to first coordinate
     if (coords[0] > 1) {
         string seg_id = "s" + to_string(segment_counter++);
-        Segment seg(seg_id, contig_id, 1, coords[0]);
+        // end breakpoint is at coords[0]
+        string end_bp_id = "";
+        auto end_it = coord_to_bp_id.find(coords[0]);
+        if (end_it != coord_to_bp_id.end()) {
+            end_bp_id = end_it->second;
+        }
+        Segment seg(seg_id, contig_id, 1, coords[0], "", end_bp_id);
         segments.push_back(seg);
     }
     
@@ -415,7 +443,18 @@ void SegmentationManager::create_segments_from_coords(const vector<uint32_t>& co
         string seg_id = "s" + to_string(segment_counter++);
         uint32_t seg_start = coords[i] + 1;
         uint32_t seg_end = coords[i + 1];
-        Segment seg(seg_id, contig_id, seg_start, seg_end);
+        // start breakpoint is at coords[i], end breakpoint is at coords[i+1]
+        string start_bp_id = "";
+        auto start_it = coord_to_bp_id.find(coords[i]);
+        if (start_it != coord_to_bp_id.end()) {
+            start_bp_id = start_it->second;
+        }
+        string end_bp_id = "";
+        auto end_it = coord_to_bp_id.find(coords[i + 1]);
+        if (end_it != coord_to_bp_id.end()) {
+            end_bp_id = end_it->second;
+        }
+        Segment seg(seg_id, contig_id, seg_start, seg_end, start_bp_id, end_bp_id);
         segments.push_back(seg);
     }
     
@@ -423,7 +462,13 @@ void SegmentationManager::create_segments_from_coords(const vector<uint32_t>& co
     if (coords.back() < contig_length) {
         string seg_id = "s" + to_string(segment_counter++);
         uint32_t seg_start = coords.back() + 1;
-        Segment seg(seg_id, contig_id, seg_start, contig_length);
+        // start breakpoint is at coords.back()
+        string start_bp_id = "";
+        auto start_it = coord_to_bp_id.find(coords.back());
+        if (start_it != coord_to_bp_id.end()) {
+            start_bp_id = start_it->second;
+        }
+        Segment seg(seg_id, contig_id, seg_start, contig_length, start_bp_id, "");
         segments.push_back(seg);
     }
 }
@@ -461,7 +506,7 @@ void SegmentationManager::generate_segments()
         if (bp_it == contig_breakpoints.end()) {
             // no selected breakpoints for this contig - create single segment
             string seg_id = "s" + to_string(segment_counter++);
-            Segment seg(seg_id, contig_id, 1, contig_length);
+            Segment seg(seg_id, contig_id, 1, contig_length, "", "");
             segments.push_back(seg);
             continue;
         }
@@ -494,18 +539,20 @@ void SegmentationManager::generate_segments()
             }
         }
         
-        // extract coordinates from filtered breakpoints
+        // extract coordinates from filtered breakpoints and create coordinate-to-breakpoint-ID mapping
         vector<uint32_t> coords;
+        map<uint32_t, string> coord_to_bp_id;
         coords.reserve(filtered_bps.size());
         for (const AggregateBreakpoint* bp : filtered_bps) {
             coords.push_back(bp->coord);
+            coord_to_bp_id[bp->coord] = bp->breakpoint_id;
         }
         
         // add artificial coordinates where gaps exceed max_segment_length
         add_artificial_coords(coords, contig_length);
         
-        // create segments from all coordinates
-        create_segments_from_coords(coords, contig_id, contig_length, segment_counter);
+        // create segments from all coordinates (artificial coordinates won't be in coord_to_bp_id map)
+        create_segments_from_coords(coords, coord_to_bp_id, contig_id, contig_length, segment_counter);
     }
     
     // report segments shorter than threshold
@@ -549,7 +596,7 @@ void SegmentationManager::write_read_breakpoints_file(const string& odir)
     safe_open_file_for_writing(filename, file);
     
     // header
-    file << "lib_id\tread_id\tcontig\tcoord\ttype\tanchor_length\tanchor_mutations\tdangle_length" << endl;
+    file << "lib_id\tread_id\tcontig\tcoord\ttype\tanchor_length\tanchor_mutations\tdangle_length\taggregate_breakpoint_id" << endl;
     
     // write all read breakpoints
     for (const auto& entry : lib_breakpoints) {
@@ -563,7 +610,8 @@ void SegmentationManager::write_read_breakpoints_file(const string& odir)
                  << bp.type << "\t"
                  << bp.anchor_length << "\t"
                  << bp.anchor_mutations << "\t"
-                 << bp.dangle_length << endl;
+                 << bp.dangle_length << "\t"
+                 << bp.aggregate_breakpoint_id << endl;
         }
     }
     
@@ -658,14 +706,16 @@ void SegmentationManager::write_segments_file(const string& odir)
     safe_open_file_for_writing(filename, file);
     
     // header
-    file << "segment\tcontig\tstart\tend\tlength" << endl;
+    file << "segment\tcontig\tstart\tend\tlength\tstart_breakpoint_id\tend_breakpoint_id" << endl;
     
     for (const Segment& seg : segments) {
         file << seg.segment_id << "\t"
              << seg.contig_id << "\t"
              << seg.start << "\t"
              << seg.end << "\t"
-             << seg.length << endl;
+             << seg.length << "\t"
+             << seg.start_breakpoint_id << "\t"
+             << seg.end_breakpoint_id << endl;
     }
     
     file.close();

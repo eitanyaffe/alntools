@@ -269,6 +269,17 @@ void QueryFull::collect_alignments_from_intervals()
 
   cout << "number of intervals: " << intervals.size() << endl;
   
+  // calculate global vcoord range to identify first/last interval boundaries
+  int64_t global_vstart_min = INT64_MAX;
+  int64_t global_vend_max = INT64_MIN;
+  for (const auto& interval : intervals) {
+    // for minus strand, vstart > vend, so need to check both
+    int64_t interval_vmin = std::min(interval.vstart, interval.vend);
+    int64_t interval_vmax = std::max(interval.vstart, interval.vend);
+    global_vstart_min = std::min(global_vstart_min, interval_vmin);
+    global_vend_max = std::max(global_vend_max, interval_vmax);
+  }
+  
   // calculate total interval length for proportional max_alignments distribution
   uint64_t total_length = 0;
   for (const auto& interval : intervals) {
@@ -326,7 +337,15 @@ void QueryFull::collect_alignments_from_intervals()
       uint32_t clipped_end = std::min(aln.contig_end, interval.end);
       uint32_t clipped_length = clipped_end - clipped_start;
       
-      if (min_alignment_length > 0 && clipped_length < static_cast<uint32_t>(min_alignment_length)) {
+      // allow alignments clipped at boundaries of first/last intervals
+      // when clipped, vstart/vend equal the interval boundary vcoords
+      int64_t aln_vmin = std::min(vstart, vend);
+      int64_t aln_vmax = std::max(vstart, vend);
+      bool is_at_first_boundary = clip_start && (aln_vmin == global_vstart_min);
+      bool is_at_last_boundary = clip_end && (aln_vmax == global_vend_max);
+      bool allow_short_at_boundary = is_at_first_boundary || is_at_last_boundary;
+      
+      if (min_alignment_length > 0 && clipped_length < static_cast<uint32_t>(min_alignment_length) && !allow_short_at_boundary) {
         continue;
       }
 

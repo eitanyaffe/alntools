@@ -240,6 +240,37 @@ void SegMatrix::write_segment_summary(const string& odir)
          << segments.size() << " segments)" << endl;
 }
 
+void SegMatrix::write_read_details(const string& odir)
+{
+    string adjacency_file = odir + "/read_associations_adjacency.txt";
+    ofstream out_adj(adjacency_file);
+    massert(out_adj.is_open(), "could not open file %s", adjacency_file.c_str());
+    
+    out_adj << "seg_src\tside_src\tseg_tgt\tside_tgt\tread_id" << endl;
+    for (const auto& entry : adjacency_reads) {
+        out_adj << std::get<0>(entry) << "\t" << std::get<1>(entry) << "\t"
+                << std::get<2>(entry) << "\t" << std::get<3>(entry) << "\t"
+                << std::get<4>(entry) << endl;
+    }
+    out_adj.close();
+    cout << "wrote adjacency read details: " << adjacency_file << " (" 
+         << adjacency_reads.size() << " entries)" << endl;
+    
+    string reach_file = odir + "/read_associations_reach.txt";
+    ofstream out_reach(reach_file);
+    massert(out_reach.is_open(), "could not open file %s", reach_file.c_str());
+    
+    out_reach << "seg_src\tside_src\tseg_tgt\tside_tgt\tread_id" << endl;
+    for (const auto& entry : reach_reads) {
+        out_reach << std::get<0>(entry) << "\t" << std::get<1>(entry) << "\t"
+                  << std::get<2>(entry) << "\t" << std::get<3>(entry) << "\t"
+                  << std::get<4>(entry) << endl;
+    }
+    out_reach.close();
+    cout << "wrote reach read details: " << reach_file << " (" 
+         << reach_reads.size() << " entries)" << endl;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // main functions called by process_read
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -296,6 +327,146 @@ vector<const Alignment*> SegMatrix::filter_overlapping_alignments(const vector<c
     }
     
     return filtered;
+}
+
+bool SegMatrix::is_better_alignment(const Alignment* a, const Alignment* b)
+{
+    if (!a) return false;
+    if (!b) return true;
+    
+    uint32_t a_read_span = a->read_end - a->read_start;
+    uint32_t b_read_span = b->read_end - b->read_start;
+    if (a_read_span != b_read_span) {
+        return a_read_span > b_read_span;
+    }
+    
+    uint32_t a_contig_span = a->contig_end - a->contig_start;
+    uint32_t b_contig_span = b->contig_end - b->contig_start;
+    if (a_contig_span != b_contig_span) {
+        return a_contig_span > b_contig_span;
+    }
+    
+    if (a->mutations.size() != b->mutations.size()) {
+        return a->mutations.size() < b->mutations.size();
+    }
+    
+    if (a->read_start != b->read_start) {
+        return a->read_start < b->read_start;
+    }
+    
+    return a->contig_index < b->contig_index;
+}
+
+vector<const Alignment*> SegMatrix::filter_candidates_by_quality(const vector<const Alignment*>& alignments)
+{
+    vector<const Alignment*> filtered;
+    
+    for (const Alignment* aln : alignments) {
+        uint32_t contig_span = aln->contig_end - aln->contig_start;
+        if (contig_span < side_length) {
+            continue;
+        }
+        
+        double mutation_percent = compute_mutation_percent(*aln, aln->contig_start, aln->contig_end);
+        if (mutation_percent > max_mutation_percent) {
+            continue;
+        }
+        
+        filtered.push_back(aln);
+    }
+    
+    return filtered;
+}
+
+bool SegMatrix::has_excessive_overlap(const Alignment* aln, const vector<const Alignment*>& selected)
+{
+    for (const Alignment* sel : selected) {
+        uint32_t overlap_start = max(aln->read_start, sel->read_start);
+        uint32_t overlap_end = min(aln->read_end, sel->read_end);
+        
+        if (overlap_end > overlap_start) {
+            uint32_t overlap = overlap_end - overlap_start;
+            if (overlap > max_margin) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+const Alignment* SegMatrix::find_top_alignment(const vector<const Alignment*>& candidates,
+                                               const map<uint32_t, uint32_t>& contig_to_read_length)
+{
+    if (candidates.empty()) {
+        return nullptr;
+    }
+    
+    vector<pair<uint32_t, uint32_t>> sorted_contigs;
+    for (const auto& kv : contig_to_read_length) {
+        sorted_contigs.push_back({kv.first, kv.second});
+    }
+    sort(sorted_contigs.begin(), sorted_contigs.end(),
+         [](const pair<uint32_t, uint32_t>& a, const pair<uint32_t, uint32_t>& b) {
+             return a.second > b.second;
+         });
+    
+    for (const auto& contig_pair : sorted_contigs) {
+        uint32_t contig_index = contig_pair.first;
+        const Alignment* best = nullptr;
+        
+        for (const Alignment* cand : candidates) {
+            if (cand->contig_index == contig_index) {
+                if (is_better_alignment(cand, best)) {
+                    best = cand;
+                }
+            }
+        }
+        
+        if (best) {
+            return best;
+        }
+    }
+    
+    const Alignment* best = nullptr;
+    for (const Alignment* cand : candidates) {
+        if (is_better_alignment(cand, best)) {
+            best = cand;
+        }
+    }
+    
+    return best;
+}
+
+vector<const Alignment*> SegMatrix::get_parsimony_read_alignments(const vector<const Alignment*>& alignments)
+{
+    if (alignments.empty()) {
+        return alignments;
+    }
+    
+    vector<const Alignment*> candidates = filter_candidates_by_quality(alignments);
+    vector<const Alignment*> selected;
+    map<uint32_t, uint32_t> contig_to_read_length;
+    
+    while (!candidates.empty()) {
+        const Alignment* top = find_top_alignment(candidates, contig_to_read_length);
+        
+        if (!top) {
+            break;
+        }
+        
+        if (!has_excessive_overlap(top, selected)) {
+            selected.push_back(top);
+            uint32_t read_span = top->read_end - top->read_start;
+            contig_to_read_length[top->contig_index] += read_span;
+        }
+        
+        auto it = find(candidates.begin(), candidates.end(), top);
+        if (it != candidates.end()) {
+            candidates.erase(it);
+        }
+    }
+    
+    return selected;
 }
 
 vector<ReadInterval> SegMatrix::intersect_alignment_with_segments(const Alignment& aln)
@@ -595,7 +766,8 @@ bool SegMatrix::should_skip_mutation_threshold(double mutation_percent, const Re
 
 void SegMatrix::create_association(const ReadInterval& exit_interval, const ReadInterval& entry_interval,
                                    bool debug_mode,
-                                   std::unordered_map<std::string, SegmentReadContribution>& read_contrib)
+                                   std::unordered_map<std::string, SegmentReadContribution>& read_contrib,
+                                   const std::string& read_id)
 {
     string exit_side = exit_interval.is_reverse ? "left" : "right";
     string entry_side = entry_interval.is_reverse ? "right" : "left";
@@ -640,9 +812,15 @@ void SegMatrix::create_association(const ReadInterval& exit_interval, const Read
     }
 
     reach_matrix[key]++;
+    if (output_read_details_flag) {
+        reach_reads.push_back(std::make_tuple(seg_src, side_src, seg_tgt, side_tgt, read_id));
+    }
 
     if (is_adjacent) {
         adjacency_matrix[key]++;
+        if (output_read_details_flag) {
+            adjacency_reads.push_back(std::make_tuple(seg_src, side_src, seg_tgt, side_tgt, read_id));
+        }
     }
 }
 
@@ -685,7 +863,7 @@ bool SegMatrix::process_interval_side(const ReadInterval& interval,
     return true;
 }
 
-void SegMatrix::process_interval_sequence(const vector<ReadInterval>& intervals, bool debug_mode)
+void SegMatrix::process_interval_sequence(const vector<ReadInterval>& intervals, bool debug_mode, const string& read_id)
 {
     if (intervals.empty()) {
         return;
@@ -717,7 +895,7 @@ void SegMatrix::process_interval_sequence(const vector<ReadInterval>& intervals,
                 if (!interval.is_short_segment) {
                     for (const ReadInterval* exit_interval : going_out_intervals) {
                         if (!exit_interval->is_short_segment) {
-                            create_association(*exit_interval, interval, debug_mode, read_contrib);
+                            create_association(*exit_interval, interval, debug_mode, read_contrib, read_id);
                         }
                     }
                 }
@@ -776,7 +954,7 @@ void SegMatrix::process_read(uint32_t read_index)
     vector<const Alignment*> alignments_before = alignments;
     
     // filter overlapping alignments
-    alignments = filter_overlapping_alignments(alignments, false);
+    alignments = get_parsimony_read_alignments(alignments);
     
     // build sequence of intervals
     vector<ReadInterval> all_intervals;
@@ -801,7 +979,7 @@ void SegMatrix::process_read(uint32_t read_index)
     }
     
     // process interval sequence
-    process_interval_sequence(all_intervals, debug_mode);
+    process_interval_sequence(all_intervals, debug_mode, read_id);
     
     // increment debug counter only for reads with multiple intervals that we debugged
     if (debug_mode) {
@@ -820,7 +998,8 @@ void SegMatrix::compute(const string& ifn_segments,
                        uint32_t max_margin_param,
                        int min_indel_length_param,
                        uint32_t side_length_param,
-                       uint32_t side_margin_param)
+                       uint32_t side_margin_param,
+                       bool output_read_details)
 {
     max_mutation_percent = max_mutation_percent_param;
     max_adjacency_distance = max_adjacency_distance_param;
@@ -830,10 +1009,13 @@ void SegMatrix::compute(const string& ifn_segments,
     side_margin = side_margin_param;
     min_segment_length = 2 * (side_length + side_margin);
     massert(side_length > 0, "side_length must be positive");
+    output_read_details_flag = output_read_details;
     
     segment_stats.clear();
     adjacency_matrix.clear();
     reach_matrix.clear();
+    adjacency_reads.clear();
+    reach_reads.clear();
     debug_read_count = 0;
     
     load_segments(ifn_segments);
@@ -863,6 +1045,10 @@ void SegMatrix::compute(const string& ifn_segments,
     
     write_matrices(odir);
     write_segment_summary(odir);
+    
+    if (output_read_details_flag) {
+        write_read_details(odir);
+    }
 }
 
 bool SegMatrix::read_covers_seam(const vector<const Alignment*>& alignments) const
