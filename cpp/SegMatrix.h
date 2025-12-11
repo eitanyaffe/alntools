@@ -115,9 +115,33 @@ private:
 
     std::map<std::string, std::vector<size_t>> contig_to_segments;
 
+    // cluster mapping (segment -> cluster_id, strand)
+    std::unordered_map<std::string, std::string> segment_to_cluster;
+    std::unordered_map<std::string, std::string> segment_to_strand;
+    bool has_clusters;
+
+    // cluster association tracking (cluster-cluster pairs with unique read IDs)
+    std::map<std::tuple<std::string, std::string, std::string, std::string>, std::unordered_set<std::string>> cluster_adjacency_reads;
+    std::map<std::tuple<std::string, std::string, std::string, std::string>, std::unordered_set<std::string>> cluster_reach_reads;
+
+    struct ClusterStats {
+        std::unordered_set<std::string> total_reads_left;
+        std::unordered_set<std::string> total_reads_right;
+        std::unordered_set<std::string> associated_reads_left;
+        std::unordered_set<std::string> associated_reads_right;
+        std::unordered_set<std::string> associated_clusters_left;
+        std::unordered_set<std::string> associated_clusters_right;
+
+        ClusterStats()
+        {
+        }
+    };
+    std::map<std::string, ClusterStats> cluster_stats;
+
     uint32_t debug_read_count;
 
     void load_segments(const std::string& ifn_segments);
+    void load_cluster_mapping(const std::string& ifn_clusters);
     void load_library();
     void build_contig_to_segments_map();
 
@@ -142,6 +166,12 @@ private:
                             bool debug_mode,
                             std::unordered_map<std::string, SegmentReadContribution>& read_contrib,
                             const std::string& read_id);
+    void track_cluster_association(const std::string& seg_src, const std::string& seg_tgt,
+                                   const std::string& side_src, const std::string& side_tgt,
+                                   bool is_adjacent, const std::string& read_id);
+    void track_cluster_read_contribution(const std::string& seg_id, 
+                                         const SegmentReadContribution& contrib,
+                                         const std::string& read_id);
     bool process_interval_side(const ReadInterval& interval,
                                const std::string& direction,
                                bool debug_mode,
@@ -176,6 +206,10 @@ private:
                       const std::string& filename,
                       const std::string& matrix_name) const;
     void write_read_details(const std::string& odir);
+    
+    void compute_cluster_matrices();
+    void write_cluster_matrices(const std::string& odir);
+    void write_cluster_summary(const std::string& odir);
 
 public:
     SegMatrix(AlignmentStore& store_ref);
@@ -188,5 +222,6 @@ public:
                  int min_indel_length,
                  uint32_t side_length,
                  uint32_t side_margin,
-                 bool output_read_details);
+                 bool output_read_details,
+                 const std::string& ifn_segment_clusters = "");
 };

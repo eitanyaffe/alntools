@@ -14,7 +14,7 @@ using namespace std;
 // constructor
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-SegMatrix::SegMatrix(AlignmentStore& store_ref) : store(store_ref), debug_read_count(0) {}
+SegMatrix::SegMatrix(AlignmentStore& store_ref) : store(store_ref), has_clusters(false), debug_read_count(0) {}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // I/O functions
@@ -90,6 +90,64 @@ void SegMatrix::load_segments(const string& ifn_segments)
         segments.push_back(seg);
         segment_index_map[seg.id] = seg.index;
     }
+}
+
+void SegMatrix::load_cluster_mapping(const string& ifn_clusters)
+{
+    if (ifn_clusters.empty()) {
+        has_clusters = false;
+        return;
+    }
+    
+    ifstream file(ifn_clusters);
+    massert(file.is_open(), "could not open file %s", ifn_clusters.c_str());
+    
+    string line;
+    int seg_ind = -1, cluster_ind = -1, strand_ind = -1;
+    
+    segment_to_cluster.clear();
+    segment_to_strand.clear();
+    
+    // parse header
+    if (getline(file, line)) {
+        istringstream header_iss(line);
+        string header;
+        int col_index = 0;
+        while (getline(header_iss, header, '\t')) {
+            if (header == "segment") seg_ind = col_index;
+            else if (header == "csegment") cluster_ind = col_index;
+            else if (header == "strand") strand_ind = col_index;
+            col_index++;
+        }
+        
+        massert(seg_ind >= 0, "column 'segment' not found in %s", ifn_clusters.c_str());
+        massert(cluster_ind >= 0, "column 'csegment' not found in %s", ifn_clusters.c_str());
+        massert(strand_ind >= 0, "column 'strand' not found in %s", ifn_clusters.c_str());
+    }
+    
+    // parse data rows
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        istringstream iss(line);
+        vector<string> fields;
+        string field;
+        while (getline(iss, field, '\t')) {
+            fields.push_back(field);
+        }
+        
+        if (fields.size() == 0) continue;
+        
+        string seg_id = fields[seg_ind];
+        string cluster_id = fields[cluster_ind];
+        string strand = fields[strand_ind];
+        
+        segment_to_cluster[seg_id] = cluster_id;
+        segment_to_strand[seg_id] = strand;
+    }
+    
+    has_clusters = true;
+    cout << "loaded cluster mapping for " << segment_to_cluster.size() << " segments" << endl;
 }
 
 void SegMatrix::load_library()
@@ -822,6 +880,67 @@ void SegMatrix::create_association(const ReadInterval& exit_interval, const Read
             adjacency_reads.push_back(std::make_tuple(seg_src, side_src, seg_tgt, side_tgt, read_id));
         }
     }
+    
+    // track cluster associations if clusters are loaded
+    if (has_clusters) {
+        track_cluster_association(seg_src, seg_tgt, side_src, side_tgt, is_adjacent, read_id);
+    }
+}
+
+void SegMatrix::track_cluster_association(const string& seg_src, const string& seg_tgt,
+                                          const string& side_src, const string& side_tgt,
+                                          bool is_adjacent, const string& read_id)
+{
+    auto seg_src_cluster_it = segment_to_cluster.find(seg_src);
+    auto seg_tgt_cluster_it = segment_to_cluster.find(seg_tgt);
+    
+    if (seg_src_cluster_it == segment_to_cluster.end()) {
+        massert(false, "segment %s not found in cluster mapping", seg_src.c_str());
+    }
+    if (seg_tgt_cluster_it == segment_to_cluster.end()) {
+        massert(false, "segment %s not found in cluster mapping", seg_tgt.c_str());
+    }
+    
+    string cluster_src = seg_src_cluster_it->second;
+    string cluster_tgt = seg_tgt_cluster_it->second;
+    
+    // determine cluster sides based on segment sides and strand
+    // if segment strand is "-", then left of segment is right of cluster
+    string cluster_side_src = side_src;
+    string cluster_side_tgt = side_tgt;
+    
+    auto seg_src_strand_it = segment_to_strand.find(seg_src);
+    auto seg_tgt_strand_it = segment_to_strand.find(seg_tgt);
+    
+    if (seg_src_strand_it != segment_to_strand.end() && seg_src_strand_it->second == "-") {
+        cluster_side_src = (side_src == "left") ? "right" : "left";
+    }
+    if (seg_tgt_strand_it != segment_to_strand.end() && seg_tgt_strand_it->second == "-") {
+        cluster_side_tgt = (side_tgt == "left") ? "right" : "left";
+    }
+    
+    auto cluster_key = canonize_key(cluster_src, cluster_tgt, cluster_side_src, cluster_side_tgt);
+    
+    // track unique reads for cluster associations
+    cluster_reach_reads[cluster_key].insert(read_id);
+    if (is_adjacent) {
+        cluster_adjacency_reads[cluster_key].insert(read_id);
+    }
+    
+    // track associated clusters in cluster stats
+    ClusterStats& cluster_src_stats = cluster_stats[cluster_src];
+    ClusterStats& cluster_tgt_stats = cluster_stats[cluster_tgt];
+    
+    if (cluster_side_src == "left") {
+        cluster_src_stats.associated_clusters_left.insert(cluster_tgt);
+    } else {
+        cluster_src_stats.associated_clusters_right.insert(cluster_tgt);
+    }
+    if (cluster_side_tgt == "left") {
+        cluster_tgt_stats.associated_clusters_left.insert(cluster_src);
+    } else {
+        cluster_tgt_stats.associated_clusters_right.insert(cluster_src);
+    }
 }
 
 bool SegMatrix::process_interval_side(const ReadInterval& interval,
@@ -928,10 +1047,65 @@ void SegMatrix::process_interval_sequence(const vector<ReadInterval>& intervals,
         if (contrib.associated_right) {
             stats.associated_read_count_right++;
         }
+        
+        // track cluster read contributions (unique reads per cluster side)
+        if (has_clusters) {
+            track_cluster_read_contribution(seg_id, contrib, read_id);
+        }
     }
     
     if (debug_mode) {
         cout << "finished processing interval sequence" << endl;
+    }
+}
+
+void SegMatrix::track_cluster_read_contribution(const string& seg_id, 
+                                                 const SegmentReadContribution& contrib,
+                                                 const string& read_id)
+{
+    auto cluster_it = segment_to_cluster.find(seg_id);
+    if (cluster_it == segment_to_cluster.end()) {
+        return;
+    }
+    
+    const string& cluster_id = cluster_it->second;
+    auto strand_it = segment_to_strand.find(seg_id);
+    string strand = (strand_it != segment_to_strand.end()) ? strand_it->second : "+";
+    
+    ClusterStats& stats = cluster_stats[cluster_id];
+    
+    // determine cluster sides based on segment sides and strand
+    if (contrib.total_left) {
+        string cluster_side = (strand == "-") ? "right" : "left";
+        if (cluster_side == "left") {
+            stats.total_reads_left.insert(read_id);
+        } else {
+            stats.total_reads_right.insert(read_id);
+        }
+    }
+    if (contrib.total_right) {
+        string cluster_side = (strand == "-") ? "left" : "right";
+        if (cluster_side == "left") {
+            stats.total_reads_left.insert(read_id);
+        } else {
+            stats.total_reads_right.insert(read_id);
+        }
+    }
+    if (contrib.associated_left) {
+        string cluster_side = (strand == "-") ? "right" : "left";
+        if (cluster_side == "left") {
+            stats.associated_reads_left.insert(read_id);
+        } else {
+            stats.associated_reads_right.insert(read_id);
+        }
+    }
+    if (contrib.associated_right) {
+        string cluster_side = (strand == "-") ? "left" : "right";
+        if (cluster_side == "left") {
+            stats.associated_reads_left.insert(read_id);
+        } else {
+            stats.associated_reads_right.insert(read_id);
+        }
     }
 }
 
@@ -999,7 +1173,8 @@ void SegMatrix::compute(const string& ifn_segments,
                        int min_indel_length_param,
                        uint32_t side_length_param,
                        uint32_t side_margin_param,
-                       bool output_read_details)
+                       bool output_read_details,
+                       const string& ifn_segment_clusters)
 {
     max_mutation_percent = max_mutation_percent_param;
     max_adjacency_distance = max_adjacency_distance_param;
@@ -1016,9 +1191,23 @@ void SegMatrix::compute(const string& ifn_segments,
     reach_matrix.clear();
     adjacency_reads.clear();
     reach_reads.clear();
+    cluster_stats.clear();
+    cluster_adjacency_reads.clear();
+    cluster_reach_reads.clear();
     debug_read_count = 0;
     
     load_segments(ifn_segments);
+    load_cluster_mapping(ifn_segment_clusters);
+    
+    // validate all segments have clusters if clusters are loaded
+    if (has_clusters) {
+        for (const auto& seg : segments) {
+            if (segment_to_cluster.find(seg.id) == segment_to_cluster.end()) {
+                massert(false, "segment %s does not have a cluster", seg.id.c_str());
+            }
+        }
+    }
+    
     build_contig_to_segments_map();
     load_library();
     
@@ -1048,6 +1237,12 @@ void SegMatrix::compute(const string& ifn_segments,
     
     if (output_read_details_flag) {
         write_read_details(odir);
+    }
+    
+    if (has_clusters) {
+        compute_cluster_matrices();
+        write_cluster_matrices(odir);
+        write_cluster_summary(odir);
     }
 }
 
@@ -1093,5 +1288,182 @@ SegMatrix::canonize_key(const std::string& seg_src, const std::string& seg_tgt,
         return std::make_tuple(seg_tgt, seg_src, side_tgt, side_src);
     }
     return std::make_tuple(seg_src, seg_tgt, side_src, side_tgt);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// cluster matrix computation
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SegMatrix::compute_cluster_matrices()
+{
+    // cluster matrices are already computed during read processing
+    // (cluster_adjacency_reads and cluster_reach_reads track unique reads)
+    // this function is a placeholder for any additional computation needed
+    cout << "cluster adjacency pairs: " << cluster_adjacency_reads.size() << endl;
+    cout << "cluster reach pairs: " << cluster_reach_reads.size() << endl;
+}
+
+void SegMatrix::write_cluster_matrices(const string& odir)
+{
+    // write cluster adjacency matrix
+    string adjacency_file = odir + "/cluster_adjacency_matrix.txt";
+    ofstream out_adj(adjacency_file);
+    massert(out_adj.is_open(), "could not open file %s", adjacency_file.c_str());
+    
+    out_adj << "cluster_src\tcluster_tgt\tside_src\tside_tgt\ttotal_read_count\tassociated_read_count\tcount" << endl;
+    
+    for (const auto& entry : cluster_adjacency_reads) {
+        const auto& key = entry.first;
+        const unordered_set<string>& reads = entry.second;
+        uint32_t count = reads.size();
+        
+        const string& cluster_src = get<0>(key);
+        const string& cluster_tgt = get<1>(key);
+        const string& side_src = get<2>(key);
+        const string& side_tgt = get<3>(key);
+        
+        uint64_t total = 0;
+        uint64_t assoc = 0;
+        auto stats_it = cluster_stats.find(cluster_src);
+        if (stats_it != cluster_stats.end()) {
+            const ClusterStats& stats = stats_it->second;
+            total = (side_src == "left") ? stats.total_reads_left.size() : stats.total_reads_right.size();
+            assoc = (side_src == "left") ? stats.associated_reads_left.size() : stats.associated_reads_right.size();
+        }
+        
+        out_adj << cluster_src << "\t" << cluster_tgt << "\t"
+                << side_src << "\t" << side_tgt << "\t"
+                << total << "\t" << assoc << "\t"
+                << count << endl;
+    }
+    
+    // write reverse entries (for symmetry)
+    for (const auto& entry : cluster_adjacency_reads) {
+        const auto& key = entry.first;
+        const unordered_set<string>& reads = entry.second;
+        uint32_t count = reads.size();
+        
+        const string& cluster_src = get<0>(key);
+        const string& cluster_tgt = get<1>(key);
+        if (cluster_src == cluster_tgt) {
+            continue;
+        }
+        const string& side_src = get<2>(key);
+        const string& side_tgt = get<3>(key);
+        
+        uint64_t total = 0;
+        uint64_t assoc = 0;
+        auto stats_it = cluster_stats.find(cluster_tgt);
+        if (stats_it != cluster_stats.end()) {
+            const ClusterStats& stats = stats_it->second;
+            total = (side_tgt == "left") ? stats.total_reads_left.size() : stats.total_reads_right.size();
+            assoc = (side_tgt == "left") ? stats.associated_reads_left.size() : stats.associated_reads_right.size();
+        }
+        
+        out_adj << cluster_tgt << "\t" << cluster_src << "\t"
+                << side_tgt << "\t" << side_src << "\t"
+                << total << "\t" << assoc << "\t"
+                << count << endl;
+    }
+    
+    out_adj.close();
+    cout << "wrote cluster adjacency matrix: " << adjacency_file << " (" 
+         << cluster_adjacency_reads.size() << " entries)" << endl;
+    
+    // write cluster reach matrix
+    string reach_file = odir + "/cluster_reach_matrix.txt";
+    ofstream out_reach(reach_file);
+    massert(out_reach.is_open(), "could not open file %s", reach_file.c_str());
+    
+    out_reach << "cluster_src\tcluster_tgt\tside_src\tside_tgt\ttotal_read_count\tassociated_read_count\tcount" << endl;
+    
+    for (const auto& entry : cluster_reach_reads) {
+        const auto& key = entry.first;
+        const unordered_set<string>& reads = entry.second;
+        uint32_t count = reads.size();
+        
+        const string& cluster_src = get<0>(key);
+        const string& cluster_tgt = get<1>(key);
+        const string& side_src = get<2>(key);
+        const string& side_tgt = get<3>(key);
+        
+        uint64_t total = 0;
+        uint64_t assoc = 0;
+        auto stats_it = cluster_stats.find(cluster_src);
+        if (stats_it != cluster_stats.end()) {
+            const ClusterStats& stats = stats_it->second;
+            total = (side_src == "left") ? stats.total_reads_left.size() : stats.total_reads_right.size();
+            assoc = (side_src == "left") ? stats.associated_reads_left.size() : stats.associated_reads_right.size();
+        }
+        
+        out_reach << cluster_src << "\t" << cluster_tgt << "\t"
+                  << side_src << "\t" << side_tgt << "\t"
+                  << total << "\t" << assoc << "\t"
+                  << count << endl;
+    }
+    
+    // write reverse entries (for symmetry)
+    for (const auto& entry : cluster_reach_reads) {
+        const auto& key = entry.first;
+        const unordered_set<string>& reads = entry.second;
+        uint32_t count = reads.size();
+        
+        const string& cluster_src = get<0>(key);
+        const string& cluster_tgt = get<1>(key);
+        if (cluster_src == cluster_tgt) {
+            continue;
+        }
+        const string& side_src = get<2>(key);
+        const string& side_tgt = get<3>(key);
+        
+        uint64_t total = 0;
+        uint64_t assoc = 0;
+        auto stats_it = cluster_stats.find(cluster_tgt);
+        if (stats_it != cluster_stats.end()) {
+            const ClusterStats& stats = stats_it->second;
+            total = (side_tgt == "left") ? stats.total_reads_left.size() : stats.total_reads_right.size();
+            assoc = (side_tgt == "left") ? stats.associated_reads_left.size() : stats.associated_reads_right.size();
+        }
+        
+        out_reach << cluster_tgt << "\t" << cluster_src << "\t"
+                  << side_tgt << "\t" << side_src << "\t"
+                  << total << "\t" << assoc << "\t"
+                  << count << endl;
+    }
+    
+    out_reach.close();
+    cout << "wrote cluster reach matrix: " << reach_file << " (" 
+         << cluster_reach_reads.size() << " entries)" << endl;
+}
+
+void SegMatrix::write_cluster_summary(const string& odir)
+{
+    string summary_file = odir + "/cluster_summary.txt";
+    
+    ofstream out(summary_file);
+    massert(out.is_open(), "could not open file %s", summary_file.c_str());
+    
+    out << "cluster\ttotal_read_count_left\ttotal_read_count_right\tassociated_read_count_left\tassociated_read_count_right\tassociated_cluster_count_left\tassociated_cluster_count_right" << endl;
+    
+    for (const auto& kv : cluster_stats) {
+        const string& cluster_id = kv.first;
+        const ClusterStats& stats = kv.second;
+        
+        uint64_t total_left = stats.total_reads_left.size();
+        uint64_t total_right = stats.total_reads_right.size();
+        uint64_t assoc_left = stats.associated_reads_left.size();
+        uint64_t assoc_right = stats.associated_reads_right.size();
+        uint64_t assoc_cluster_left = stats.associated_clusters_left.size();
+        uint64_t assoc_cluster_right = stats.associated_clusters_right.size();
+        
+        out << cluster_id << "\t" << total_left << "\t" << total_right
+            << "\t" << assoc_left << "\t" << assoc_right
+            << "\t" << assoc_cluster_left << "\t" << assoc_cluster_right
+            << endl;
+    }
+    
+    out.close();
+    cout << "wrote cluster summary: " << summary_file << " (" 
+         << cluster_stats.size() << " clusters)" << endl;
 }
 
