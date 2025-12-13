@@ -193,52 +193,38 @@ void SegMatrix::write_matrix(const map<tuple<string, string, string, string>, ui
         massert(idx_tgt_it != segment_index_map.end(), "segment %s not found", seg_tgt.c_str());
         const SegMatrixSegment& seg_info_src = segments[idx_src_it->second];
         const SegMatrixSegment& seg_info_tgt = segments[idx_tgt_it->second];
-        uint64_t total = 0;
-        uint64_t assoc = 0;
-        auto stats_it = segment_stats.find(seg_src);
-        if (stats_it != segment_stats.end()) {
-            const SegmentStats& stats = stats_it->second;
-            total = (side_src == "left") ? stats.total_read_count_left : stats.total_read_count_right;
-            assoc = (side_src == "left") ? stats.associated_read_count_left : stats.associated_read_count_right;
+        
+        uint64_t total_src = 0;
+        uint64_t assoc_src = 0;
+        auto stats_src_it = segment_stats.find(seg_src);
+        if (stats_src_it != segment_stats.end()) {
+            const SegmentStats& stats = stats_src_it->second;
+            total_src = (side_src == "left") ? stats.total_read_count_left : stats.total_read_count_right;
+            assoc_src = (side_src == "left") ? stats.associated_read_count_left : stats.associated_read_count_right;
         }
         out << seg_src << "\t" << seg_tgt << "\t"
             << side_src << "\t" << side_tgt << "\t"
             << seg_info_src.contig << "\t" << seg_info_src.start << "\t" << seg_info_src.end << "\t"
             << seg_info_tgt.contig << "\t" << seg_info_tgt.start << "\t" << seg_info_tgt.end << "\t"
-            << total << "\t" << assoc << "\t"
+            << total_src << "\t" << assoc_src << "\t"
             << count << endl;
-    }
-    
-    for (const auto& entry : matrix) {
-        const auto& key = entry.first;
-        uint32_t count = entry.second;
-        const string& seg_src = get<0>(key);
-        const string& seg_tgt = get<1>(key);
-        if (seg_src == seg_tgt) {
-            continue;
+        
+        if (seg_src != seg_tgt) {
+            uint64_t total_tgt = 0;
+            uint64_t assoc_tgt = 0;
+            auto stats_tgt_it = segment_stats.find(seg_tgt);
+            if (stats_tgt_it != segment_stats.end()) {
+                const SegmentStats& stats = stats_tgt_it->second;
+                total_tgt = (side_tgt == "left") ? stats.total_read_count_left : stats.total_read_count_right;
+                assoc_tgt = (side_tgt == "left") ? stats.associated_read_count_left : stats.associated_read_count_right;
+            }
+            out << seg_tgt << "\t" << seg_src << "\t"
+                << side_tgt << "\t" << side_src << "\t"
+                << seg_info_tgt.contig << "\t" << seg_info_tgt.start << "\t" << seg_info_tgt.end << "\t"
+                << seg_info_src.contig << "\t" << seg_info_src.start << "\t" << seg_info_src.end << "\t"
+                << total_tgt << "\t" << assoc_tgt << "\t"
+                << count << endl;
         }
-        const string& side_src = get<2>(key);
-        const string& side_tgt = get<3>(key);
-        auto idx_src_it = segment_index_map.find(seg_src);
-        auto idx_tgt_it = segment_index_map.find(seg_tgt);
-        massert(idx_src_it != segment_index_map.end(), "segment %s not found", seg_src.c_str());
-        massert(idx_tgt_it != segment_index_map.end(), "segment %s not found", seg_tgt.c_str());
-        const SegMatrixSegment& seg_info_src = segments[idx_src_it->second];
-        const SegMatrixSegment& seg_info_tgt = segments[idx_tgt_it->second];
-        uint64_t total = 0;
-        uint64_t assoc = 0;
-        auto stats_it = segment_stats.find(seg_tgt);
-        if (stats_it != segment_stats.end()) {
-            const SegmentStats& stats = stats_it->second;
-            total = (side_tgt == "left") ? stats.total_read_count_left : stats.total_read_count_right;
-            assoc = (side_tgt == "left") ? stats.associated_read_count_left : stats.associated_read_count_right;
-        }
-        out << seg_tgt << "\t" << seg_src << "\t"
-            << side_tgt << "\t" << side_src << "\t"
-            << seg_info_tgt.contig << "\t" << seg_info_tgt.start << "\t" << seg_info_tgt.end << "\t"
-            << seg_info_src.contig << "\t" << seg_info_src.start << "\t" << seg_info_src.end << "\t"
-            << total << "\t" << assoc << "\t"
-            << count << endl;
     }
     
     out.close();
@@ -1144,8 +1130,14 @@ void SegMatrix::process_read(uint32_t read_index)
         }
     }
     
-    // determine debug mode using alignment coverage
-    bool debug_mode = (debug_read_count < 10) && read_covers_seam(alignments);
+    // determine debug mode
+    string debug_type = "read";  // "off", "few", or "read"
+    bool debug_mode = false;
+    if (debug_type == "read") {
+        debug_mode = (read_id == "m84221_250708_233611_s3/221643819/ccs");
+    } else if (debug_type == "few") {
+        debug_mode = (debug_read_count < 10) && read_covers_seam(alignments);
+    }
     
     // debug: print read info, alignments, and intervals
     if (debug_mode) {
@@ -1445,16 +1437,32 @@ void SegMatrix::write_cluster_summary(const string& odir)
     
     out << "cluster\ttotal_read_count_left\ttotal_read_count_right\tassociated_read_count_left\tassociated_read_count_right\tassociated_cluster_count_left\tassociated_cluster_count_right" << endl;
     
-    for (const auto& kv : cluster_stats) {
-        const string& cluster_id = kv.first;
-        const ClusterStats& stats = kv.second;
+    // collect all unique clusters from segment_to_cluster to ensure we output all of them
+    unordered_set<string> all_clusters;
+    for (const auto& kv : segment_to_cluster) {
+        all_clusters.insert(kv.second);
+    }
+    
+    // iterate through all clusters to ensure we output all of them
+    for (const string& cluster_id : all_clusters) {
+        auto stats_it = cluster_stats.find(cluster_id);
         
-        uint64_t total_left = stats.total_reads_left.size();
-        uint64_t total_right = stats.total_reads_right.size();
-        uint64_t assoc_left = stats.associated_reads_left.size();
-        uint64_t assoc_right = stats.associated_reads_right.size();
-        uint64_t assoc_cluster_left = stats.associated_clusters_left.size();
-        uint64_t assoc_cluster_right = stats.associated_clusters_right.size();
+        uint64_t total_left = 0;
+        uint64_t total_right = 0;
+        uint64_t assoc_left = 0;
+        uint64_t assoc_right = 0;
+        uint64_t assoc_cluster_left = 0;
+        uint64_t assoc_cluster_right = 0;
+        
+        if (stats_it != cluster_stats.end()) {
+            const ClusterStats& stats = stats_it->second;
+            total_left = stats.total_reads_left.size();
+            total_right = stats.total_reads_right.size();
+            assoc_left = stats.associated_reads_left.size();
+            assoc_right = stats.associated_reads_right.size();
+            assoc_cluster_left = stats.associated_clusters_left.size();
+            assoc_cluster_right = stats.associated_clusters_right.size();
+        }
         
         out << cluster_id << "\t" << total_left << "\t" << total_right
             << "\t" << assoc_left << "\t" << assoc_right
@@ -1464,6 +1472,6 @@ void SegMatrix::write_cluster_summary(const string& odir)
     
     out.close();
     cout << "wrote cluster summary: " << summary_file << " (" 
-         << cluster_stats.size() << " clusters)" << endl;
+         << all_clusters.size() << " clusters)" << endl;
 }
 
