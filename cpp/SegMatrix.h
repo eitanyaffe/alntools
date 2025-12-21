@@ -76,8 +76,28 @@ private:
     std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t> adjacency_matrix;
     std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t> reach_matrix;
     
-    std::vector<std::tuple<std::string, std::string, std::string, std::string, std::string>> adjacency_reads;
-    std::vector<std::tuple<std::string, std::string, std::string, std::string, std::string>> reach_reads;
+    struct ReadAssociation {
+        std::string seg_src;
+        std::string side_src;
+        std::string seg_tgt;
+        std::string side_tgt;
+        std::string read_id;
+        std::string aln_src_contig;
+        uint32_t aln_src_read_start;
+        uint32_t aln_src_read_end;
+        uint32_t aln_src_contig_start;
+        uint32_t aln_src_contig_end;
+        bool aln_src_is_reverse;
+        std::string aln_tgt_contig;
+        uint32_t aln_tgt_read_start;
+        uint32_t aln_tgt_read_end;
+        uint32_t aln_tgt_contig_start;
+        uint32_t aln_tgt_contig_end;
+        bool aln_tgt_is_reverse;
+    };
+    
+    std::vector<ReadAssociation> adjacency_reads;
+    std::vector<ReadAssociation> reach_reads;
     bool output_read_details_flag;
 
     struct SegmentStats {

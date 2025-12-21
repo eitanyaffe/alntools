@@ -287,6 +287,147 @@ string apply_mutations(const string& seq, const vector<uint32_t>& mutation_indic
   return result;
 }
 
+// Function to map contig coordinate to read coordinate by processing mutations
+uint32_t contig_to_read_coord(const Alignment& alignment,
+                               uint32_t query_contig_coord,
+                               const AlignmentStore& store)
+{
+  massert(query_contig_coord >= alignment.contig_start && query_contig_coord <= alignment.contig_end,
+          "query_contig_coord %u is outside alignment bounds [%u, %u]",
+          query_contig_coord, alignment.contig_start, alignment.contig_end);
+  
+  // shift: cumulative adjustment to read coordinate due to indels
+  // - insertions: read has extra bases, so for same contig position, read is ahead -> shift is positive
+  // - deletions: contig has extra bases, so for same contig position, read is behind -> shift is negative
+  // - substitutions: both advance equally, so no shift change
+  int32_t shift = 0;
+  
+  // process mutations only for positions strictly before query_coord (exclusive)
+  for (uint32_t mut_idx : alignment.mutations) {
+    const Mutation& mutation = store.get_mutation(alignment.contig_index, mut_idx);
+    uint32_t mut_pos = mutation.position;
+    
+    // stop if we've reached or passed the query coordinate
+    if (mut_pos >= query_contig_coord) {
+      break;
+    }
+    
+    // mutation is strictly before query coordinate: update shift
+    switch (mutation.type) {
+      case MutationType::SUBSTITUTION:
+        // substitution: both advance, no shift change
+        break;
+      case MutationType::INSERTION: {
+        // insertion: read advances, contig doesn't -> read is ahead -> add to shift
+        uint32_t ins_length = static_cast<uint32_t>(mutation.nts.length());
+        shift += static_cast<int32_t>(ins_length);
+        break;
+      }
+      case MutationType::DELETION: {
+        // deletion: contig advances, read doesn't -> read is behind -> subtract from shift
+        uint32_t del_length = static_cast<uint32_t>(mutation.nts.length());
+        shift -= static_cast<int32_t>(del_length);
+        break;
+      }
+    }
+  }
+  
+  // calculate base offset in contig space
+  uint32_t contig_offset = query_contig_coord - alignment.contig_start;
+  
+  // apply shift and get result
+  int32_t read_offset = static_cast<int32_t>(contig_offset) + shift;
+  
+  // ensure read_offset is non-negative
+  if (read_offset < 0) {
+    read_offset = 0;
+  }
+  
+  uint32_t read_pos = alignment.read_start + static_cast<uint32_t>(read_offset);
+  
+  if (alignment.is_reverse) {
+    uint32_t forward_offset = read_pos - alignment.read_start;
+    read_pos = alignment.read_end - forward_offset;
+  }
+  
+  return read_pos;
+}
+
+// Function to estimate read coordinate from contig coordinate using linear scaling
+uint32_t contig_to_read_coord_est(const Alignment& alignment,
+                                   uint32_t query_contig_coord)
+{
+  massert(query_contig_coord >= alignment.contig_start && query_contig_coord <= alignment.contig_end,
+          "query_contig_coord %u is outside alignment bounds [%u, %u]",
+          query_contig_coord, alignment.contig_start, alignment.contig_end);
+  
+  double contig_span = static_cast<double>(alignment.contig_end) - static_cast<double>(alignment.contig_start);
+  double read_span = static_cast<double>(alignment.read_end) - static_cast<double>(alignment.read_start);
+  double scale = contig_span > 0.0 ? (read_span / contig_span) : 0.0;
+  
+  double offset = static_cast<double>(query_contig_coord) - static_cast<double>(alignment.contig_start);
+  uint32_t read_offset = static_cast<uint32_t>(std::llround(offset * scale));
+  
+  uint32_t read_pos;
+  if (!alignment.is_reverse) {
+    read_pos = alignment.read_start + read_offset;
+  } else {
+    read_pos = alignment.read_end >= read_offset ? alignment.read_end - read_offset : alignment.read_end;
+  }
+  
+  read_pos = std::min(std::max(read_pos, alignment.read_start), alignment.read_end);
+  
+  return read_pos;
+}
+
+// Test function to verify contig_to_read_coord on alignment boundaries
+void test_contig_to_read_coord(const Alignment& alignment,
+                                const AlignmentStore& store)
+{
+  uint32_t read_start_result = contig_to_read_coord(alignment, alignment.contig_start, store);
+  uint32_t read_end_result = contig_to_read_coord(alignment, alignment.contig_end, store);
+  
+  uint32_t expected_read_start = alignment.is_reverse ? alignment.read_end : alignment.read_start;
+  uint32_t expected_read_end = alignment.is_reverse ? alignment.read_start : alignment.read_end;
+  
+  bool failed = false;
+  
+  if (read_start_result != expected_read_start) {
+    failed = true;
+    cerr << "test_contig_to_read_coord failed: contig_start -> read coordinate mismatch" << endl;
+    cerr << "  expected: " << expected_read_start << ", got: " << read_start_result << endl;
+  }
+  
+  if (read_end_result != expected_read_end) {
+    failed = true;
+    cerr << "test_contig_to_read_coord failed: contig_end -> read coordinate mismatch" << endl;
+    cerr << "  expected: " << expected_read_end << ", got: " << read_end_result << endl;
+  }
+  
+  if (failed) {
+    cerr << "alignment: contig[" << alignment.contig_start << "-" << alignment.contig_end 
+         << "], read[" << alignment.read_start << "-" << alignment.read_end 
+         << "], reverse=" << (alignment.is_reverse ? "T" : "F") << endl;
+    cerr << "total mutations: " << alignment.mutations.size() << endl;
+    
+    for (size_t i = 0; i < alignment.mutations.size(); ++i) {
+      uint32_t mut_idx = alignment.mutations[i];
+      const Mutation& mutation = store.get_mutation(alignment.contig_index, mut_idx);
+      string mut_type_str;
+      switch (mutation.type) {
+        case MutationType::SUBSTITUTION: mut_type_str = "SUB"; break;
+        case MutationType::INSERTION: mut_type_str = "INS"; break;
+        case MutationType::DELETION: mut_type_str = "DEL"; break;
+      }
+      cerr << "  mutation[" << i << "]: type=" << mut_type_str 
+           << ", pos=" << mutation.position << ", nts=" << mutation.nts 
+           << " (length=" << mutation.nts.length() << ")" << endl;
+    }
+    
+    massert(false, "test_contig_to_read_coord failed");
+  }
+}
+
 FileType get_file_type(const std::string& filename)
 {
   cout << "getting file type for " << filename << endl;

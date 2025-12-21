@@ -52,6 +52,19 @@ string apply_mutations(const string& contig_fragment,
     const string& read_id,
     const string& contig_id);
 
+// Function to map contig coordinate to read coordinate by processing mutations
+uint32_t contig_to_read_coord(const Alignment& alignment,
+                               uint32_t query_contig_coord,
+                               const AlignmentStore& store);
+
+// Function to estimate read coordinate from contig coordinate using linear scaling
+uint32_t contig_to_read_coord_est(const Alignment& alignment,
+                                   uint32_t query_contig_coord);
+
+// Test function to verify contig_to_read_coord on alignment boundaries
+void test_contig_to_read_coord(const Alignment& alignment,
+                                const AlignmentStore& store);
+
 enum class FileType {
   FASTA,
   FASTQ,

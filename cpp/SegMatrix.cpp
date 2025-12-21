@@ -290,11 +290,21 @@ void SegMatrix::write_read_details(const string& odir)
     ofstream out_adj(adjacency_file);
     massert(out_adj.is_open(), "could not open file %s", adjacency_file.c_str());
     
-    out_adj << "seg_src\tside_src\tseg_tgt\tside_tgt\tread_id" << endl;
+    out_adj << "seg_src\tside_src\tseg_tgt\tside_tgt\tread_id\t"
+            << "aln_src_contig\taln_src_read_start\taln_src_read_end\taln_src_contig_start\taln_src_contig_end\taln_src_is_reverse\t"
+            << "aln_tgt_contig\taln_tgt_read_start\taln_tgt_read_end\taln_tgt_contig_start\taln_tgt_contig_end\taln_tgt_is_reverse" << endl;
     for (const auto& entry : adjacency_reads) {
-        out_adj << std::get<0>(entry) << "\t" << std::get<1>(entry) << "\t"
-                << std::get<2>(entry) << "\t" << std::get<3>(entry) << "\t"
-                << std::get<4>(entry) << endl;
+        out_adj << entry.seg_src << "\t" << entry.side_src << "\t"
+                << entry.seg_tgt << "\t" << entry.side_tgt << "\t"
+                << entry.read_id << "\t"
+                << entry.aln_src_contig << "\t"
+                << (entry.aln_src_read_start + 1) << "\t" << entry.aln_src_read_end << "\t"
+                << (entry.aln_src_contig_start + 1) << "\t" << entry.aln_src_contig_end << "\t"
+                << (entry.aln_src_is_reverse ? "-" : "+") << "\t"
+                << entry.aln_tgt_contig << "\t"
+                << (entry.aln_tgt_read_start + 1) << "\t" << entry.aln_tgt_read_end << "\t"
+                << (entry.aln_tgt_contig_start + 1) << "\t" << entry.aln_tgt_contig_end << "\t"
+                << (entry.aln_tgt_is_reverse ? "-" : "+") << endl;
     }
     out_adj.close();
     cout << "wrote adjacency read details: " << adjacency_file << " (" 
@@ -304,11 +314,21 @@ void SegMatrix::write_read_details(const string& odir)
     ofstream out_reach(reach_file);
     massert(out_reach.is_open(), "could not open file %s", reach_file.c_str());
     
-    out_reach << "seg_src\tside_src\tseg_tgt\tside_tgt\tread_id" << endl;
+    out_reach << "seg_src\tside_src\tseg_tgt\tside_tgt\tread_id\t"
+              << "aln_src_contig\taln_src_read_start\taln_src_read_end\taln_src_contig_start\taln_src_contig_end\taln_src_is_reverse\t"
+              << "aln_tgt_contig\taln_tgt_read_start\taln_tgt_read_end\taln_tgt_contig_start\taln_tgt_contig_end\taln_tgt_is_reverse" << endl;
     for (const auto& entry : reach_reads) {
-        out_reach << std::get<0>(entry) << "\t" << std::get<1>(entry) << "\t"
-                  << std::get<2>(entry) << "\t" << std::get<3>(entry) << "\t"
-                  << std::get<4>(entry) << endl;
+        out_reach << entry.seg_src << "\t" << entry.side_src << "\t"
+                  << entry.seg_tgt << "\t" << entry.side_tgt << "\t"
+                  << entry.read_id << "\t"
+                  << entry.aln_src_contig << "\t"
+                  << (entry.aln_src_read_start + 1) << "\t" << entry.aln_src_read_end << "\t"
+                  << (entry.aln_src_contig_start + 1) << "\t" << entry.aln_src_contig_end << "\t"
+                  << (entry.aln_src_is_reverse ? "-" : "+") << "\t"
+                  << entry.aln_tgt_contig << "\t"
+                  << (entry.aln_tgt_read_start + 1) << "\t" << entry.aln_tgt_read_end << "\t"
+                  << (entry.aln_tgt_contig_start + 1) << "\t" << entry.aln_tgt_contig_end << "\t"
+                  << (entry.aln_tgt_is_reverse ? "-" : "+") << endl;
     }
     out_reach.close();
     cout << "wrote reach read details: " << reach_file << " (" 
@@ -529,10 +549,6 @@ vector<ReadInterval> SegMatrix::intersect_alignment_with_segments(const Alignmen
     uint32_t aln_contig_start = aln.contig_start;
     uint32_t aln_contig_end = aln.contig_end;
     
-    double contig_span = static_cast<double>(aln_contig_end) - static_cast<double>(aln_contig_start);
-    double read_span = static_cast<double>(aln.read_end) - static_cast<double>(aln.read_start);
-    double scale = contig_span > 0.0 ? (read_span / contig_span) : 0.0;
-    
     for (size_t seg_idx : seg_indices) {
         const SegMatrixSegment& seg = segments[seg_idx];
         
@@ -554,22 +570,13 @@ vector<ReadInterval> SegMatrix::intersect_alignment_with_segments(const Alignmen
             interval.is_short_segment = (seg.length < min_segment_length);
             interval.segment_index = seg_idx;
             
-            double offset_start = static_cast<double>(intersection_start) - static_cast<double>(aln_contig_start);
-            double offset_end = static_cast<double>(intersection_end) - static_cast<double>(aln_contig_start);
-            uint32_t read_offset_start = static_cast<uint32_t>(std::llround(offset_start * scale));
-            uint32_t read_offset_end = static_cast<uint32_t>(std::llround(offset_end * scale));
-            if (!aln.is_reverse) {
-                interval.read_start_est = aln.read_start + read_offset_start;
-                interval.read_end_est = aln.read_start + read_offset_end;
-            } else {
-                interval.read_end_est = aln.read_end >= read_offset_start ? aln.read_end - read_offset_start : aln.read_end;
-                interval.read_start_est = aln.read_end >= read_offset_end ? aln.read_end - read_offset_end : aln.read_start;
-            }
-            interval.read_start_est = std::min(std::max(interval.read_start_est, aln.read_start), aln.read_end);
-            interval.read_end_est = std::min(std::max(interval.read_end_est, aln.read_start), aln.read_end);
-            if (interval.read_end_est < interval.read_start_est) {
-                interval.read_end_est = interval.read_start_est;
-            }
+            // use precise coordinate mapping by processing mutations
+            uint32_t read_start_precise = contig_to_read_coord(aln, intersection_start, store);
+            uint32_t read_end_precise = contig_to_read_coord(aln, intersection_end, store);
+            
+            // ensure proper ordering: start is min, end is max
+            interval.read_start_est = std::min(read_start_precise, read_end_precise);
+            interval.read_end_est = std::max(read_start_precise, read_end_precise);
             
             intervals.push_back(interval);
         }
@@ -758,6 +765,7 @@ void SegMatrix::print_short_segment_skipped(const ReadInterval& interval) const
     cout << "  -> skipped short segment: " << interval.segment_id << endl;
 }
 
+
 void SegMatrix::print_exit_detected(const ReadInterval& interval, double mutation_percent) const
 {
     string side = interval.is_reverse ? "left" : "right";
@@ -857,13 +865,49 @@ void SegMatrix::create_association(const ReadInterval& exit_interval, const Read
 
     reach_matrix[key]++;
     if (output_read_details_flag) {
-        reach_reads.push_back(std::make_tuple(seg_src, side_src, seg_tgt, side_tgt, read_id));
+        ReadAssociation assoc;
+        assoc.seg_src = seg_src;
+        assoc.side_src = side_src;
+        assoc.seg_tgt = seg_tgt;
+        assoc.side_tgt = side_tgt;
+        assoc.read_id = read_id;
+        assoc.aln_src_contig = exit_interval.contig;
+        assoc.aln_src_read_start = exit_interval.read_start_est;
+        assoc.aln_src_read_end = exit_interval.read_end_est;
+        assoc.aln_src_contig_start = exit_interval.contig_start;
+        assoc.aln_src_contig_end = exit_interval.contig_end;
+        assoc.aln_src_is_reverse = exit_interval.is_reverse;
+        assoc.aln_tgt_contig = entry_interval.contig;
+        assoc.aln_tgt_read_start = entry_interval.read_start_est;
+        assoc.aln_tgt_read_end = entry_interval.read_end_est;
+        assoc.aln_tgt_contig_start = entry_interval.contig_start;
+        assoc.aln_tgt_contig_end = entry_interval.contig_end;
+        assoc.aln_tgt_is_reverse = entry_interval.is_reverse;
+        reach_reads.push_back(assoc);
     }
 
     if (is_adjacent) {
         adjacency_matrix[key]++;
         if (output_read_details_flag) {
-            adjacency_reads.push_back(std::make_tuple(seg_src, side_src, seg_tgt, side_tgt, read_id));
+            ReadAssociation assoc;
+            assoc.seg_src = seg_src;
+            assoc.side_src = side_src;
+            assoc.seg_tgt = seg_tgt;
+            assoc.side_tgt = side_tgt;
+            assoc.read_id = read_id;
+            assoc.aln_src_contig = exit_interval.contig;
+            assoc.aln_src_read_start = exit_interval.read_start_est;
+            assoc.aln_src_read_end = exit_interval.read_end_est;
+            assoc.aln_src_contig_start = exit_interval.contig_start;
+            assoc.aln_src_contig_end = exit_interval.contig_end;
+            assoc.aln_src_is_reverse = exit_interval.is_reverse;
+            assoc.aln_tgt_contig = entry_interval.contig;
+            assoc.aln_tgt_read_start = entry_interval.read_start_est;
+            assoc.aln_tgt_read_end = entry_interval.read_end_est;
+            assoc.aln_tgt_contig_start = entry_interval.contig_start;
+            assoc.aln_tgt_contig_end = entry_interval.contig_end;
+            assoc.aln_tgt_is_reverse = entry_interval.is_reverse;
+            adjacency_reads.push_back(assoc);
         }
     }
     
@@ -1174,7 +1218,7 @@ void SegMatrix::compute(const string& ifn_segments,
     min_indel_length = min_indel_length_param;
     side_length = side_length_param;
     side_margin = side_margin_param;
-    min_segment_length = 2 * (side_length + side_margin);
+    min_segment_length = side_length + side_margin;
     massert(side_length > 0, "side_length must be positive");
     output_read_details_flag = output_read_details;
     
