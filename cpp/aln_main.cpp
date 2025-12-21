@@ -26,6 +26,7 @@ int homologs_main(const char* name, int argc, char** argv);
 int segments_main(const char* name, int argc, char** argv);
 int cov_matrix_main(const char* name, int argc, char** argv);
 int seg_matrix_main(const char* name, int argc, char** argv);
+int inspect_read_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
@@ -46,6 +47,7 @@ void usage(const char* name)
   fprintf(stderr, "  cov_matrix: generate coverage matrix for segments across multiple libraries\n");
   fprintf(stderr, "  seg_matrix: generate segment adjacency and reach matrices from read alignments\n");
   fprintf(stderr, "  homologs: find homologous regions using kmer-based search\n");
+  fprintf(stderr, "  inspect_read: print detailed information about a specific read\n");
   fprintf(stderr, "\n");
 #ifdef _OPENMP
   fprintf(stderr, "thread support: enabled (OpenMP available, max threads: %d)\n", omp_get_max_threads());
@@ -88,6 +90,8 @@ int main(int argc, char** argv)
     rc = seg_matrix_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "homologs") {
     rc = homologs_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "inspect_read") {
+    rc = inspect_read_main(name.c_str(), argc - 1, argv + 1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);
