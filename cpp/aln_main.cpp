@@ -25,6 +25,7 @@ int rearrange_main(const char* name, int argc, char** argv);
 int homologs_main(const char* name, int argc, char** argv);
 int segments_main(const char* name, int argc, char** argv);
 int cov_matrix_main(const char* name, int argc, char** argv);
+int csegment_coverage_main(const char* name, int argc, char** argv);
 int seg_matrix_main(const char* name, int argc, char** argv);
 int inspect_read_main(const char* name, int argc, char** argv);
 
@@ -45,6 +46,7 @@ void usage(const char* name)
   fprintf(stderr, "  rearrange: detect genome rearrangements from read alignments\n");
   fprintf(stderr, "  segments: detect assembly breakpoints and generate segments\n");
   fprintf(stderr, "  cov_matrix: generate coverage matrix for segments across multiple libraries\n");
+  fprintf(stderr, "  csegment_coverage: generate unique read coverage for csegments across multiple libraries\n");
   fprintf(stderr, "  seg_matrix: generate segment adjacency and reach matrices from read alignments\n");
   fprintf(stderr, "  homologs: find homologous regions using kmer-based search\n");
   fprintf(stderr, "  inspect_read: print detailed information about a specific read\n");
@@ -86,6 +88,8 @@ int main(int argc, char** argv)
     rc = segments_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "cov_matrix") {
     rc = cov_matrix_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "csegment_coverage") {
+    rc = csegment_coverage_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "seg_matrix") {
     rc = seg_matrix_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "homologs") {
