@@ -71,6 +71,7 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [rearrange](docs/commands/rearrange.md) | Detect genome rearrangements from read alignments | [→](docs/commands/rearrange.md) |
 | [segments](docs/commands/segments.md) | Perform segmentation analysis from breakpoint detection | [→](docs/commands/segments.md) |
 | [cov_matrix](docs/commands/cov_matrix.md) | Compute per-base coverage matrix for segments across libraries | [→](docs/commands/cov_matrix.md) |
+| [csegment_coverage](docs/commands/csegment_coverage.md) | Compute coverage statistics for csegments (clustered segments) across libraries | [→](docs/commands/csegment_coverage.md) |
 | [homologs](docs/commands/homologs.md) | Find homologous regions using kmer-based search | [→](docs/commands/homologs.md) |
 
 ## Documentation

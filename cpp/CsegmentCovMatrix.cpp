@@ -185,11 +185,11 @@ void CsegmentCovMatrix::load_cseg_map(const string& ifn_cseg_map)
     cout << "loaded " << csegment_to_segment_indices.size() << " csegments" << endl;
 }
 
-void CsegmentCovMatrix::count_unique_reads_per_csegment(const string& csegment,
-                                                        const AlignmentStore& store,
-                                                        uint32_t& unique_read_count) const
+void CsegmentCovMatrix::count_total_bp_per_csegment(const string& csegment,
+                                                     const AlignmentStore& store,
+                                                     uint64_t& total_bp) const
 {
-    unique_read_count = 0;
+    total_bp = 0;
     
     auto it = csegment_to_segment_indices.find(csegment);
     if (it == csegment_to_segment_indices.end()) {
@@ -198,7 +198,8 @@ void CsegmentCovMatrix::count_unique_reads_per_csegment(const string& csegment,
     
     const vector<size_t>& segment_indices = it->second;
     
-    unordered_set<uint32_t> unique_read_indices;
+    // map from read_index to maximum intersection length for that read
+    unordered_map<uint32_t, uint32_t> read_to_max_bp;
     
     for (size_t seg_idx : segment_indices) {
         const CsegSegment& seg = segments[seg_idx];
@@ -224,24 +225,42 @@ void CsegmentCovMatrix::count_unique_reads_per_csegment(const string& csegment,
                 continue;
             }
             
-            // track unique read indices for this csegment
-            unique_read_indices.insert(aln.read_index);
+            // calculate intersection length
+            uint32_t intersection_start = max(start_0based, aln.contig_start);
+            uint32_t intersection_end = min(end_0based, aln.contig_end);
+            
+            if (intersection_end > intersection_start) {
+                uint32_t intersection_bp = intersection_end - intersection_start;
+                
+                // update map to keep maximum intersection length per read
+                auto read_it = read_to_max_bp.find(aln.read_index);
+                if (read_it == read_to_max_bp.end()) {
+                    read_to_max_bp[aln.read_index] = intersection_bp;
+                } else {
+                    if (intersection_bp > read_it->second) {
+                        read_it->second = intersection_bp;
+                    }
+                }
+            }
         }
     }
     
-    unique_read_count = unique_read_indices.size();
+    // sum all maximum intersection lengths (each read contributes once with its max)
+    for (const auto& entry : read_to_max_bp) {
+        total_bp += entry.second;
+    }
 }
 
 void CsegmentCovMatrix::write_coverage(const string& ofn_coverage)
 {
     cout << "writing coverage matrix: " << ofn_coverage << endl;
     
-    // store coverage matrix: csegment -> library -> unique_read_count
-    map<string, map<string, uint32_t>> coverage_matrix;
+    // store coverage matrix: csegment -> library -> total_bp
+    map<string, map<string, uint64_t>> coverage_matrix;
     
     // initialize all csegments
     for (const auto& entry : csegment_to_segment_indices) {
-        coverage_matrix[entry.first] = map<string, uint32_t>();
+        coverage_matrix[entry.first] = map<string, uint64_t>();
     }
     
     // process each library
@@ -270,11 +289,11 @@ void CsegmentCovMatrix::write_coverage(const string& ofn_coverage)
         size_t cseg_idx = 0;
         for (const auto& entry : csegment_to_segment_indices) {
             const string& csegment = entry.first;
-            uint32_t unique_read_count = 0;
+            uint64_t total_bp = 0;
             
-            count_unique_reads_per_csegment(csegment, store, unique_read_count);
+            count_total_bp_per_csegment(csegment, store, total_bp);
             
-            coverage_matrix[csegment][lib_id] = unique_read_count;
+            coverage_matrix[csegment][lib_id] = total_bp;
             
             cseg_idx++;
             if (cseg_idx % 1000 == 0) {

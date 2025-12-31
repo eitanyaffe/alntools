@@ -41,9 +41,9 @@ private:
     void load_libraries(const std::string& ifn_libraries);
     void load_cseg_map(const std::string& ifn_cseg_map);
     
-    void count_unique_reads_per_csegment(const std::string& csegment,
-                                        const AlignmentStore& store,
-                                        uint32_t& unique_read_count) const;
+    void count_total_bp_per_csegment(const std::string& csegment,
+                                     const AlignmentStore& store,
+                                     uint64_t& total_bp) const;
     
     void write_coverage(const std::string& ofn_coverage);
     void write_read_counts(const std::string& ofn_read_counts,
