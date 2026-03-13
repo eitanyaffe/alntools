@@ -73,6 +73,7 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [cov_matrix](docs/commands/cov_matrix.md) | Compute per-base coverage matrix for segments across libraries | [→](docs/commands/cov_matrix.md) |
 | [csegment_coverage](docs/commands/csegment_coverage.md) | Compute coverage statistics for csegments (clustered segments) across libraries | [→](docs/commands/csegment_coverage.md) |
 | [homologs](docs/commands/homologs.md) | Find homologous regions using kmer-based search | [→](docs/commands/homologs.md) |
+| [get_read_ids](docs/commands/get_read_ids.md) | Assign each read to the bin with the longest segment intersection | [→](docs/commands/get_read_ids.md) |
 
 ## Documentation
 
