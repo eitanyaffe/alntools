@@ -341,7 +341,8 @@ VerifyResult RearrangeVerify::validate_assembly_seams(const ReadEvent& event) co
         // assert that in_clip >= out_clip for valid substring
         massert(event.in_clip >= event.out_clip, "in_clip (%u) must be >= out_clip (%u)", event.in_clip, event.out_clip);
         
-        string expected_seam = contig_sequence.substr(event.out_clip, event.in_clip - event.out_clip);
+        // in_clip is 1-based (adjusted with +1 for output), convert back to 0-based for extraction
+        string expected_seam = contig_sequence.substr(event.out_clip, (event.in_clip - 1) - event.out_clip);
         string actual_seam = extract_seam_sequence(seams[0]);
         
         if (actual_seam != expected_seam) {
