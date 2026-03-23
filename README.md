@@ -12,6 +12,7 @@
   - **Consensus mode**: Identifies high-frequency variants above a consensus threshold for variant calling
   - **Variants mode**: Multi-library variant calling across multiple ALN files with comprehensive variant filtering
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
+- **Coverage intervals** for computing per-segment coverage fraction (x_coverage) against a reference segment table
 - **Coverage matrix generation** for computing per-base coverage across multiple libraries and genomic segments
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **R interface** for seamless integration with analysis workflows in R
@@ -74,6 +75,7 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [csegment_coverage](docs/commands/csegment_coverage.md) | Compute coverage statistics for csegments (clustered segments) across libraries | [→](docs/commands/csegment_coverage.md) |
 | [homologs](docs/commands/homologs.md) | Find homologous regions using kmer-based search | [→](docs/commands/homologs.md) |
 | [get_read_ids](docs/commands/get_read_ids.md) | Assign each read to the bin with the longest segment intersection | [→](docs/commands/get_read_ids.md) |
+| [cov_intervals](docs/commands/cov_intervals.md) | Compute x_coverage (fraction covered) per segment interval | [→](docs/commands/cov_intervals.md) |
 
 ## Documentation
 

@@ -45,7 +45,8 @@ bin_results <- aln_query_bin(aln, intervals, binsize,
                             max_mutations_percent = 10.0,
                             min_alignment_length = 0, 
                             max_alignment_length = 0, 
-                            min_indel_length = 3)
+                            min_indel_length = 3,
+                            min_seg_support = 2)
 ```
 
 #### Pileup Query
@@ -127,6 +128,24 @@ variants_results <- aln_query_variants(store_list, intervals,
 - `$coverage`: Matrix with variant IDs as rows and library IDs as columns (coverage)
 - `$library_ids`: Vector of library IDs
 
+#### Coverage Intervals
+
+```R
+cov_results <- aln_cov_intervals(aln, segments,
+                                 clip_mode_str = "complete",
+                                 clip_margin = 10,
+                                 min_mutations_percent = 0.0,
+                                 max_mutations_percent = 0.1,
+                                 min_alignment_length = 1000,
+                                 max_alignment_length = 0,
+                                 min_indel_length = 3)
+```
+
+**Parameters:**
+- `segments`: Dataframe with columns `contig`, `start` (1-based), `end` (1-based inclusive), plus any additional columns (e.g., `segment`, `bin`, `length`) that are passed through unchanged
+
+**Returns:** The input `segments` dataframe with an additional `x_coverage` column — the fraction of each segment's bases covered by at least one passing alignment (0.0–1.0).
+
 ### Break Detection
 
 ```R
@@ -181,7 +200,8 @@ bin_results <- aln_query_bin(aln, intervals, binsize,
                             non_ref_threshold = 0.9, 
                             num_threads = 0,
                             min_alignment_length = 1000,  # Filter alignments < 1kb
-                            min_indel_length = 5)         # Filter short indels < 5bp
+                            min_indel_length = 5,         # Filter short indels < 5bp
+                            min_seg_support = 2)          # Require >= 2 reads supporting a variant
 
 pileup_results <- aln_query_pileup(aln, intervals, "covered", 
                                   max_alignment_length = 50000,  # Filter alignments > 50kb

@@ -33,6 +33,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -odir <output
 * `-binsize <int>`: Size of bins in bp (default: `100`).
 * `-seg_threshold <double>`: Threshold for segregating sites detection (default: `0.2`). Variants with frequency between this value and (1 - this value) are considered segregating.
 * `-non_ref_threshold <double>`: Threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
+* `-seg_min_support <int>`: Minimum number of reads supporting a variant or clip site before it is considered for segregating/non-ref classification (default: `2`). Filters out singleton noise.
 
 **Consensus Mode:**
 * `-consensus_threshold <double>`: Frequency threshold for reporting variants (default: `0.9`). Only variants with frequency ≥ this value are reported.
@@ -88,7 +89,7 @@ alntools query -ifn_aln output/test.aln \
 ```bash
 alntools query -ifn_aln output/test.aln \
    -ifn_intervals examples/intervals_small.txt \
-   -odir output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9 -num_threads 4
+   -odir output/query -mode bin -binsize 1000 -seg_threshold 0.2 -non_ref_threshold 0.9 -seg_min_support 2 -num_threads 4
 ```
 
 **Pileup Query Mode:**

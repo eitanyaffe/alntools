@@ -445,7 +445,8 @@ DataFrame aln_query_bin(
     double max_mutations_percent = 10.0,
     int min_alignment_length = 0,
     int max_alignment_length = 0,
-    int min_indel_length = 3)
+    int min_indel_length = 3,
+    int min_seg_support = 2)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -466,7 +467,7 @@ DataFrame aln_query_bin(
   
   std::vector<BinOutputRow> results;
   
-  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, min_seg_support);
   queryBin.execute();
   results = queryBin.get_output_rows();
 
@@ -1674,6 +1675,91 @@ List aln_rearrange(
         Named("coverage") = coverage_matrix_r,
         Named("rejections") = rejections_df,
         Named("library_ids") = CharacterVector(library_ids.begin(), library_ids.end()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// aln_cov_intervals: per-segment x_coverage (fraction of bases covered)
+////////////////////////////////////////////////////////////////////////////////
+
+// [[Rcpp::export]]
+DataFrame aln_cov_intervals(
+    XPtr<AlignmentStore> store_ptr,
+    DataFrame segments_df,
+    std::string clip_mode_str = "complete",
+    int clip_margin = 10,
+    double min_mutations_percent = 0.0,
+    double max_mutations_percent = 0.1,
+    int min_alignment_length = 1000,
+    int max_alignment_length = 0,
+    int min_indel_length = 3)
+{
+    if (!store_ptr) {
+        stop("invalid AlignmentStore pointer provided");
+    }
+    AlignmentStore& store = *store_ptr;
+    store.count_short_indels(min_indel_length);
+
+    // validate required columns
+    if (!segments_df.containsElementNamed("contig"))
+        stop("segments dataframe missing required column: contig");
+    if (!segments_df.containsElementNamed("start"))
+        stop("segments dataframe missing required column: start");
+    if (!segments_df.containsElementNamed("end"))
+        stop("segments dataframe missing required column: end");
+
+    CharacterVector seg_contig = segments_df["contig"];
+    IntegerVector   seg_start  = segments_df["start"];  // 1-based
+    IntegerVector   seg_end    = segments_df["end"];    // 1-based inclusive
+
+    int n = segments_df.nrows();
+    ClipMode clip_mode = string_to_clip_mode(clip_mode_str);
+
+    NumericVector x_coverage(n, 0.0);
+
+    for (int i = 0; i < n; ++i) {
+        std::string contig = as<std::string>(seg_contig[i]);
+        uint32_t start_1 = static_cast<uint32_t>(seg_start[i]);
+        uint32_t end_1   = static_cast<uint32_t>(seg_end[i]);
+
+        if (!store.has_contig_id(contig) || end_1 < start_1) {
+            x_coverage[i] = 0.0;
+            continue;
+        }
+
+        // convert to 0-based half-open
+        uint32_t seg_start0 = start_1 - 1;
+        uint32_t seg_end0   = end_1;
+        uint32_t length     = seg_end0 - seg_start0;
+
+        std::vector<bool> bitmap(length, false);
+
+        Interval interval(contig, seg_start0, seg_end0);
+        auto alns = store.get_alignments_intersecting_interval(interval);
+
+        for (const Alignment& aln : alns) {
+            if (!passes_alignment_filter(aln, store, clip_mode, clip_margin,
+                    min_mutations_percent, max_mutations_percent,
+                    min_alignment_length, max_alignment_length))
+                continue;
+
+            uint32_t ov_start = std::max(aln.contig_start, seg_start0);
+            uint32_t ov_end   = std::min(aln.contig_end,   seg_end0);
+            if (ov_start >= ov_end) continue;
+
+            for (uint32_t pos = ov_start; pos < ov_end; ++pos)
+                bitmap[pos - seg_start0] = true;
+        }
+
+        uint32_t covered = 0;
+        for (bool b : bitmap)
+            if (b) ++covered;
+        x_coverage[i] = static_cast<double>(covered) / length;
+    }
+
+    // build output: all original columns + x_coverage
+    List result = clone(segments_df);
+    result["x_coverage"] = x_coverage;
+    return as<DataFrame>(result);
 }
 
 // [[Rcpp::export]]

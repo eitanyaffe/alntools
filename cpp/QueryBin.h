@@ -57,6 +57,7 @@ class QueryBin : public QueryBase {
   double seg_threshold;
   double non_ref_threshold;
   int num_threads;
+  int min_seg_support;
 
   // Use a map to store results, keyed by {contig_index, bin_start}
   std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
@@ -91,7 +92,8 @@ class QueryBin : public QueryBase {
       double min_mutations_percent = 0.0,
       double max_mutations_percent = 10.0,
       int min_alignment_length = 0,
-      int max_alignment_length = 0);
+      int max_alignment_length = 0,
+      int min_seg_support = 2);
 
   // execute the query
   void execute();

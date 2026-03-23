@@ -29,6 +29,7 @@ int csegment_coverage_main(const char* name, int argc, char** argv);
 int seg_matrix_main(const char* name, int argc, char** argv);
 int inspect_read_main(const char* name, int argc, char** argv);
 int get_read_ids_main(const char* name, int argc, char** argv);
+int cov_intervals_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
@@ -52,6 +53,7 @@ void usage(const char* name)
   fprintf(stderr, "  homologs: find homologous regions using kmer-based search\n");
   fprintf(stderr, "  inspect_read: print detailed information about a specific read\n");
   fprintf(stderr, "  get_read_ids: assign each read to the bin with the longest segment intersection\n");
+  fprintf(stderr, "  cov_intervals: compute intervalcoverage (fraction covered) per segment interval\n");
   fprintf(stderr, "\n");
 #ifdef _OPENMP
   fprintf(stderr, "thread support: enabled (OpenMP available, max threads: %d)\n", omp_get_max_threads());
@@ -100,6 +102,8 @@ int main(int argc, char** argv)
     rc = inspect_read_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "get_read_ids") {
     rc = get_read_ids_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "cov_intervals") {
+    rc = cov_intervals_main(name.c_str(), argc - 1, argv + 1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);

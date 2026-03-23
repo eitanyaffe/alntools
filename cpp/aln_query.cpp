@@ -58,6 +58,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("binsize", new ParserInteger("bin size for 'bin' mode", 100), false);
   params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
   params.add_parser("non_ref_threshold", new ParserDouble("non-reference sites threshold for 'bin' mode", 0.9), false);
+  params.add_parser("seg_min_support", new ParserInteger("minimum read support for a variant/clip to be counted as segregating or non-ref in 'bin' mode (default 2)", 2), false);
   params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
   params.add_parser("chunk_type", new ParserString("chunk definition style for 'full' mode (read, alignment, break_on_overlap, break_on_gap)", "break_on_overlap"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
@@ -179,6 +180,7 @@ int query_main(const char* name, int argc, char** argv)
   int binsize = params.get_int("binsize"); // Will be 0 if not specified or mode is not 'bin'
   double seg_threshold = params.get_double("seg_threshold");
   double non_ref_threshold = params.get_double("non_ref_threshold");
+  int seg_min_support = params.get_int("seg_min_support");
   double consensus_threshold = params.get_double("consensus_threshold");
   int min_consensus_coverage = params.get_int("min_consensus_coverage");
 
@@ -219,6 +221,7 @@ int query_main(const char* name, int argc, char** argv)
     cout << "  binsize: " << binsize << endl;
     cout << "  seg_threshold: " << seg_threshold << endl;
     cout << "  non_ref_threshold: " << non_ref_threshold << endl;
+    cout << "  seg_min_support: " << seg_min_support << endl;
   }
   if (mode == "consensus") {
     cout << "  consensus_threshold: " << consensus_threshold << endl;
@@ -341,7 +344,7 @@ int query_main(const char* name, int argc, char** argv)
       queryPileup.write_to_csv(odir);
     } else if (mode == "bin") {
       int num_threads = params.get_int("num_threads");
-      QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length);
+      QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, seg_min_support);
       queryBin.execute();
       queryBin.write_to_csv(odir);
     } else if (mode == "consensus") {

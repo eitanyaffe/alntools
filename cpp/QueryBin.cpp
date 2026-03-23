@@ -29,13 +29,15 @@ QueryBin::QueryBin(
     double min_mutations_percent,
     double max_mutations_percent,
     int min_alignment_length,
-    int max_alignment_length)
+    int max_alignment_length,
+    int min_seg_support)
     : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , binsize(binsize)
     , seg_threshold(seg_threshold)
     , non_ref_threshold(non_ref_threshold)
     , num_threads(num_threads)
+    , min_seg_support(min_seg_support)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
@@ -524,7 +526,8 @@ void QueryBin::generate_output_rows()
         
         // get coverage at this position
         auto cov_it = data.position_coverage.find(std::to_string(position));
-        if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+        if (cov_it != data.position_coverage.end() && cov_it->second > 0
+            && variant_entry.second >= min_seg_support) {
           double frequency = static_cast<double>(variant_entry.second) / cov_it->second;
 
           // check if segregating
@@ -554,7 +557,8 @@ void QueryBin::generate_output_rows()
       
       // get coverage at this position
       auto cov_it = data.position_coverage.find(clip_entry.first);
-      if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+      if (cov_it != data.position_coverage.end() && cov_it->second > 0
+          && clip_entry.second >= min_seg_support) {
         double frequency = static_cast<double>(clip_entry.second) / cov_it->second;
         
         // check if segregating
@@ -576,7 +580,8 @@ void QueryBin::generate_output_rows()
       
       // get coverage at this position
       auto cov_it = data.position_coverage.find(clip_entry.first);
-      if (cov_it != data.position_coverage.end() && cov_it->second > 0) {
+      if (cov_it != data.position_coverage.end() && cov_it->second > 0
+          && clip_entry.second >= min_seg_support) {
         double frequency = static_cast<double>(clip_entry.second) / cov_it->second;
         
         // check if segregating
