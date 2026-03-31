@@ -35,6 +35,11 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -odir <output
 * `-non_ref_threshold <double>`: Threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
 * `-seg_min_support <int>`: Minimum number of reads supporting a variant or clip site before it is considered for segregating/non-ref classification (default: `2`). Filters out singleton noise.
 
+**Bin mode semantics (mutations vs distance columns):**
+
+- **`mutation_count` and variant-level counts:** Each mutation is assigned to the bin that contains its reference coordinate. A long alignment that overlaps a bin but carries mutations only in other bins does not add to that bin’s `mutation_count`.
+- **`dist_*` fractions and `median_mutation_density`:** For each alignment–bin pair, density is (mutations whose coordinates fall in that bin) divided by the full bin length (`binsize`). All alignments that overlap the bin are included, regardless of whether they fully cover it. Dividing by the full bin length rather than the actual overlap is conservative: partially-overlapping alignments will appear to have a lower mutation rate than their covered portion alone would suggest. The same short-indel filtering as elsewhere applies when counting mutations toward the numerator.
+
 **Consensus Mode:**
 * `-consensus_threshold <double>`: Frequency threshold for reporting variants (default: `0.9`). Only variants with frequency ≥ this value are reported.
 * `-min_consensus_coverage <int>`: Minimum coverage required for reporting variants (default: `5`). Only variants with coverage ≥ this value are considered.
@@ -156,7 +161,7 @@ See [File Formats](../file-formats.md) for detailed specifications of all output
 - `pileup_table.txt`: Position-by-position mutation summaries
 
 **Bin Mode Output (in odir):**
-- `bin_table.txt`: Binned alignment statistics with segregating sites analysis
+- `bin_table.txt`: Binned alignment statistics with segregating sites analysis (column semantics: see [Bin mode semantics](#bin-mode-semantics-mutations-vs-distance-columns) above and [file formats](../file-formats.md#bin-mode-output))
 
 **Consensus Mode Output (in odir):**
 - `consensus_table.txt`: High-frequency variant calls

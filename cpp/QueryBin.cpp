@@ -213,11 +213,6 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   if (!passes_filter(aln, store)) {
     return;
   }
-  
-  // calculate alignment length for mutation distance calculation
-  uint32_t alignment_length = aln.contig_end - aln.contig_start;
-  double local_mutations_per_bp = (alignment_length > 0) ? 
-    (static_cast<double>(aln.get_mutation_count()) / alignment_length) : 0.0;
 
   // get intervals for this alignment's contig only
   auto contig_intervals_it = contig_to_intervals_map.find(aln.contig_index);
@@ -227,6 +222,8 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   }
   
   const std::vector<const Interval*>& relevant_intervals = contig_intervals_it->second;
+  // mutations per genomic bin for this alignment (same rules as mutation_count)
+  std::map<std::pair<uint32_t, uint32_t>, int> aln_bin_mutations;
 
   // process sequenced basepairs and mutation rate categories for this alignment across relevant intervals
   for (const Interval* interval : relevant_intervals) {
@@ -277,6 +274,7 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
         auto it = target_bin_results.find({ aln.contig_index, mutation_bin_start });
         if (it != target_bin_results.end()) {
           it->second.mutation_count++;
+          aln_bin_mutations[{ aln.contig_index, mutation_bin_start }]++;
           
           // create variant key for segregating sites
           std::string variant_key = std::to_string(mutation_contig_pos) + "_" + 
@@ -328,7 +326,7 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     }
   }
 
-  // categorize this alignment by mutation rate for all bins it overlaps
+  // categorize by mutations-in-bin / binsize for all alignments overlapping the bin
   std::set<std::pair<uint32_t, uint32_t>> processed_bins_for_alignment;
   for (const Interval* interval : relevant_intervals) {
     // skip if alignment doesn't overlap this interval
@@ -339,7 +337,6 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
     uint32_t adjusted_start = (interval->start / binsize) * binsize;
     uint32_t last_bin_start = ((interval->end - 1) / binsize) * binsize;
 
-    // check overlap with each bin in this interval
     for (uint32_t b_start = adjusted_start; b_start <= last_bin_start; b_start += binsize) {
       uint32_t b_end = b_start + binsize;
 
@@ -357,22 +354,27 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
           
           auto it = target_bin_results.find(bin_key);
           if (it != target_bin_results.end()) {
-            // categorize alignment by mutation distance (per bp)
-            if (aln.get_mutation_count() == 0) {
+            int bin_mut_count = 0;
+            auto mut_it = aln_bin_mutations.find(bin_key);
+            if (mut_it != aln_bin_mutations.end()) {
+              bin_mut_count = mut_it->second;
+            }
+            // divide by full binsize (conservative: partial-coverage alignments treated as if they covered the whole bin)
+            double local_mutations_per_bp = static_cast<double>(bin_mut_count) / static_cast<double>(binsize);
+            if (bin_mut_count == 0) {
               it->second.dist_none++;
             } else if (local_mutations_per_bp < 1e-4) {
-              it->second.dist_5++;  // 1e-5 to 1e-4 per bp
+              it->second.dist_5++;
             } else if (local_mutations_per_bp < 1e-3) {
-              it->second.dist_4++;  // 1e-4 to 1e-3 per bp
+              it->second.dist_4++;
             } else if (local_mutations_per_bp < 1e-2) {
-              it->second.dist_3++;  // 1e-3 to 1e-2 per bp
+              it->second.dist_3++;
             } else if (local_mutations_per_bp < 1e-1) {
-              it->second.dist_2++;  // 1e-2 to 1e-1 per bp
+              it->second.dist_2++;
             } else {
-              it->second.dist_1_plus++;  // above 1e-1 per bp
+              it->second.dist_1_plus++;
             }
             
-            // collect mutation density for median calculation
             it->second.mutation_densities.push_back(local_mutations_per_bp);
           }
         }

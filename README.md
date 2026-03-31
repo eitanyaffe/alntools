@@ -8,7 +8,7 @@
 - **Five query modes** for flexible analysis:
   - **Full mode**: Retrieves complete read, alignment and mutation details with read-based height calculations for stacked visualization
   - **Pileup mode**: Provides position-by-position mutation summaries for variant analysis
-  - **Bin mode**: Generates binned coverage statistics with segregating sites analysis and mutation rate categorization
+  - **Bin mode**: Generates binned coverage statistics with segregating sites analysis and mutation rate categorization (see [query → bin mode](docs/commands/query.md#bin-mode-semantics-mutations-vs-distance-columns) for how `mutation_count` differs from `dist_*` / median density)
   - **Consensus mode**: Identifies high-frequency variants above a consensus threshold for variant calling
   - **Variants mode**: Multi-library variant calling across multiple ALN files with comprehensive variant filtering
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions

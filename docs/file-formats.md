@@ -153,7 +153,7 @@ For gene annotation (optional):
 
 #### Bin Mode Output
 
-**`{prefix}_bins.txt`:**
+**`bin_table.txt`** (written to the query output directory):
 
 | Column                | Description                               | Type   |
 |-----------------------|-------------------------------------------|--------|
@@ -162,15 +162,21 @@ For gene annotation (optional):
 | bin_end               | Bin end position                          | int    |
 | bin_length            | Bin length                                | int    |
 | sequenced_bp          | Sequenced base pairs in bin               | int    |
+| read_count            | Unique reads overlapping the bin          | int    |
 | mutation_count        | Number of mutations in bin                | int    |
+| median_mutation_density | Median of per-alignment local densities (see note below) | double |
 | seg_sites_density     | Segregating sites density (sites per bp) | double |
 | non_ref_sites_density | Non-reference sites density (sites per bp)| double |
+| seg_clip_density      | Segregating clip-site density (sites per bp) | double |
+| non_ref_clip_density  | Non-reference clip-site density (sites per bp) | double |
 | dist_none             | Fraction with 0 mutations                 | double |
 | dist_5                | Fraction with 1e-5 to 1e-4 mutations/bp  | double |
 | dist_4                | Fraction with 1e-4 to 1e-3 mutations/bp  | double |
 | dist_3                | Fraction with 1e-3 to 1e-2 mutations/bp  | double |
 | dist_2                | Fraction with 1e-2 to 1e-1 mutations/bp  | double |
 | dist_1_plus           | Fraction with >1e-1 mutations/bp         | double |
+
+**Bin table semantics:** `mutation_count` counts variants by the bin that contains each variant’s reference position. The `dist_*` columns and values fed into `median_mutation_density` use, per alignment and bin, (mutations in that bin) / (overlap of alignment with that bin and the query interval); an alignment is included only when it **fully covers that bin** (as clipped by the query interval). See the [query command](commands/query.md#bin-mode-semantics-mutations-vs-distance-columns) documentation for details.
 
 #### Consensus Mode Output
 
