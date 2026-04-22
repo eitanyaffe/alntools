@@ -582,6 +582,8 @@ void QueryFull::calculate_chunk_heights()
     calculate_chunk_heights_by_coord(false); // sort by end
   } else if (height_style == HeightStyle::BY_MUTATIONS) {
     calculate_chunk_heights_by_mutations();
+  } else if (height_style == HeightStyle::BY_GENOTYPE) {
+    calculate_chunk_heights_by_genotype();
   }
 }
 
@@ -717,6 +719,117 @@ void QueryFull::calculate_chunk_heights_by_mutations()
     chunk.height = height;
 
     // add the new interval and maintain sorted order
+    add_sorted_interval(global_heights[height], chunk.vstart, chunk.vend);
+  }
+}
+
+void QueryFull::calculate_chunk_heights_by_genotype()
+{
+  cout << "calculating chunk heights by genotype, number of chunks: " << output_chunks.size() << endl;
+
+  // build a lookup of intervals per contig for in-view mutation filtering
+  // intervals use 0-based half-open [start, end), mutation positions are 1-based
+  std::map<std::string, std::vector<std::pair<uint32_t, uint32_t>>> contig_view_ranges;
+  for (const auto& interval : intervals) {
+    contig_view_ranges[interval.contig].push_back({interval.start, interval.end});
+  }
+  auto in_view = [&contig_view_ranges](const std::string& contig_id, int position_1based) {
+    auto it = contig_view_ranges.find(contig_id);
+    if (it == contig_view_ranges.end()) return false;
+    uint32_t pos0 = static_cast<uint32_t>(position_1based - 1);
+    for (const auto& range : it->second) {
+      if (pos0 >= range.first && pos0 < range.second) return true;
+    }
+    return false;
+  };
+
+  // build map from alignment_index to its in-view mutations (contig_id, position, desc)
+  struct MutEntry {
+    std::string contig_id;
+    int position;
+    std::string desc;
+  };
+  std::map<uint64_t, std::vector<MutEntry>> aln_to_mutations;
+  for (const auto& mut : output_mutations) {
+    if (in_view(mut.contig_id, mut.position)) {
+      aln_to_mutations[mut.alignment_index].push_back({mut.contig_id, mut.position, mut.desc});
+    }
+  }
+
+  // build map from chunk index to its alignment indices
+  std::map<int, std::vector<uint64_t>> chunk_to_aln_indices;
+  for (const auto& aln : output_alignments) {
+    int chunk_idx = alignment_to_chunk_index[aln.alignment_index];
+    chunk_to_aln_indices[chunk_idx].push_back(aln.alignment_index);
+  }
+
+  // for each chunk, collect all mutations and build a sorted genotype key
+  std::vector<std::pair<int, std::string>> chunk_keys;
+  chunk_keys.reserve(output_chunks.size());
+  for (int i = 0; i < static_cast<int>(output_chunks.size()); i++) {
+    std::vector<MutEntry> all_mutations;
+    auto it = chunk_to_aln_indices.find(i);
+    if (it != chunk_to_aln_indices.end()) {
+      for (uint64_t aln_idx : it->second) {
+        auto mut_it = aln_to_mutations.find(aln_idx);
+        if (mut_it != aln_to_mutations.end()) {
+          for (const auto& m : mut_it->second) {
+            all_mutations.push_back(m);
+          }
+        }
+      }
+    }
+
+    // sort mutations by (contig_id, position) for deterministic key
+    std::sort(all_mutations.begin(), all_mutations.end(),
+              [](const MutEntry& a, const MutEntry& b) {
+                if (a.contig_id != b.contig_id) return a.contig_id < b.contig_id;
+                return a.position < b.position;
+              });
+
+    // build key string: "contig:pos:desc,..." for each mutation
+    std::string key;
+    for (const auto& m : all_mutations) {
+      if (!key.empty()) key += ",";
+      key += m.contig_id + ":" + std::to_string(m.position) + ":" + m.desc;
+    }
+
+    chunk_keys.push_back({i, key});
+  }
+
+  // sort chunks alphabetically by genotype key so identical genotypes are adjacent in height
+  std::sort(chunk_keys.begin(), chunk_keys.end(),
+            [](const std::pair<int, std::string>& a, const std::pair<int, std::string>& b) {
+              return a.second < b.second;
+            });
+
+  // assign heights using greedy stacking, processing chunks in sorted order
+  std::vector<std::vector<std::pair<int64_t, int64_t>>> global_heights;
+
+  for (const auto& entry : chunk_keys) {
+    int chunk_idx = entry.first;
+    FullOutputChunk& chunk = output_chunks[chunk_idx];
+
+    int height = 0;
+    bool overlap = true;
+
+    while (overlap) {
+      if (height >= static_cast<int>(global_heights.size())) {
+        global_heights.push_back(std::vector<std::pair<int64_t, int64_t>>());
+        overlap = false;
+      } else {
+        const auto& intervals_at_height = global_heights[height];
+        if (intervals_at_height.empty()) {
+          overlap = false;
+        } else {
+          overlap = has_overlap(intervals_at_height, chunk.vstart, chunk.vend);
+        }
+      }
+
+      if (overlap) height++;
+    }
+
+    chunk.height = height;
     add_sorted_interval(global_heights[height], chunk.vstart, chunk.vend);
   }
 }

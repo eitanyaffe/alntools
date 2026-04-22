@@ -25,6 +25,8 @@ HeightStyle string_to_height_style(const std::string& style_str)
     return HeightStyle::BY_COORD_LEFT;
   } else if (style_str == "by_coord_right") {
     return HeightStyle::BY_COORD_RIGHT;
+  } else if (style_str == "genotype") {
+    return HeightStyle::BY_GENOTYPE;
   } else {
     // default to BY_COORD_LEFT
     return HeightStyle::BY_COORD_LEFT;
@@ -59,7 +61,7 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   params.add_parser("seg_threshold", new ParserDouble("segregating sites threshold for 'bin' mode", 0.2), false);
   params.add_parser("non_ref_threshold", new ParserDouble("non-reference sites threshold for 'bin' mode", 0.9), false);
   params.add_parser("seg_min_support", new ParserInteger("minimum read support for a variant/clip to be counted as segregating or non-ref in 'bin' mode (default 2)", 2), false);
-  params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations)", "by_coord_left"), false);
+  params.add_parser("height_style", new ParserString("read height style for 'full' mode (by_coord_left, by_coord_right, by_mutations, genotype)", "by_coord_left"), false);
   params.add_parser("chunk_type", new ParserString("chunk definition style for 'full' mode (read, alignment, break_on_overlap, break_on_gap)", "break_on_overlap"), false);
   params.add_parser("max_alignments", new ParserInteger("maximum number of alignments to return per interval (0 for no limit)", 0), false);
   params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped)", "all"), false);
@@ -128,8 +130,8 @@ void query_params(const char* name, int argc, char** argv, Parameters& params)
   if (mode == "full") {
     string height_style = params.get_string("height_style");
     if (height_style != "by_coord_left" && height_style != "by_coord_right" && 
-        height_style != "by_mutations") {
-      cerr << "error: invalid height_style specified: " << height_style << ". Must be 'by_coord_left', 'by_coord_right', or 'by_mutations'." << endl;
+        height_style != "by_mutations" && height_style != "genotype") {
+      cerr << "error: invalid height_style specified: " << height_style << ". Must be 'by_coord_left', 'by_coord_right', 'by_mutations', or 'genotype'." << endl;
       exit(1);
     }
     

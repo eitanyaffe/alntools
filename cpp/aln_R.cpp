@@ -746,8 +746,10 @@ List aln_query_full(
     height_style = HeightStyle::BY_COORD_LEFT;
   } else if (height_style_str == "by_coord_right") {
     height_style = HeightStyle::BY_COORD_RIGHT;
+  } else if (height_style_str == "genotype") {
+    height_style = HeightStyle::BY_GENOTYPE;
   } else {
-    stop("Invalid height_style parameter. Must be 'by_coord_left', 'by_coord_right', or 'by_mutations'.");
+    stop("Invalid height_style parameter. Must be 'by_coord_left', 'by_coord_right', 'by_mutations', or 'genotype'.");
   }
 
   // Convert chunk_type_str to ChunkType enum

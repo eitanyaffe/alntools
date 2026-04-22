@@ -10,7 +10,8 @@
 enum class HeightStyle {
   BY_COORD_LEFT, // minimal height without overlap, sort by start position
   BY_COORD_RIGHT, // minimal height without overlap, sort by end position
-  BY_MUTATIONS // sort by mutation density
+  BY_MUTATIONS, // sort by mutation density
+  BY_GENOTYPE // sort by genotype key (contig:pos:desc), grouped by mutation count
 };
 
 // chunk definition style
@@ -93,6 +94,7 @@ class QueryFull : public QueryBase {
   void assign_alignment_heights_from_chunks();
   void calculate_chunk_heights_by_coord(bool sort_by_start);
   void calculate_chunk_heights_by_mutations();
+  void calculate_chunk_heights_by_genotype();
 
   // helper methods for binary search in mutation-based height calculation
   bool has_overlap(const std::vector<std::pair<int64_t, int64_t>>& intervals, int64_t start, int64_t end);

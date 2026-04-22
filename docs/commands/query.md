@@ -34,11 +34,13 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -odir <output
 * `-seg_threshold <double>`: Threshold for segregating sites detection (default: `0.2`). Variants with frequency between this value and (1 - this value) are considered segregating.
 * `-non_ref_threshold <double>`: Threshold for non-reference sites detection (default: `0.9`). Variants with frequency above this value are considered non-reference.
 * `-seg_min_support <int>`: Minimum number of reads supporting a variant or clip site before it is considered for segregating/non-ref classification (default: `2`). Filters out singleton noise.
+* `-min_allele_support <int>`: Minimum number of reads required to report a distinct allele in `by_allele_count` mode (default: `2`). Alleles with fewer supporting reads are merged into the reference count.
 
 **Bin mode semantics (mutations vs distance columns):**
 
 - **`mutation_count` and variant-level counts:** Each mutation is assigned to the bin that contains its reference coordinate. A long alignment that overlaps a bin but carries mutations only in other bins does not add to that bin’s `mutation_count`.
 - **`dist_*` fractions and `median_mutation_density`:** For each alignment–bin pair, density is (mutations whose coordinates fall in that bin) divided by the full bin length (`binsize`). All alignments that overlap the bin are included, regardless of whether they fully cover it. Dividing by the full bin length rather than the actual overlap is conservative: partially-overlapping alignments will appear to have a lower mutation rate than their covered portion alone would suggest. The same short-indel filtering as elsewhere applies when counting mutations toward the numerator.
+- **`ref_count`, `allele1`–`allele12`:** For each alignment overlapping a bin, an allele key is computed from the sorted set of mutations (excluding short indels) whose reference coordinates fall within that bin. Alignments with no qualifying mutations receive the reference allele key. Alleles with fewer than `min_allele_support` reads are merged into `ref_count`. The remaining alleles are sorted by read count descending, capped at 12, and reported as `allele1`…`allele12`. Alleles beyond the top 12 are dropped.
 
 **Consensus Mode:**
 * `-consensus_threshold <double>`: Frequency threshold for reporting variants (default: `0.9`). Only variants with frequency ≥ this value are reported.
@@ -55,6 +57,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -odir <output
   - `by_coord_left`: Minimize overlap between reads, sort by start position (default).
   - `by_coord_right`: Minimize overlap between reads, sort by end position.
   - `by_mutations`: Arrange by mutation density.
+  - `genotype`: Group reads by genotype. Each read's genotype key is built from all its mutations in contig space, formatted as `contig:pos:desc` entries sorted by position and joined with commas. Reads are sorted alphabetically by key so reads with identical genotypes are adjacent in height.
 * `-chunk_type <string>`: How to define chunks (stretches of alignments) for height calculation:
   - `read`: Entire read forms one chunk (equivalent to read-based heights).
   - `alignment`: Each alignment forms its own chunk (maximum granularity).
