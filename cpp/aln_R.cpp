@@ -446,7 +446,8 @@ DataFrame aln_query_bin(
     int min_alignment_length = 0,
     int max_alignment_length = 0,
     int min_indel_length = 3,
-    int min_seg_support = 2)
+    int min_seg_support = 2,
+    int min_allele_support = 2)
 {
   // Validate the external pointer
   if (!store_ptr) {
@@ -467,7 +468,7 @@ DataFrame aln_query_bin(
   
   std::vector<BinOutputRow> results;
   
-  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, min_seg_support);
+  QueryBin queryBin(intervals, store, binsize, seg_threshold, non_ref_threshold, num_threads, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length, min_seg_support, min_allele_support);
   queryBin.execute();
   results = queryBin.get_output_rows();
 
@@ -490,6 +491,10 @@ DataFrame aln_query_bin(
   IntegerVector out_dist_3;
   IntegerVector out_dist_2;
   IntegerVector out_dist_1_plus;
+  IntegerVector out_ref_count;
+  IntegerVector out_allele1, out_allele2, out_allele3, out_allele4, out_allele5, out_allele6;
+  IntegerVector out_allele7, out_allele8, out_allele9, out_allele10, out_allele11, out_allele12;
+  IntegerVector out_other_count;
 
   for (const auto& row : results) {
     out_contig.push_back(row.contig);
@@ -510,6 +515,20 @@ DataFrame aln_query_bin(
     out_dist_3.push_back(row.dist_3);
     out_dist_2.push_back(row.dist_2);
     out_dist_1_plus.push_back(row.dist_1_plus);
+    out_ref_count.push_back(row.ref_count);
+    out_allele1.push_back(row.alleles[0]);
+    out_allele2.push_back(row.alleles[1]);
+    out_allele3.push_back(row.alleles[2]);
+    out_allele4.push_back(row.alleles[3]);
+    out_allele5.push_back(row.alleles[4]);
+    out_allele6.push_back(row.alleles[5]);
+    out_allele7.push_back(row.alleles[6]);
+    out_allele8.push_back(row.alleles[7]);
+    out_allele9.push_back(row.alleles[8]);
+    out_allele10.push_back(row.alleles[9]);
+    out_allele11.push_back(row.alleles[10]);
+    out_allele12.push_back(row.alleles[11]);
+    out_other_count.push_back(row.other_count);
   }
 
   return DataFrame::create(
@@ -531,7 +550,21 @@ DataFrame aln_query_bin(
       Named("dist_3") = out_dist_3,
       Named("dist_2") = out_dist_2,
       Named("dist_1_plus") = out_dist_1_plus,
-      Named("stringsAsFactors") = false // Good practice
+      Named("ref_count") = out_ref_count,
+      Named("allele1") = out_allele1,
+      Named("allele2") = out_allele2,
+      Named("allele3") = out_allele3,
+      Named("allele4") = out_allele4,
+      Named("allele5") = out_allele5,
+      Named("allele6") = out_allele6,
+      Named("allele7") = out_allele7,
+      Named("allele8") = out_allele8,
+      Named("allele9") = out_allele9,
+      Named("allele10") = out_allele10,
+      Named("allele11") = out_allele11,
+      Named("allele12") = out_allele12,
+      Named("other_count") = out_other_count,
+      Named("stringsAsFactors") = false
   );
 }
 

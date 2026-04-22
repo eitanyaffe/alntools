@@ -2,6 +2,7 @@
 #define QUERYBIN_H
 
 #include "QueryBase.h"
+#include <array>
 #include <map>
 #include <set>
 #include <string>
@@ -26,6 +27,8 @@ struct BinData {
   int dist_1_plus = 0;       // above 1e-1 per bp (>100000 mutations per 100kb)
   // mutation density values for median (mutations in bin / binsize, for all overlapping alignments)
   std::vector<double> mutation_densities;
+  // allele grouping: allele key (sorted mutation strings joined by '|', empty = ref) -> unique read indices
+  std::map<std::string, std::set<uint32_t>> allele_read_sets;
 };
 
 // Data structure representing a single row in the bin output file
@@ -48,6 +51,12 @@ struct BinOutputRow {
   int dist_3;            // 1e-3 to 1e-2 per bp
   int dist_2;            // 1e-2 to 1e-1 per bp
   int dist_1_plus;       // above 1e-1 per bp
+  // allele counts: ref_count is reads with no bin mutations (or under-threshold alleles merged in)
+  int ref_count = 0;
+  // allele1..allele12 sorted by support descending; under-threshold alleles merged into ref_count
+  std::array<int, 12> alleles = {};
+  // reads from alleles beyond the top-12 cap (not ref, just overflow)
+  int other_count = 0;
 };
 
 class QueryBin : public QueryBase {
@@ -58,6 +67,7 @@ class QueryBin : public QueryBase {
   double non_ref_threshold;
   int num_threads;
   int min_seg_support;
+  int min_allele_support;
 
   // Use a map to store results, keyed by {contig_index, bin_start}
   std::map<std::pair<uint32_t, uint32_t>, BinData> bin_results;
@@ -93,7 +103,8 @@ class QueryBin : public QueryBase {
       double max_mutations_percent = 10.0,
       int min_alignment_length = 0,
       int max_alignment_length = 0,
-      int min_seg_support = 2);
+      int min_seg_support = 2,
+      int min_allele_support = 2);
 
   // execute the query
   void execute();

@@ -30,7 +30,8 @@ QueryBin::QueryBin(
     double max_mutations_percent,
     int min_alignment_length,
     int max_alignment_length,
-    int min_seg_support)
+    int min_seg_support,
+    int min_allele_support)
     : QueryBase(intervals, clip_mode, clip_margin, min_mutations_percent, max_mutations_percent, min_alignment_length, max_alignment_length)
     , store(store)
     , binsize(binsize)
@@ -38,6 +39,7 @@ QueryBin::QueryBin(
     , non_ref_threshold(non_ref_threshold)
     , num_threads(num_threads)
     , min_seg_support(min_seg_support)
+    , min_allele_support(min_allele_support)
 {
   if (binsize <= 0) {
     cerr << "error: binsize must be positive." << endl;
@@ -130,6 +132,12 @@ void QueryBin::merge_bin_data(const std::map<std::pair<uint32_t, uint32_t>, BinD
       // merge mutation_densities vector
       global_bin.mutation_densities.insert(global_bin.mutation_densities.end(), 
           local_bin.mutation_densities.begin(), local_bin.mutation_densities.end());
+      
+      // merge allele_read_sets
+      for (const auto& allele_entry : local_bin.allele_read_sets) {
+        auto& global_set = global_bin.allele_read_sets[allele_entry.first];
+        global_set.insert(allele_entry.second.begin(), allele_entry.second.end());
+      }
     } else {
       // create new bin entry
       bin_results[key] = local_bin;
@@ -224,6 +232,8 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
   const std::vector<const Interval*>& relevant_intervals = contig_intervals_it->second;
   // mutations per genomic bin for this alignment (same rules as mutation_count)
   std::map<std::pair<uint32_t, uint32_t>, int> aln_bin_mutations;
+  // allele parts per bin: sorted (position, variant_key) pairs used to build allele keys
+  std::map<std::pair<uint32_t, uint32_t>, std::vector<std::pair<uint32_t, std::string>>> aln_bin_allele_parts;
 
   // process sequenced basepairs and mutation rate categories for this alignment across relevant intervals
   for (const Interval* interval : relevant_intervals) {
@@ -276,10 +286,13 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
           it->second.mutation_count++;
           aln_bin_mutations[{ aln.contig_index, mutation_bin_start }]++;
           
-          // create variant key for segregating sites
+          // create variant key for segregating sites and allele identification
           std::string variant_key = std::to_string(mutation_contig_pos) + "_" + 
             std::to_string(static_cast<int>(mutation.type)) + "_" + mutation.nts;
           it->second.variant_counts[variant_key]++;
+          
+          // collect allele part for this bin (position used for sorting)
+          aln_bin_allele_parts[{ aln.contig_index, mutation_bin_start }].push_back({ mutation_contig_pos, variant_key });
           
           break; // only count the mutation once even if it's in multiple overlapping intervals
         }
@@ -324,6 +337,19 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
         }
       }
     }
+  }
+
+  // build allele key per bin: sort parts by position and join with '|'
+  std::map<std::pair<uint32_t, uint32_t>, std::string> aln_bin_allele_keys;
+  for (auto& entry : aln_bin_allele_parts) {
+    auto& parts = entry.second;
+    std::sort(parts.begin(), parts.end()); // sort by (position, variant_key)
+    std::string key;
+    for (const auto& part : parts) {
+      if (!key.empty()) key += "|";
+      key += part.second;
+    }
+    aln_bin_allele_keys[entry.first] = key;
   }
 
   // categorize by mutations-in-bin / binsize for all alignments overlapping the bin
@@ -376,6 +402,14 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
             }
             
             it->second.mutation_densities.push_back(local_mutations_per_bp);
+            
+            // assign this alignment to its allele for this bin (empty key = ref allele)
+            std::string allele_key;
+            auto allele_it = aln_bin_allele_keys.find(bin_key);
+            if (allele_it != aln_bin_allele_keys.end()) {
+              allele_key = allele_it->second;
+            }
+            it->second.allele_read_sets[allele_key].insert(aln.read_index);
           }
         }
       }
@@ -622,11 +656,47 @@ void QueryBin::generate_output_rows()
       }
     }
 
+    // compute allele counts from allele_read_sets
+    int ref_count = 0;
+    auto ref_it = data.allele_read_sets.find("");
+    if (ref_it != data.allele_read_sets.end()) {
+      ref_count = static_cast<int>(ref_it->second.size());
+    }
+
+    // collect non-ref alleles; move under-threshold counts into ref
+    std::vector<std::pair<int, std::string>> non_ref_alleles;
+    for (const auto& allele_entry : data.allele_read_sets) {
+      if (allele_entry.first.empty()) continue;
+      int count = static_cast<int>(allele_entry.second.size());
+      if (count < min_allele_support) {
+        ref_count += count;
+      } else {
+        non_ref_alleles.push_back({ count, allele_entry.first });
+      }
+    }
+
+    // sort by count descending; over-cap alleles go to other_count (not ref)
+    std::sort(non_ref_alleles.begin(), non_ref_alleles.end(),
+        [](const auto& a, const auto& b) { return a.first > b.first; });
+    int other_count = 0;
+    if (static_cast<int>(non_ref_alleles.size()) > 12) {
+      for (size_t i = 12; i < non_ref_alleles.size(); ++i) {
+        other_count += non_ref_alleles[i].first;
+      }
+      non_ref_alleles.resize(12);
+    }
+
+    std::array<int, 12> alleles = {};
+    for (size_t i = 0; i < non_ref_alleles.size(); ++i) {
+      alleles[i] = non_ref_alleles[i].first;
+    }
+
     output_rows.push_back({ contig_id, bin_start, bin_end, bin_length,
         data.sequenced_basepairs, static_cast<int>(data.unique_reads.size()), data.mutation_count, median_mutation_density, seg_sites_density, non_ref_sites_density,
         seg_clip_density, non_ref_clip_density,
         data.dist_none, data.dist_5, data.dist_4,
-        data.dist_3, data.dist_2, data.dist_1_plus });
+        data.dist_3, data.dist_2, data.dist_1_plus,
+        ref_count, alleles, other_count });
   }
   
   // now generate zero-filled output for missing contigs
@@ -647,7 +717,8 @@ void QueryBin::generate_output_rows()
             0, 0, 0, 0.0, 0.0, 0.0,
             0.0, 0.0,
             0, 0, 0,
-            0, 0, 0 });
+            0, 0, 0,
+            0, {}, 0 });
       }
     }
   }
@@ -662,7 +733,9 @@ void QueryBin::write_to_csv(const std::string& odir)
   if (!ofs.is_open()) { cerr << "error: could not open file " << filename << endl; exit(1); }
   ofs << "contig\tbin_start\tbin_end\tbin_length\tsequenced_bp\tread_count\tmutation_count\t"
       << "median_mutation_density\tseg_sites_density\tnon_ref_sites_density\tseg_clip_density\tnon_ref_clip_density\t"
-      << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\n";
+      << "dist_none\tdist_5\tdist_4\tdist_3\tdist_2\tdist_1_plus\t"
+      << "ref_count\tallele1\tallele2\tallele3\tallele4\tallele5\tallele6\t"
+      << "allele7\tallele8\tallele9\tallele10\tallele11\tallele12\tother_count\n";
   for (const auto& row : output_rows) {
     ofs << row.contig << "\t"
         << row.bin_start << "\t"
@@ -681,7 +754,12 @@ void QueryBin::write_to_csv(const std::string& odir)
         << row.dist_4 << "\t"
         << row.dist_3 << "\t"
         << row.dist_2 << "\t"
-        << row.dist_1_plus << "\n";
+        << row.dist_1_plus << "\t"
+        << row.ref_count;
+    for (int i = 0; i < 12; ++i) {
+      ofs << "\t" << row.alleles[i];
+    }
+    ofs << "\t" << row.other_count << "\n";
   }
 }
 
