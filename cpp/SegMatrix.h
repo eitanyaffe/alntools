@@ -72,6 +72,7 @@ private:
     uint32_t side_length;
     uint32_t side_margin;
     uint32_t min_segment_length;
+    int max_side_indel_bp;
 
     std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t> adjacency_matrix;
     std::map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t> reach_matrix;
@@ -178,6 +179,7 @@ private:
 
     std::vector<ReadInterval> intersect_alignment_with_segments(const Alignment& aln);
     void compute_side_coverage_and_mutations(ReadInterval& interval, const Alignment& aln);
+    int compute_indel_bp_in_region(const Alignment& aln, uint32_t region_start, uint32_t region_end) const;
     double compute_mutation_percent(const Alignment& aln, uint32_t contig_start, uint32_t contig_end);
 
     void process_interval_sequence(const std::vector<ReadInterval>& intervals, bool debug_mode, const std::string& read_id);
@@ -243,5 +245,6 @@ public:
                  uint32_t side_length,
                  uint32_t side_margin,
                  bool output_read_details,
+                 int max_side_indel_bp,
                  const std::string& ifn_segment_clusters = "");
 };

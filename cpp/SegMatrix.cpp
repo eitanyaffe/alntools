@@ -589,6 +589,28 @@ vector<ReadInterval> SegMatrix::intersect_alignment_with_segments(const Alignmen
     return intervals;
 }
 
+int SegMatrix::compute_indel_bp_in_region(const Alignment& aln, uint32_t region_start, uint32_t region_end) const
+{
+    int affected_bp = 0;
+    for (uint32_t mut_idx : aln.mutations) {
+        const Mutation& mutation = store.get_mutation(aln.contig_index, mut_idx);
+        int indel_len = static_cast<int>(mutation.nts.length());
+        if (indel_len < min_indel_length)
+            continue;
+        if (mutation.type == MutationType::DELETION) {
+            uint32_t del_end = mutation.position + static_cast<uint32_t>(indel_len);
+            uint32_t overlap_start = max(mutation.position, region_start);
+            uint32_t overlap_end = min(del_end, region_end);
+            if (overlap_end > overlap_start)
+                affected_bp += static_cast<int>(overlap_end - overlap_start);
+        } else if (mutation.type == MutationType::INSERTION) {
+            if (mutation.position >= region_start && mutation.position < region_end)
+                affected_bp += indel_len;
+        }
+    }
+    return affected_bp;
+}
+
 double SegMatrix::compute_mutation_percent(const Alignment& aln, uint32_t contig_start, uint32_t contig_end)
 {
     uint32_t mutation_count = 0;
@@ -640,13 +662,17 @@ void SegMatrix::compute_side_coverage_and_mutations(ReadInterval& interval, cons
     bool right_region_valid = right_side_end > right_side_start && right_side_start >= seg_start_0based;
 
     if (left_region_valid && interval.contig_start <= left_side_start && interval.contig_end >= left_side_end) {
-        interval.covers_left_side = true;
-        interval.left_mutation_percent = compute_mutation_percent(aln, left_side_start, left_side_end);
+        if (compute_indel_bp_in_region(aln, left_side_start, left_side_end) <= max_side_indel_bp) {
+            interval.covers_left_side = true;
+            interval.left_mutation_percent = compute_mutation_percent(aln, left_side_start, left_side_end);
+        }
     }
 
     if (right_region_valid && interval.contig_start <= right_side_start && interval.contig_end >= right_side_end) {
-        interval.covers_right_side = true;
-        interval.right_mutation_percent = compute_mutation_percent(aln, right_side_start, right_side_end);
+        if (compute_indel_bp_in_region(aln, right_side_start, right_side_end) <= max_side_indel_bp) {
+            interval.covers_right_side = true;
+            interval.right_mutation_percent = compute_mutation_percent(aln, right_side_start, right_side_end);
+        }
     }
 }
 
@@ -1210,6 +1236,7 @@ void SegMatrix::compute(const string& ifn_segments,
                        uint32_t side_length_param,
                        uint32_t side_margin_param,
                        bool output_read_details,
+                       int max_side_indel_bp_param,
                        const string& ifn_segment_clusters)
 {
     max_mutation_percent = max_mutation_percent_param;
@@ -1219,6 +1246,7 @@ void SegMatrix::compute(const string& ifn_segments,
     side_length = side_length_param;
     side_margin = side_margin_param;
     min_segment_length = side_length + side_margin;
+    max_side_indel_bp = max_side_indel_bp_param;
     massert(side_length > 0, "side_length must be positive");
     output_read_details_flag = output_read_details;
     
