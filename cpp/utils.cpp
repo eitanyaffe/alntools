@@ -480,22 +480,32 @@ void read_intervals(const std::string& filename,
   std::string line;
   bool has_vcoords = false;
   bool has_strand = false;
+  bool has_name = false;
   if (getline(file, line)) {
-    // check for optional vstart/vend/strand columns
+    // strip optional trailing \tname column before checking base format
+    const std::string name_suffix = "\tname";
+    if (line.size() >= name_suffix.size() &&
+        line.compare(line.size() - name_suffix.size(), name_suffix.size(), name_suffix) == 0) {
+      has_name = true;
+      line = line.substr(0, line.size() - name_suffix.size());
+    }
+
     if (line == "contig\tstart\tend\tvstart\tvend\tstrand") {
       has_vcoords = true;
       has_strand = true;
     } else if (line == "contig\tstart\tend\tvstart\tvend") {
       has_vcoords = true;
+    } else if (line == "contig\tstart\tend\tstrand") {
+      has_strand = true;
     } else if (line != "contig\tstart\tend") {
       cerr << "error: invalid header in intervals file. Expected "
-              "'contig\\tstart\\tend' or 'contig\\tstart\\tend\\tvstart\\tvend' or "
-              "'contig\\tstart\\tend\\tvstart\\tvend\\tstrand'"
+              "'contig\\tstart\\tend[\\tstrand][\\tname]', "
+              "'contig\\tstart\\tend\\tvstart\\tvend[\\tstrand][\\tname]'"
            << endl;
       exit(EXIT_FAILURE);
     }
   }
-  
+
   // read intervals
   while (getline(file, line)) {
     std::istringstream iss(line);
@@ -503,19 +513,20 @@ void read_intervals(const std::string& filename,
     uint32_t start, end;
     int64_t vstart = 0, vend = 0;
     char strand = '+';
-    
+    std::string name;
+
     if (!(iss >> contig >> start >> end)) {
       cerr << "error: malformed line in intervals file: " << line << endl;
       exit(EXIT_FAILURE);
     }
-    
+
     if (has_vcoords) {
       if (!(iss >> vstart >> vend)) {
         cerr << "error: malformed line in intervals file (missing vstart/vend): " << line << endl;
         exit(EXIT_FAILURE);
       }
     }
-    
+
     if (has_strand) {
       std::string strand_str;
       if (!(iss >> strand_str) || strand_str.empty()) {
@@ -524,8 +535,15 @@ void read_intervals(const std::string& filename,
       }
       strand = strand_str[0];
     }
-    
-    intervals.emplace_back(contig, start, end, vstart, vend, strand);
+
+    if (has_name) {
+      if (!(iss >> name)) {
+        cerr << "error: malformed line in intervals file (missing name): " << line << endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+
+    intervals.emplace_back(contig, start, end, vstart, vend, strand, name);
   }
   file.close();
   

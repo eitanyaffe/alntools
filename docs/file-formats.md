@@ -349,6 +349,30 @@ When gene annotation is enabled, additional columns and files are generated:
 | distance_left    | Distance to left gene                    | int    |
 | distance_right   | Distance to right gene                   | int    |
 
+### get_local_deletions Output
+
+**`ofn` (deletion table):**
+
+One row per deletion that closely matches a query interval. A single read may contribute multiple rows.
+
+| Column | Description | Type |
+|--------|-------------|------|
+| `read_id` | Read identifier | string |
+| `contig` | Contig identifier | string |
+| `del_start` | Deletion start on the contig (reference coordinate) | int |
+| `del_end` | Deletion end on the contig (exclusive) | int |
+| `del_len` | Deletion length in bases | int |
+| `aln_strand` | Strand of the read alignment to the contig (`+` or `-`) | char |
+| `del_orientation` | Orientation of the deleted element in the read (`+` or `-`); derived from `aln_strand` XOR csegment strand from the interval file | char |
+| `read_position` | Read coordinate of the deletion site (the bases just before and after the gap are adjacent in the read) | int |
+| `pre_mutations` | Non-short-indel mutations in `[del_start - flank, del_start)`, as `pos[desc]` comma-separated or `.` | string |
+| `post_mutations` | Non-short-indel mutations in `[del_end, del_end + flank]`, as `pos[desc]` comma-separated or `.` | string |
+
+Mutation descriptors in `pre_mutations` / `post_mutations`:
+- Substitution: `412790[A:T]` (read base : ref base)
+- Insertion: `412795[+GCA]`
+- Deletion: `412810[-acgt]`
+
 ## Binary Formats
 
 ### ALN Format

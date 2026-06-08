@@ -157,15 +157,18 @@ struct Interval {
   int64_t vstart;  // view coordinate start (for cross-contig height calculation)
   int64_t vend;    // view coordinate end (for cross-contig height calculation)
   char strand;     // '+' or '-' for vcoord calculation
+  string name;     // optional identifier (e.g. cme_id); empty when not supplied
 
   Interval(const string& contig = "", uint32_t start = 0, uint32_t end = 0, 
-           int64_t vstart = 0, int64_t vend = 0, char strand = '+')
+           int64_t vstart = 0, int64_t vend = 0, char strand = '+',
+           const string& name = "")
       : contig(contig)
       , start(start)
       , end(end)
       , vstart(vstart)
       , vend(vend)
       , strand(strand)
+      , name(name)
   {
   }
 

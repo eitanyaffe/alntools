@@ -14,7 +14,10 @@
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
 - **Coverage intervals** for computing per-segment coverage fraction (x_coverage) against a reference segment table
 - **Coverage matrix generation** for computing per-base coverage across multiple libraries and genomic segments
+- **Segment adjacency / reach matrices** for counting reads supporting direct adjacency or longer-range connections between oriented segment sides
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
+- **Local deletion search** for finding reads that carry a deletion closely matching query intervals, with flanking mutation context
+- **Per-read inspection** for dumping all alignments and mutations of a single read as tab-delimited tables
 - **R interface** for seamless integration with analysis workflows in R
 
 This makes alntools useful for visualizing and investigating read coverage and mutation patterns across regions of interest.
@@ -73,9 +76,12 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [segments](docs/commands/segments.md) | Perform segmentation analysis from breakpoint detection | [→](docs/commands/segments.md) |
 | [cov_matrix](docs/commands/cov_matrix.md) | Compute per-base coverage matrix for segments across libraries | [→](docs/commands/cov_matrix.md) |
 | [csegment_coverage](docs/commands/csegment_coverage.md) | Compute coverage statistics for csegments (clustered segments) across libraries | [→](docs/commands/csegment_coverage.md) |
+| [seg_matrix](docs/commands/seg_matrix.md) | Generate segment adjacency and reach matrices from read alignments | [→](docs/commands/seg_matrix.md) |
 | [homologs](docs/commands/homologs.md) | Find homologous regions using kmer-based search | [→](docs/commands/homologs.md) |
+| [inspect_read](docs/commands/inspect_read.md) | Print detailed alignment and mutation information for a single read | [→](docs/commands/inspect_read.md) |
 | [get_read_ids](docs/commands/get_read_ids.md) | Assign each read to the bin with the longest segment intersection | [→](docs/commands/get_read_ids.md) |
 | [cov_intervals](docs/commands/cov_intervals.md) | Compute x_coverage (fraction covered) per segment interval | [→](docs/commands/cov_intervals.md) |
+| [get_local_deletions](docs/commands/get_local_deletions.md) | Find reads with a deletion matching query interval endpoints | [→](docs/commands/get_local_deletions.md) |
 
 ## Documentation
 

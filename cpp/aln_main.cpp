@@ -30,6 +30,7 @@ int seg_matrix_main(const char* name, int argc, char** argv);
 int inspect_read_main(const char* name, int argc, char** argv);
 int get_read_ids_main(const char* name, int argc, char** argv);
 int cov_intervals_main(const char* name, int argc, char** argv);
+int get_local_deletions_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
@@ -54,6 +55,7 @@ void usage(const char* name)
   fprintf(stderr, "  inspect_read: print detailed information about a specific read\n");
   fprintf(stderr, "  get_read_ids: assign each read to the bin with the longest segment intersection\n");
   fprintf(stderr, "  cov_intervals: compute intervalcoverage (fraction covered) per segment interval\n");
+  fprintf(stderr, "  get_local_deletions: find reads with a deletion matching a query interval\n");
   fprintf(stderr, "\n");
 #ifdef _OPENMP
   fprintf(stderr, "thread support: enabled (OpenMP available, max threads: %d)\n", omp_get_max_threads());
@@ -104,6 +106,8 @@ int main(int argc, char** argv)
     rc = get_read_ids_main(name.c_str(), argc - 1, argv + 1);
   } else if (command == "cov_intervals") {
     rc = cov_intervals_main(name.c_str(), argc - 1, argv + 1);
+  } else if (command == "get_local_deletions") {
+    rc = get_local_deletions_main(name.c_str(), argc - 1, argv + 1);
   } else {
     printf("unknown command: %s\n", command.c_str());
     usage(argv[0]);
