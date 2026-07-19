@@ -202,8 +202,12 @@ std::vector<Interval> Rcpp_DataFrame_to_Intervals(DataFrame df)
   vet_intervals(df);
 
   CharacterVector contig = df["contig"];
-  IntegerVector start = df["start"]; // Expecting 1-based
-  IntegerVector end = df["end"]; // Expecting 1-based closed
+  // R may silently coerce integer columns to numeric (double); cast back to avoid
+  // bit-pattern misinterpretation when Rcpp binds a NumericVector as IntegerVector
+  IntegerVector start = Rf_isInteger(df["start"]) ?
+      IntegerVector(df["start"]) : as<IntegerVector>(NumericVector(df["start"]));
+  IntegerVector end = Rf_isInteger(df["end"]) ?
+      IntegerVector(df["end"]) : as<IntegerVector>(NumericVector(df["end"]));
 
   // check for optional vstart/vend columns
   bool has_vcoords = df.containsElementNamed("vstart") && df.containsElementNamed("vend");
