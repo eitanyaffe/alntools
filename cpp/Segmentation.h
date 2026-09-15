@@ -15,17 +15,16 @@ struct ReadBreakpoint {
     std::string type;  // "dangle_left" or "dangle_right"
     uint32_t anchor_length;
     uint32_t anchor_mutations;
-    uint32_t dangle_length;
     std::string aggregate_breakpoint_id;
     
     ReadBreakpoint(const std::string& lib_id = "", const std::string& read_id = "", 
                    const std::string& contig_id = "",
                    uint32_t coord = 0, const std::string& type = "",
                    uint32_t anchor_length = 0, uint32_t anchor_mutations = 0,
-                   uint32_t dangle_length = 0, const std::string& aggregate_breakpoint_id = "")
+                   const std::string& aggregate_breakpoint_id = "")
         : lib_id(lib_id), read_id(read_id), contig_id(contig_id), coord(coord), type(type),
           anchor_length(anchor_length), anchor_mutations(anchor_mutations),
-          dangle_length(dangle_length), aggregate_breakpoint_id(aggregate_breakpoint_id) {}
+          aggregate_breakpoint_id(aggregate_breakpoint_id) {}
 };
 
 // worker class for detecting breakpoints in a single library

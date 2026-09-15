@@ -596,7 +596,7 @@ void SegmentationManager::write_read_breakpoints_file(const string& odir)
     safe_open_file_for_writing(filename, file);
     
     // header
-    file << "lib_id\tread_id\tcontig\tcoord\ttype\tanchor_length\tanchor_mutations\tdangle_length\taggregate_breakpoint_id" << endl;
+    file << "lib_id\tread_id\tcontig\tcoord\ttype\tanchor_length\tanchor_mutations\taggregate_breakpoint_id" << endl;
     
     // write all read breakpoints
     for (const auto& entry : lib_breakpoints) {
@@ -610,7 +610,6 @@ void SegmentationManager::write_read_breakpoints_file(const string& odir)
                  << bp.type << "\t"
                  << bp.anchor_length << "\t"
                  << bp.anchor_mutations << "\t"
-                 << bp.dangle_length << "\t"
                  << bp.aggregate_breakpoint_id << endl;
         }
     }

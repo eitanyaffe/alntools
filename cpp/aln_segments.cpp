@@ -23,7 +23,7 @@ void segments_params(const char* name, int argc, char** argv, Parameters& params
     params.add_parser("min_breakpoint_read_support", new ParserInteger("minimum read support for selecting breakpoints (default 2)", 2), false);
     params.add_parser("min_breakpoint_frequency", new ParserDouble("minimum frequency for selecting breakpoints (default 0.2)", 0.2), false);
     params.add_parser("min_segment_length", new ParserInteger("minimum segment length for filtering breakpoints (default 200)", 200), false);
-    params.add_parser("max_segment_length", new ParserInteger("maximum segment length before splitting, 0 to disable (default 500000)", 500000), false);
+    params.add_parser("max_segment_length", new ParserInteger("maximum segment length before splitting, 0 to disable (default 0)", 0), false);
 
     if (argc == 1) {
         params.usage(name);

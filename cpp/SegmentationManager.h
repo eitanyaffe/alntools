@@ -80,7 +80,7 @@ public:
                        int min_breakpoint_read_support = 2,
                        double min_breakpoint_frequency = 0.2,
                        int min_segment_length = 200,
-                       int max_segment_length = 500000);
+                       int max_segment_length = 0);
     
     // main execution function
     void execute();

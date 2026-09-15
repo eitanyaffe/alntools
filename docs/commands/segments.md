@@ -20,9 +20,9 @@ alntools segments -ifn_libraries <libraries.txt> -odir <output_dir> [options]
 **Breakpoint Detection Parameters:**
 * `-max_margin <int>`: Maximum margin tolerance for breakpoint clustering (default: 20)
 * `-min_anchor_length <int>`: Minimum anchor alignment length (default: 1000)
-* `-min_dangle_length <int>`: Minimum dangle alignment length (default: 1000)
+* `-min_dangle_length <int>`: Minimum length for an alignment to count as a continuation of the anchor (default: 1000)
 * `-max_anchor_mutations_percent <double>`: Maximum mutations percentage for anchor alignments (default: 0.1)
-* `-min_alignment_distance <int>`: Minimum distance between anchor and dangle on same contig (default: 200)
+* `-min_alignment_distance <int>`: Minimum distance between anchor and a continuation on the same contig (default: 200)
 
 **Breakpoint Selection Parameters:**
 * `-min_breakpoint_read_support <int>`: Minimum read support for selecting breakpoints (default: 2)
@@ -30,6 +30,7 @@ alntools segments -ifn_libraries <libraries.txt> -odir <output_dir> [options]
 
 **Segment Generation Parameters:**
 * `-min_segment_length <int>`: Minimum segment length for filtering breakpoints (default: 200)
+* `-max_segment_length <int>`: Segments longer than this are split by artificial breakpoints; 0 disables splitting (default: 0)
 
 ## Examples
 
@@ -56,15 +57,30 @@ alntools segments -ifn_libraries libraries.txt -odir output/segments \
 
 For each library, the tool identifies potential breakpoints by analyzing read alignment patterns:
 
+A breakpoint is called at an anchor boundary when the read does **not** continue
+along the same contig past that boundary, i.e. the read dangles away from the contig.
+
 **Breakpoint Types:**
-- **left**: Read ends (dangles on the left side of alignments)
-- **right**: Read starts (dangles on the right side of alignments)
+- **dangle_left**: Read dangles off the left side of the anchor (breakpoint at the anchor's contig start)
+- **dangle_right**: Read dangles off the right side of the anchor (breakpoint at the anchor's contig end)
+
+Strand is taken into account: for a reverse-strand anchor the read-order sense of the two
+boundaries is swapped.
 
 **Detection Criteria:**
-- Reads must have anchor and dangle alignments on the same contig
+
+Each alignment of the read is tested as an anchor, and each of its two boundaries is
+tested separately:
 - Anchor must be at least `min_anchor_length` bp with ≤ `max_anchor_mutations_percent` mutations
-- Dangle must be at least `min_dangle_length` bp
-- Anchor and dangle must be separated by at least `min_alignment_distance` bp
+- The read must extend at least `min_alignment_distance + min_dangle_length` bp past the
+  anchor boundary, so that a continuation could have been observed had one existed
+- No **continuation** may exist on that side. An alignment counts as a continuation when it
+  lies within `min_alignment_distance` bp of the anchor in read coordinates, is on the same
+  contig and strand, is at least `min_dangle_length` bp long, and is within
+  `min_alignment_distance` bp of the anchor in contig coordinates
+
+Note that `min_dangle_length` and `min_alignment_distance` act purely as rejection
+thresholds on candidate continuations; the dangling part of the read itself is not measured.
 
 ### 2. Breakpoint Aggregation
 
@@ -85,6 +101,8 @@ Selected breakpoints are used to define genomic segments:
 - Breakpoints are sorted by coordinate within each contig
 - Only breakpoints that maintain segments ≥ `min_segment_length` are used
 - Breakpoints too close to contig boundaries (< `min_segment_length`) are filtered out
+- If `max_segment_length` > 0, any remaining gap longer than it is split evenly by
+  artificial coordinates, which have no breakpoint id; splitting is disabled when it is 0
 - Segments are created between consecutive accepted breakpoints
 
 **Output:**
@@ -103,10 +121,10 @@ Individual breakpoint calls from reads, per library.
 - `read_id`: Read identifier
 - `contig`: Contig name
 - `coord`: Breakpoint coordinate (1-based)
-- `type`: Breakpoint type (left/right)
+- `type`: Breakpoint type (dangle_left/dangle_right)
 - `anchor_length`: Length of anchor alignment
 - `anchor_mutations`: Number of mutations in anchor
-- `dangle_length`: Length of dangle alignment
+- `aggregate_breakpoint_id`: Id of the aggregate breakpoint this call was clustered into
 
 ### breakpoints.txt
 Aggregated breakpoints across all libraries.
@@ -115,7 +133,7 @@ Aggregated breakpoints across all libraries.
 - `breakpoint_id`: Unique breakpoint identifier (b1, b2, ...)
 - `contig`: Contig name
 - `coord`: Breakpoint coordinate (1-based)
-- `type`: Breakpoint type (left/right)
+- `type`: Breakpoint type (dangle_left/dangle_right)
 - `read_support`: Total read support across all libraries
 - `frequency`: Frequency (read_support / total_coverage)
 - `selected`: Whether breakpoint passed selection thresholds (T/F)
