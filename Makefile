@@ -2,6 +2,10 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra
 LDFLAGS = -lz
 
+# single source of truth for the tool version, reported by 'alntools -v'
+VERSION := $(shell cat $(dir $(lastword $(MAKEFILE_LIST)))VERSION)
+CXXFLAGS += -DALNTOOLS_VERSION='"$(VERSION)"'
+
 # Detect OS first
 UNAME_S := $(shell uname -s)
 

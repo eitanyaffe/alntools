@@ -34,9 +34,14 @@ int get_local_deletions_main(const char* name, int argc, char** argv);
 
 using namespace std;
 
+// set from the repo's VERSION file by the makefile
+#ifndef ALNTOOLS_VERSION
+#define ALNTOOLS_VERSION "unknown"
+#endif
+
 void usage(const char* name)
 {
-  fprintf(stderr, "alntools: \n");
+  fprintf(stderr, "alntools %s\n", ALNTOOLS_VERSION);
   fprintf(stderr, "usage: %s <command> [options]\n", name);
   fprintf(stderr, "commands:\n");
   fprintf(stderr, "  construct: Construct ALN file from PAF file\n");
@@ -56,6 +61,7 @@ void usage(const char* name)
   fprintf(stderr, "  get_read_ids: assign each read to the bin with the longest segment intersection\n");
   fprintf(stderr, "  cov_intervals: compute intervalcoverage (fraction covered) per segment interval\n");
   fprintf(stderr, "  get_local_deletions: find reads with a deletion matching a query interval\n");
+  fprintf(stderr, "  version: print the tool version\n");
   fprintf(stderr, "\n");
 #ifdef _OPENMP
   fprintf(stderr, "thread support: enabled (OpenMP available, max threads: %d)\n", omp_get_max_threads());
@@ -72,6 +78,12 @@ int main(int argc, char** argv)
   }
   string command(argv[1]);
   string name = string(argv[0]) + " " + command;
+
+  // version goes to stdout so callers can capture it without stderr noise
+  if (command == "version" || command == "-v" || command == "--version") {
+    printf("%s\n", ALNTOOLS_VERSION);
+    return 0;
+  }
 
   int rc = 0;
   if (command == "construct") {
