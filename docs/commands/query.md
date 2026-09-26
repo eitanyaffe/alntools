@@ -47,7 +47,7 @@ alntools query -ifn_aln <input.aln> -ifn_intervals <intervals.txt> -odir <output
 * `-min_consensus_coverage <int>`: Minimum coverage required for reporting variants (default: `5`). Only variants with coverage ≥ this value are considered.
 
 **Variants Mode:**
-* `-ifn_libraries <fn>`: Input tab-delimited file with library definitions (format: `id fn`). **Required for variants mode**.
+* `-ifn_libraries <fn>`: Input tab-delimited library table with header columns `lib_id` and `aln_fn`. **Required for variants mode**.
 * `-min_variants_variant_support <int>`: Minimum variant support across all libraries (default: `3`). Total reads supporting the variant across all libraries.
 * `-min_variants_library_support <int>`: Minimum number of libraries with the variant (default: `1`). Number of libraries that must contain the variant.
 * `-min_variants_coverage_support <int>`: Minimum total coverage across all libraries (default: `10`). Total coverage at the variant position across all libraries.

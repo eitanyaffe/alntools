@@ -48,16 +48,16 @@ ctg26175	230065	252386
 
 ### Libraries Format
 
-For multi-library analysis (variants and rearrange commands):
+For multi-library analysis (query variants mode, rearrange, segments, cov_matrix, csegment_coverage). Columns are located by header name; other columns are ignored:
 
 | Column | Description                    | Type  |
 |--------|--------------------------------|-------|
-| id     | Library identifier             | string|
-| fn     | Path to ALN file               | string|
+| lib_id | Library identifier             | string|
+| aln_fn | Path to ALN file               | string|
 
 **Example libraries file:**
 ```
-id	fn
+lib_id	aln_fn
 lib1	output/sample1.aln
 lib2	output/sample2.aln
 lib3	output/sample3.aln

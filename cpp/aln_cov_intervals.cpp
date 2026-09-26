@@ -149,6 +149,7 @@ void cov_intervals_command(const string& aln_file,
     AlignmentStore store;
     store.load(aln_file);
     store.count_short_indels(min_indel_length);
+    init_local_align_if_needed(store, clip_mode);
 
     cout << "reading segment table " << ifn_segments << endl;
     vector<string> header_fields;

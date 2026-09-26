@@ -13,7 +13,7 @@
   - **Variants mode**: Multi-library variant calling across multiple ALN files with comprehensive variant filtering
 - **Coverage analysis** for comprehensive alignment statistics and identification of unaligned regions
 - **Coverage intervals** for computing per-segment coverage fraction (x_coverage) against a reference segment table
-- **Coverage matrix generation** for computing per-base coverage across multiple libraries and genomic segments
+- **Coverage matrix generation** for computing the mean per-base depth and its variance along each genomic segment across multiple libraries (MetaBAT2 depth input)
 - **Segment adjacency / reach matrices** for counting reads supporting direct adjacency or longer-range connections between oriented segment sides
 - **Break detection** for identifying positions with excessive read start/end clustering using statistical testing
 - **Local deletion search** for finding reads that carry a deletion closely matching query intervals, with flanking mutation context
@@ -32,7 +32,7 @@ This makes alntools useful for visualizing and investigating read coverage and m
     *   **Linux**: Usually included with gcc (`libgomp`)
     *   **macOS**: Install via Homebrew: `brew install libomp`
 
-Tested on macOS 13.3.1 and Ubuntu 20.04.
+Tested on macOS 13.3.1 and Ubuntu 20.04 / 22.04.
 
 #### For R Interface (Optional)
 
@@ -82,11 +82,22 @@ Tested on macOS 13.3.1 and Ubuntu 20.04.
 | [get_read_ids](docs/commands/get_read_ids.md) | Assign each read to the bin with the longest segment intersection | [→](docs/commands/get_read_ids.md) |
 | [cov_intervals](docs/commands/cov_intervals.md) | Compute x_coverage (fraction covered) per segment interval | [→](docs/commands/cov_intervals.md) |
 | [get_local_deletions](docs/commands/get_local_deletions.md) | Find reads with a deletion matching query interval endpoints | [→](docs/commands/get_local_deletions.md) |
+| version | Print the tool version (also `-v`, `--version`); the version is kept in `VERSION` | |
+
+## Alignment filtering
+
+Commands that count alignments share one filter: clip mode, clip margin, mutation percentage and alignment length. The clip mode decides which alignments count when part of the read is left unaligned (see [cov_matrix](docs/commands/cov_matrix.md) for all modes):
+
+- `complete`: the alignment covers the whole read, within `-clip_margin` bp of each read end.
+- `end_unique`: as `complete`, plus alignments that leave one read end unaligned where the alignment reaches the contig end (a read overhanging the contig), provided no other alignment of the same read overlaps more than half of it. This keeps depth near contig ends without counting reads at secondary placements.
+
+`cov_matrix`, `csegment_coverage` and `get_read_ids` default to `end_unique`; `cov_matrix` defaults to `-variance_mode empirical` (per-base variance along the segment). `cov_intervals` defaults to `complete` and `query` to `all`; `query` does not accept `end_unique`.
 
 ## Documentation
 
 - **[File Formats](docs/file-formats.md)**: Detailed specifications for all input and output file formats
 - **[R Interface](docs/r-interface.md)**: R interface documentation for integrating alntools into R workflows
+- **[Version log](CHANGELOG.md)**: what changed between versions, with migration notes from 1.00
 
 ## Quick Start
 
@@ -110,6 +121,9 @@ alntools rearrange -ifn_aln output/test.aln -odir output/rearrangements
 
 # 6. Perform segmentation analysis
 alntools segments -ifn_aln output/test.aln -odir output/segments
+
+# 7. Print the tool version
+alntools version
 
 ```
 

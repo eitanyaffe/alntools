@@ -15,14 +15,14 @@ void cov_matrix_params(const char* name, int argc, char** argv, Parameters& para
     params.add_parser("actual_nts", new ParserBoolean("use actual nucleotides when writing fasta (default T)", true), false);
     params.add_parser("should_create_fasta", new ParserBoolean("write fasta output (default T)", true), false);
     params.add_parser("min_segment_length", new ParserInteger("minimum segment length for filtering (default 1000)", 1000), false);
-    params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "complete"), false);
+    params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "end_unique"), false);
     params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
     params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
     params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 0.1)", 0.1), false);
     params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 1000)", 1000), false);
     params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
     params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
-    params.add_parser("variance_mode", new ParserString("depth variance: poisson (variance = mean) or empirical (per-base variance along the segment)", "poisson"), false);
+    params.add_parser("variance_mode", new ParserString("depth variance: empirical (per-base variance along the segment) or poisson (variance = mean)", "empirical"), false);
     params.add_parser("ofn_lib_map", new ParserFilename("output library index to library ID mapping file"), false);
 
     if (argc == 1) {

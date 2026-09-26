@@ -25,7 +25,7 @@ alntools get_read_ids -ifn_aln <alignments.aln> \
 * `-ofn <fn>`: Output tab-delimited file with `read_id` and `bin_id` columns.
 
 **Optional Arguments - Alignment Filtering:**
-* `-clip_mode <mode>`: Clipping mode for alignment filtering (default: complete). Options:
+* `-clip_mode <mode>`: Clipping mode for alignment filtering (default: end_unique). Options:
   * `all`: Allow all alignments
   * `complete`: Alignment must cover all read from start to end
   * `allow_one_side_clip`: Allow clipped on one side (start at read start or end at read end)

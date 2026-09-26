@@ -10,7 +10,7 @@ void get_read_ids_params(const char* name, int argc, char** argv, Parameters& pa
     params.add_parser("ifn_aln",      new ParserFilename("input ALN file"), true);
     params.add_parser("ifn_segments", new ParserFilename("segment table with contig, start, end, bin_id columns"), true);
     params.add_parser("ofn",          new ParserFilename("output tab-delimited file with read_id and bin_id columns"), true);
-    params.add_parser("clip_mode",    new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "complete"), false);
+    params.add_parser("clip_mode",    new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "end_unique"), false);
     params.add_parser("clip_margin",  new ParserInteger("clipping margin in bases (default 10)", 10), false);
     params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
     params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 0.1)", 0.1), false);

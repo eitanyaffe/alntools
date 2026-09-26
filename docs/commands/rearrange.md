@@ -14,7 +14,7 @@ alntools rearrange -ifn_libraries <libraries.txt> -ofn_prefix <output_prefix> [o
 
 **Mandatory Arguments:**
 * Either `-ifn_aln <fn>`: Single ALN file (treated as library "sample")
-* Or `-ifn_libraries <fn>`: Tab-delimited file with library definitions (format: `id fn`)
+* Or `-ifn_libraries <fn>`: Tab-delimited library table with header columns `lib_id` and `aln_fn`
 * `-ofn_prefix <fn>`: Output prefix for result files
 
 **Optional Arguments:**

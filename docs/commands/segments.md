@@ -14,7 +14,7 @@ alntools segments -ifn_libraries <libraries.txt> -odir <output_dir> [options]
 
 **Mandatory Arguments:**
 * Either `-ifn_aln <fn>`: Single ALN file (treated as library "sample")
-* Or `-ifn_libraries <fn>`: Tab-delimited file with library definitions (format: `id fn`)
+* Or `-ifn_libraries <fn>`: Tab-delimited library table with header columns `lib_id` and `aln_fn`
 * `-odir <dir>`: Output directory for result files
 
 **Breakpoint Detection Parameters:**

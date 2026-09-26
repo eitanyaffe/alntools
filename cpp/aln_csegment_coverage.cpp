@@ -13,7 +13,7 @@ void csegment_coverage_params(const char* name, int argc, char** argv, Parameter
     params.add_parser("ofn_coverage", new ParserFilename("output coverage matrix file with unique read counts per csegment"), true);
     params.add_parser("ofn_read_counts", new ParserFilename("output read counts table per library"), true);
     params.add_parser("min_segment_length", new ParserInteger("minimum segment length for filtering (default 1000)", 1000), false);
-    params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "complete"), false);
+    params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "end_unique"), false);
     params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
     params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
     params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 0.1)", 0.1), false);

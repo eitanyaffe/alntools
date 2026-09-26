@@ -16,7 +16,7 @@ alntools cov_intervals -ifn_aln <input.aln> -ifn_segments <segments.txt> -ofn <o
 * `-ofn <fn>`: Output file path.
 
 **Optional Arguments (alignment filtering):**
-* `-clip_mode <str>`: Clip mode for filtering (default: `complete`). Options: `all`, `complete`, `allow_one_side_clip`, `only_one_side_clipped`, `only_two_side_clipped`, `only_clipped`, `local_align`.
+* `-clip_mode <str>`: Clip mode for filtering (default: `complete`). Options: `all`, `complete`, `allow_one_side_clip`, `only_one_side_clipped`, `only_two_side_clipped`, `only_clipped`, `local_align`, `end_unique`.
 * `-clip_margin <int>`: Clip margin in bases (default: `10`).
 * `-min_mutations_percent <float>`: Minimum mutation percentage (default: `0.0`).
 * `-max_mutations_percent <float>`: Maximum mutation percentage (default: `0.1`).
