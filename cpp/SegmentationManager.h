@@ -40,7 +40,7 @@ struct Segment {
            uint32_t start = 0, uint32_t end = 0,
            const std::string& start_bp_id = "", const std::string& end_bp_id = "")
         : segment_id(id), contig_id(contig), start(start), end(end),
-          length(end - start), start_breakpoint_id(start_bp_id), end_breakpoint_id(end_bp_id) {}
+          length(end >= start ? end - start + 1 : 0), start_breakpoint_id(start_bp_id), end_breakpoint_id(end_bp_id) {}
 };
 
 // main segmentation manager class

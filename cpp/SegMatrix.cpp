@@ -530,6 +530,10 @@ vector<const Alignment*> SegMatrix::get_parsimony_read_alignments(const vector<c
         }
     }
     
+    // selection is by rank; interval processing requires read order
+    sort(selected.begin(), selected.end(),
+         [](const Alignment* a, const Alignment* b) { return a->read_start < b->read_start; });
+    
     return selected;
 }
 

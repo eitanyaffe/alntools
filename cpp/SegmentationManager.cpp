@@ -522,7 +522,7 @@ void SegmentationManager::generate_segments()
         
         // filter breakpoints based on min_segment_length
         vector<AggregateBreakpoint*> filtered_bps;
-        uint32_t last_accepted_coord = 1;
+        uint32_t last_accepted_coord = 0;
         
         for (AggregateBreakpoint* bp : bps) {
             uint32_t segment_length = bp->coord - last_accepted_coord;

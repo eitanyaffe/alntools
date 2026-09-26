@@ -730,7 +730,7 @@ bool AlignmentStore::is_alignment_local(const Alignment& alignment, int clip_mar
     }
     
     // check if this focal-contig alignment ends near end of read
-    if (aln.read_end >= (read.length - static_cast<uint32_t>(clip_margin))) {
+    if (aln.read_end + static_cast<uint32_t>(clip_margin) >= read.length) {
       has_focal_at_end = true;
     }
     

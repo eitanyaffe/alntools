@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <set>
 #include <sstream>
 
 using namespace std;
@@ -95,7 +96,8 @@ void QueryVariants::execute()
     // build the contig to intervals mapping for this store
     build_contig_to_intervals_map(store);
     
-    // process each interval
+    // collect unique alignments across intervals, since each alignment counts all its in-interval variants
+    set<const Alignment*> unique_alignments;
     for (const Interval& interval : intervals) {
       // skip intervals for contigs that don't exist in this store
       if (!store.has_contig_id(interval.contig)) {
@@ -106,9 +108,12 @@ void QueryVariants::execute()
       auto alignment_refs = store.get_alignments_intersecting_interval(interval);
       
       for (const auto& alignment_ref : alignment_refs) {
-        const Alignment& aln = alignment_ref.get();
-        process_alignment(aln, store, lib_id);
+        unique_alignments.insert(&alignment_ref.get());
       }
+    }
+    
+    for (const Alignment* aln : unique_alignments) {
+      process_alignment(*aln, store, lib_id);
     }
   }
   
@@ -245,8 +250,12 @@ void QueryVariants::process_clips(const Alignment& aln, const AlignmentStore& st
                             const std::string& lib_id)
 {
   uint32_t read_length = store.get_reads()[aln.read_index].length;
-  bool is_left_clipped = (aln.read_start > static_cast<uint32_t>(clip_margin));
-  bool is_right_clipped = (aln.read_end < (read_length - static_cast<uint32_t>(clip_margin)));
+  bool read_start_clipped = (aln.read_start > static_cast<uint32_t>(clip_margin));
+  bool read_end_clipped = (aln.read_end + static_cast<uint32_t>(clip_margin) < read_length);
+
+  // the read start faces contig_start on the forward strand and contig_end on the reverse strand
+  bool is_left_clipped = aln.is_reverse ? read_end_clipped : read_start_clipped;
+  bool is_right_clipped = aln.is_reverse ? read_start_clipped : read_end_clipped;
   
   // process left clip
   if (is_left_clipped) {

@@ -75,9 +75,12 @@ tested separately:
 - The read must extend at least `min_alignment_distance + min_dangle_length` bp past the
   anchor boundary, so that a continuation could have been observed had one existed
 - No **continuation** may exist on that side. An alignment counts as a continuation when it
-  lies within `min_alignment_distance` bp of the anchor in read coordinates, is on the same
-  contig and strand, is at least `min_dangle_length` bp long, and is within
-  `min_alignment_distance` bp of the anchor in contig coordinates
+  lies within `min_alignment_distance` bp of the anchor boundary in read coordinates (gap or
+  overlap), is on the same contig and strand, is at least `min_dangle_length` bp long, and
+  is within `min_alignment_distance` bp (gap or overlap) of the contig end facing that
+  boundary: the contig end for a forward-strand anchor tested at its read end, the contig
+  start for a forward-strand anchor tested at its read start, and the reverse for a
+  reverse-strand anchor
 
 Note that `min_dangle_length` and `min_alignment_distance` act purely as rejection
 thresholds on candidate continuations; the dangling part of the read itself is not measured.
@@ -163,7 +166,7 @@ Final genomic segments defined by filtered breakpoints.
 - `contig`: Contig name
 - `start`: Segment start coordinate (1-based, inclusive)
 - `end`: Segment end coordinate (1-based, inclusive)
-- `length`: Segment length in bp
+- `length`: Segment length in bp (`end - start + 1`)
 
 ## Notes
 

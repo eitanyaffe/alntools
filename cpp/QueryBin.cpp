@@ -302,8 +302,12 @@ void QueryBin::process_single_alignment(const Alignment& aln, std::map<std::pair
 
   // process clips for this alignment
   uint32_t read_length = store.get_reads()[aln.read_index].length;
-  bool is_left_clipped = (aln.read_start > static_cast<uint32_t>(clip_margin));
-  bool is_right_clipped = (aln.read_end < (read_length - static_cast<uint32_t>(clip_margin)));
+  bool read_start_clipped = (aln.read_start > static_cast<uint32_t>(clip_margin));
+  bool read_end_clipped = (aln.read_end + static_cast<uint32_t>(clip_margin) < read_length);
+
+  // the read start faces contig_start on the forward strand and contig_end on the reverse strand
+  bool is_left_clipped = aln.is_reverse ? read_end_clipped : read_start_clipped;
+  bool is_right_clipped = aln.is_reverse ? read_start_clipped : read_end_clipped;
 
   // process left clip
   if (is_left_clipped) {

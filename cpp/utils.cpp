@@ -325,8 +325,10 @@ uint32_t contig_to_read_coord(const Alignment& alignment,
       }
       case MutationType::DELETION: {
         // deletion: contig advances, read doesn't -> read is behind -> subtract from shift
+        // a query inside the deletion counts only the deleted bases before it
         uint32_t del_length = static_cast<uint32_t>(mutation.nts.length());
-        shift -= static_cast<int32_t>(del_length);
+        uint32_t del_before_query = min(del_length, query_contig_coord - mut_pos);
+        shift -= static_cast<int32_t>(del_before_query);
         break;
       }
     }
@@ -685,7 +687,7 @@ bool passes_alignment_filter(const Alignment& alignment,
   
   // check clipping based on clip_mode
   bool starts_at_beginning = (alignment.read_start <= static_cast<uint32_t>(clip_margin));
-  bool ends_at_end = (alignment.read_end >= (read_length - static_cast<uint32_t>(clip_margin)));
+  bool ends_at_end = (alignment.read_end + static_cast<uint32_t>(clip_margin) >= read_length);
   
   if (clip_mode == ClipMode::COMPLETE) {
     // alignment must cover all read from start to end (with margin)

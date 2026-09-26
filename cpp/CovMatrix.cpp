@@ -133,7 +133,7 @@ void CovMatrix::calculate_coverage(const CovSegment& segment,
     auto alignments = store.get_alignments_intersecting_interval(interval);
     
     // sum intersection lengths with filtering
-    uint32_t total_bp = 0;
+    uint64_t total_bp = 0;
     for (const auto& alignment_ref : alignments) {
         const Alignment& aln = alignment_ref.get();
         
@@ -154,8 +154,9 @@ void CovMatrix::calculate_coverage(const CovSegment& segment,
     }
     
     double length = static_cast<double>(segment.length);
-    coverage = total_bp / length;
-    variance = total_bp / (length * length);
+    coverage = static_cast<double>(total_bp) / length;
+    // poisson model: per-base depth variance equals the mean depth
+    variance = coverage;
 }
 
 void CovMatrix::write_fasta(const string& ofn_fasta, bool actual_nts) const

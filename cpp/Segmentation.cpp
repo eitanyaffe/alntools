@@ -1,5 +1,6 @@
 #include "Segmentation.h"
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <set>
 
@@ -70,6 +71,9 @@ bool Segmentation::has_nearby_same_contig_alignment(const Alignment& anchor,
 {
     int threshold_read_distance = min_alignment_distance;
     uint32_t anchor_boundary = check_next ? anchor.read_end : anchor.read_start;
+
+    // contig side follows the anchor end being tested, independent of strand
+    bool check_end = (check_next != anchor.is_reverse);
     
     int start_idx = check_next ? (anchor_idx + 1) : (anchor_idx - 1);
     
@@ -89,12 +93,14 @@ bool Segmentation::has_nearby_same_contig_alignment(const Alignment& anchor,
             read_distance = static_cast<int>(anchor_boundary) - static_cast<int>(candidate.read_end);
         }
         
-        if (read_distance < 0) {
-            continue;
+        // alignments are sorted by read_start, so only the forward scan can stop early
+        if (check_next && read_distance > threshold_read_distance) {
+            break;
         }
         
-        if (read_distance > threshold_read_distance) {
-            break;
+        // negative read distance is an overlap on the read, tolerated up to the same threshold
+        if (abs(read_distance) > threshold_read_distance) {
+            continue;
         }
         
         if (anchor.contig_index != candidate.contig_index || anchor.is_reverse != candidate.is_reverse) {
@@ -106,18 +112,12 @@ bool Segmentation::has_nearby_same_contig_alignment(const Alignment& anchor,
             continue;
         }
         
-        uint32_t contig_distance = 0;
-        if (check_next) {
-            if (anchor.contig_end <= candidate.contig_start) {
-                contig_distance = candidate.contig_start - anchor.contig_end;
-            }
-        } else {
-            if (candidate.contig_end <= anchor.contig_start) {
-                contig_distance = anchor.contig_start - candidate.contig_end;
-            } 
-        }
+        // signed contig gap beyond the tested anchor end; negative is an overlap on the contig
+        long contig_distance = check_end ?
+            static_cast<long>(candidate.contig_start) - static_cast<long>(anchor.contig_end) :
+            static_cast<long>(anchor.contig_start) - static_cast<long>(candidate.contig_end);
         
-        if (static_cast<int>(contig_distance) < min_alignment_distance) {
+        if (labs(contig_distance) < min_alignment_distance) {
             return true;
         }
     }

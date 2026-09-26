@@ -133,8 +133,8 @@ Standard FASTA format containing the contig sequences referenced in the segment 
 **Coverage Matrix (`ofn_mat`):**
 
 Tab-delimited file with header. For each library, two columns are generated:
-- `cov_N`: Per-base coverage (number of reads / segment length)
-- `var_N`: Variance of coverage
+- `cov_N`: Mean per-base depth (aligned bp within the segment / segment length)
+- `var_N`: Per-base depth variance under a Poisson model, equal to `cov_N`
 
 Values are formatted with 3 decimal places.
 
