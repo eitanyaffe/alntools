@@ -33,6 +33,7 @@ alntools get_read_ids -ifn_aln <alignments.aln> \
   * `only_two_side_clipped`: Show only alignments clipped on both sides
   * `only_clipped`: Show alignments clipped on one or both sides
   * `local_align`: Show only locally aligned reads (first/last alignments on same contig)
+  * `end_unique`: Like `complete`, but also accepts an alignment clipped on one read side only where the clip lies at the contig end, if no other alignment of the same read overlaps more than half of it (see `cov_matrix`)
 * `-clip_margin <int>`: Clipping margin in bases (default: 10). Used to determine if alignment covers read start/end.
 * `-min_mutations_percent <double>`: Minimum mutations percentage (default: 0.0). Alignments with fewer mutations are excluded.
 * `-max_mutations_percent <double>`: Maximum mutations percentage (default: 0.1). Alignments with more mutations are excluded.

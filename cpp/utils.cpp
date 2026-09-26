@@ -667,6 +667,8 @@ ClipMode string_to_clip_mode(const std::string& mode)
     return ClipMode::ONLY_CLIPPED;
   } else if (mode == "local_align") {
     return ClipMode::LOCAL_ALIGN;
+  } else if (mode == "end_unique") {
+    return ClipMode::END_UNIQUE;
   } else {
     cerr << "warning: invalid clip_mode '" << mode << "', defaulting to 'all'" << endl;
     return ClipMode::ALL;
@@ -717,6 +719,11 @@ bool passes_alignment_filter(const Alignment& alignment,
   } else if (clip_mode == ClipMode::LOCAL_ALIGN) {
     // show only locally aligned reads (first/last alignments on same contig)
     if (!store.is_alignment_local(alignment, clip_margin)) {
+      return false;
+    }
+  } else if (clip_mode == ClipMode::END_UNIQUE) {
+    // complete alignments pass; clipped ones only if uniquely placed at a contig end
+    if (!(starts_at_beginning && ends_at_end) && !store.is_alignment_end_unique(alignment, clip_margin)) {
       return false;
     }
   }
@@ -770,7 +777,7 @@ bool passes_alignment_filter(const Alignment& alignment,
 
 void init_local_align_if_needed(AlignmentStore& store, ClipMode clip_mode)
 {
-  if (clip_mode == ClipMode::LOCAL_ALIGN) {
+  if (clip_mode == ClipMode::LOCAL_ALIGN || clip_mode == ClipMode::END_UNIQUE) {
     store.init_read_alignment_index();
   }
 }

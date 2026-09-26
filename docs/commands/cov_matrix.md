@@ -19,7 +19,8 @@ alntools cov_matrix -ifn_libraries <library_table> \
                     [-max_mutations_percent <double>] \
                     [-min_alignment_length <int>] \
                     [-max_alignment_length <int>] \
-                    [-min_indel_length <int>]
+                    [-min_indel_length <int>] \
+                    [-variance_mode <mode>]
 ```
 
 ## Parameters
@@ -47,12 +48,18 @@ alntools cov_matrix -ifn_libraries <library_table> \
   * `only_two_side_clipped`: Show only alignments clipped on both sides
   * `only_clipped`: Show alignments clipped on one or both sides
   * `local_align`: Show only locally aligned reads (first/last alignments on same contig)
+  * `end_unique`: Like `complete`, but also accepts an alignment clipped on one read side only, where the clip lies at the contig end (read overhanging the contig), provided no other alignment of the same read overlaps more than half of it in read coordinates (excludes secondary placements). Clips inside the contig and alignments clipped on both read sides are rejected
 * `-clip_margin <int>`: Clipping margin in bases (default: 10). Used to determine if alignment covers read start/end.
 * `-min_mutations_percent <double>`: Minimum mutations percentage (default: 0.0). Alignments with fewer mutations are excluded.
 * `-max_mutations_percent <double>`: Maximum mutations percentage (default: 0.1). Alignments with more mutations are excluded.
 * `-min_alignment_length <int>`: Minimum alignment length in read coordinates (default: 1000). Shorter alignments are excluded.
 * `-max_alignment_length <int>`: Maximum alignment length in read coordinates (default: 0, no limit). Longer alignments are excluded when > 0.
 * `-min_indel_length <int>`: Minimum indel length to include in mutation density calculations (default: 3). Smaller indels are excluded from mutation counts.
+
+**Optional Arguments - Variance:**
+* `-variance_mode <mode>`: How `var_N` is computed (default: poisson). Options:
+  * `poisson`: Variance equals the mean depth
+  * `empirical`: Population variance of the per-base depth along the segment, computed from the filtered alignments by sweeping their start and end positions (zero-depth bases included)
 
 ## Examples
 
@@ -134,7 +141,7 @@ Standard FASTA format containing the contig sequences referenced in the segment 
 
 Tab-delimited file with header. For each library, two columns are generated:
 - `cov_N`: Mean per-base depth (aligned bp within the segment / segment length)
-- `var_N`: Per-base depth variance under a Poisson model, equal to `cov_N`
+- `var_N`: Per-base depth variance; with `-variance_mode poisson` equal to `cov_N`, with `-variance_mode empirical` measured along the segment
 
 Values are formatted with 3 decimal places.
 

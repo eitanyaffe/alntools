@@ -57,7 +57,7 @@ alntools csegment_coverage \
 
 - `-min_segment_length`: Minimum segment length in bp (default: 1000)
 - `-clip_mode`: Alignment clipping mode (default: complete)
-  - Options: `all`, `complete`, `allow_one_side_clip`, `only_one_side_clipped`, `only_two_side_clipped`, `only_clipped`, `local_align`
+  - Options: `all`, `complete`, `allow_one_side_clip`, `only_one_side_clipped`, `only_two_side_clipped`, `only_clipped`, `local_align`, `end_unique`
 - `-clip_margin`: Clipping margin in bases (default: 10)
 - `-min_mutations_percent`: Minimum mutations percentage for alignment filtering (default: 0.0)
 - `-max_mutations_percent`: Maximum mutations percentage for alignment filtering (default: 0.1)

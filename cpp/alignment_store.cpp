@@ -744,6 +744,54 @@ bool AlignmentStore::is_alignment_local(const Alignment& alignment, int clip_mar
   return has_focal_at_start && has_focal_at_end;
 }
 
+bool AlignmentStore::is_alignment_end_unique(const Alignment& alignment, int clip_margin) const
+{
+  if (!read_alignment_index_built_) {
+    cerr << "error: read alignment index not built. call init_read_alignment_index() first" << endl;
+    exit(EXIT_FAILURE);
+  }
+
+  uint32_t margin = static_cast<uint32_t>(clip_margin);
+  uint32_t read_length = reads_[alignment.read_index].length;
+  uint32_t contig_length = contigs_[alignment.contig_index].length;
+  bool read_start_aligned = (alignment.read_start <= margin);
+  bool read_end_aligned = (alignment.read_end + margin >= read_length);
+  bool at_contig_start = (alignment.contig_start <= margin);
+  bool at_contig_end = (alignment.contig_end + margin >= contig_length);
+
+  // exactly one read side is clipped; on the reverse strand read_start pairs with contig_end
+  bool clip_at_end;
+  if (read_start_aligned && !read_end_aligned) {
+    clip_at_end = alignment.is_reverse ? at_contig_start : at_contig_end;
+  } else if (!read_start_aligned && read_end_aligned) {
+    clip_at_end = alignment.is_reverse ? at_contig_end : at_contig_start;
+  } else {
+    return false;
+  }
+  if (!clip_at_end) {
+    return false;
+  }
+
+  // a secondary placement of the same read part overlaps it almost fully
+  auto it = read_to_alignment_indices_.find(alignment.read_index);
+  if (it == read_to_alignment_indices_.end()) {
+    return false;
+  }
+  uint32_t length = alignment.read_end - alignment.read_start;
+  for (size_t aln_idx : it->second) {
+    const Alignment& other = alignments_[aln_idx];
+    if (&other == &alignment) {
+      continue;
+    }
+    uint32_t overlap_start = std::max(alignment.read_start, other.read_start);
+    uint32_t overlap_end = std::min(alignment.read_end, other.read_end);
+    if (overlap_end > overlap_start && 2 * (overlap_end - overlap_start) > length) {
+      return false;
+    }
+  }
+  return true;
+}
+
 uint32_t AlignmentStore::get_alignment_overlap(const Alignment& input_alignment) const
 {
   if (!read_alignment_index_built_) {

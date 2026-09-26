@@ -33,6 +33,9 @@ private:
     int min_alignment_length;
     int max_alignment_length;
     int min_indel_length;
+
+    // true: per-base depth variance measured along the segment; false: poisson (variance = mean)
+    bool empirical_variance;
     
     void load_segments(const string& ifn_segments);
     void load_libraries(const string& ifn_libraries);
@@ -65,6 +68,7 @@ public:
                 int min_alignment_length,
                 int max_alignment_length,
                 int min_indel_length,
+                bool empirical_variance,
                 const string& ofn_lib_map = "");
 };
 

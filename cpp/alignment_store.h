@@ -113,6 +113,10 @@ class AlignmentStore {
   // check if alignment is locally aligned (first/last alignments on read are on same contig)
   bool is_alignment_local(const Alignment& alignment, int clip_margin = 10) const;
 
+  // check if alignment is clipped on one read side only, at the paired contig end, and no other read
+  // alignment overlaps more than half of it on the read
+  bool is_alignment_end_unique(const Alignment& alignment, int clip_margin = 10) const;
+
   // get max overlap length with other alignments from same read (in read coordinates)
   uint32_t get_alignment_overlap(const Alignment& input_alignment) const;
 

@@ -87,7 +87,8 @@ enum class ClipMode {
   ONLY_ONE_SIDE_CLIPPED, // show only alignments clipped on one side
   ONLY_TWO_SIDE_CLIPPED, // show only alignments clipped on both sides
   ONLY_CLIPPED,        // show alignments clipped on one or both sides
-  LOCAL_ALIGN          // show only locally aligned reads (first/last alignments on same contig)
+  LOCAL_ALIGN,         // show only locally aligned reads (first/last alignments on same contig)
+  END_UNIQUE           // complete, or clipped only where the contig ends and not overlapped by another read alignment
 };
 
 ClipMode string_to_clip_mode(const std::string& mode);

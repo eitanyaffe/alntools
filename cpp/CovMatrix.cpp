@@ -1,5 +1,6 @@
 #include "CovMatrix.h"
 #include "utils.h"
+#include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -132,8 +133,9 @@ void CovMatrix::calculate_coverage(const CovSegment& segment,
     Interval interval(segment.contig, start_0based, end_0based);
     auto alignments = store.get_alignments_intersecting_interval(interval);
     
-    // sum intersection lengths with filtering
+    // sum intersection lengths with filtering; events mark where depth rises (+1) or falls (-1)
     uint64_t total_bp = 0;
+    vector<pair<uint32_t, int>> events;
     for (const auto& alignment_ref : alignments) {
         const Alignment& aln = alignment_ref.get();
         
@@ -150,13 +152,38 @@ void CovMatrix::calculate_coverage(const CovSegment& segment,
         
         if (intersection_end > intersection_start) {
             total_bp += (intersection_end - intersection_start);
+            if (empirical_variance) {
+                events.push_back({intersection_start, 1});
+                events.push_back({intersection_end, -1});
+            }
         }
     }
     
     double length = static_cast<double>(segment.length);
     coverage = static_cast<double>(total_bp) / length;
-    // poisson model: per-base depth variance equals the mean depth
-    variance = coverage;
+
+    if (!empirical_variance) {
+        // poisson model: per-base depth variance equals the mean depth
+        variance = coverage;
+        return;
+    }
+
+    // sweep: depth is constant between consecutive event positions
+    sort(events.begin(), events.end());
+    uint64_t sum_sq = 0;
+    int64_t depth = 0;
+    uint32_t prev = start_0based;
+    for (const auto& event : events) {
+        uint64_t width = event.first - prev;
+        sum_sq += width * static_cast<uint64_t>(depth * depth);
+        depth += event.second;
+        prev = event.first;
+    }
+    massert(depth == 0, "unbalanced depth events in segment %s", segment.id.c_str());
+
+    // population variance over all segment bases, zero-depth stretches included
+    variance = static_cast<double>(sum_sq) / length - coverage * coverage;
+    if (variance < 0.0) variance = 0.0;
 }
 
 void CovMatrix::write_fasta(const string& ofn_fasta, bool actual_nts) const
@@ -314,6 +341,7 @@ void CovMatrix::compute(const string& ifn_libraries,
                        int min_alignment_length_param,
                        int max_alignment_length_param,
                        int min_indel_length_param,
+                       bool empirical_variance_param,
                        const string& ofn_lib_map)
 {
     min_segment_length = min_seg_len;
@@ -324,6 +352,7 @@ void CovMatrix::compute(const string& ifn_libraries,
     min_alignment_length = min_alignment_length_param;
     max_alignment_length = max_alignment_length_param;
     min_indel_length = min_indel_length_param;
+    empirical_variance = empirical_variance_param;
     
     load_segments(ifn_segments);
     load_libraries(ifn_libraries);

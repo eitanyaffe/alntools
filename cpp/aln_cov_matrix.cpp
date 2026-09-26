@@ -15,13 +15,14 @@ void cov_matrix_params(const char* name, int argc, char** argv, Parameters& para
     params.add_parser("actual_nts", new ParserBoolean("use actual nucleotides when writing fasta (default T)", true), false);
     params.add_parser("should_create_fasta", new ParserBoolean("write fasta output (default T)", true), false);
     params.add_parser("min_segment_length", new ParserInteger("minimum segment length for filtering (default 1000)", 1000), false);
-    params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align)", "complete"), false);
+    params.add_parser("clip_mode", new ParserString("clipping mode (all, complete, allow_one_side_clip, only_one_side_clipped, only_two_side_clipped, only_clipped, local_align, end_unique)", "complete"), false);
     params.add_parser("clip_margin", new ParserInteger("clipping margin in bases (default 10)", 10), false);
     params.add_parser("min_mutations_percent", new ParserDouble("minimum mutations percentage (default 0.0)", 0.0), false);
     params.add_parser("max_mutations_percent", new ParserDouble("maximum mutations percentage (default 0.1)", 0.1), false);
     params.add_parser("min_alignment_length", new ParserInteger("minimum alignment length in read coordinates (default 1000)", 1000), false);
     params.add_parser("max_alignment_length", new ParserInteger("maximum alignment length in read coordinates (default 0, no limit)", 0), false);
     params.add_parser("min_indel_length", new ParserInteger("minimum indel length to include in mutation density calculations (default 3)", 3), false);
+    params.add_parser("variance_mode", new ParserString("depth variance: poisson (variance = mean) or empirical (per-base variance along the segment)", "poisson"), false);
     params.add_parser("ofn_lib_map", new ParserFilename("output library index to library ID mapping file"), false);
 
     if (argc == 1) {
@@ -57,6 +58,9 @@ int cov_matrix_main(const char* name, int argc, char** argv)
     int max_alignment_length = params.get_int("max_alignment_length");
     int min_indel_length = params.get_int("min_indel_length");
     string ofn_lib_map = params.get_string("ofn_lib_map");
+    string variance_mode = params.get_string("variance_mode");
+    massert(variance_mode == "poisson" || variance_mode == "empirical",
+            "variance_mode must be poisson or empirical, got: %s", variance_mode.c_str());
 
     CovMatrix cov_matrix;
     cov_matrix.compute(ifn_libraries, ifn_segments, ifn_fasta, ofn_mat, ofn_fasta,
@@ -64,7 +68,7 @@ int cov_matrix_main(const char* name, int argc, char** argv)
                       min_segment_length, clip_mode, clip_margin,
                       min_mutations_percent, max_mutations_percent,
                       min_alignment_length, max_alignment_length, min_indel_length,
-                      ofn_lib_map);
+                      variance_mode == "empirical", ofn_lib_map);
 
     return 0;
 }
